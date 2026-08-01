@@ -59,6 +59,8 @@ PostgreSQL dans une seule ressource Docker Compose. Dans Coolify, sélectionnez 
 les variables de `.env.example`, puis associez uniquement le service `web` au domaine HTTPS public.
 L'image API Coolify applique les migrations avant chaque démarrage. Les services `api` et `postgres`
 restent internes à la stack. Les volumes `postgres-data` et `photo-data` persistent entre les déploiements.
+Sans nom de domaine personnel, `SERVICE_FQDN_WEB_80` demande à Coolify de générer une adresse gratuite
+`sslip.io`. L'URL du service `web` doit utiliser `https://` afin que les cookies sécurisés fonctionnent.
 
 ## Configurations de jeu
 
