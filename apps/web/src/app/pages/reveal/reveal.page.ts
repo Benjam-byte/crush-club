@@ -1,154 +1,101 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import type { OnDestroy, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
+import type { OnInit } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
-import { DatingProfileCardComponent } from '../../core/components/dating-profile-card/dating-profile-card.component';
+import type { AnswerValue, QuestionDefinition } from '@core/models/game.models';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
-import { ProfilePortraitComponent } from '../../core/components/profile-portrait/profile-portrait.component';
-import { createProfileSubmissionList } from '../../core/data/profile-submissions.data';
 import { GameStateService } from '../../core/services/game-state.service';
 
-type RevealStep = 'official' | 'waiting' | 'versions' | 'vote';
-
-interface OfficialQuestionAnswer {
+interface DisplayedAnswer {
   id: string
   label: string
   value: string
-  icon: string
-  score?: number
-  maximumScore?: number
 }
 
 @Component({
   selector: 'app-reveal-page',
-  imports: [
-    DatingProfileCardComponent,
-    IonButton,
-    IonContent,
-    IonIcon,
-    PageHeaderComponent,
-    ProfilePortraitComponent,
-  ],
+  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent],
   templateUrl: './reveal.page.html',
   styleUrl: './reveal.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class RevealPage implements OnDestroy, OnInit {
+export class RevealPage implements OnInit {
   protected readonly gameState = inject(GameStateService);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private waitingTimeoutId: ReturnType<typeof setTimeout> | undefined;
-
-  protected readonly revealStep = signal<RevealStep>('official');
-  protected readonly selectedVersionId = signal<string | null>(null);
-  protected readonly submittedProfileCount = signal(3);
-  protected readonly revealTitle = computed(() => {
-    switch (this.revealStep()) {
-      case 'waiting':
-        return 'En attente du groupe';
-      case 'versions':
-        return 'Les versions\ndu groupe';
-      case 'vote':
-        return 'Vote de Camille';
-      default:
-        return 'Révélation';
+  protected readonly selectedSubmissionId = signal<string | null>(null);
+  protected readonly isVoting = signal(false);
+  protected readonly subjectPhotoUrl = computed(() => {
+    return this.gameState.photoUrl(this.gameState.subjectPlayer().photoIds[0]);
+  });
+  protected readonly officialAnswerList = computed<readonly DisplayedAnswer[]>(() => {
+    const submission = this.gameState.game()?.officialSubmission;
+    if (!submission) {
+      return [];
     }
-  });
-  protected readonly profileSubmissionList = computed(() => {
-    const currentPlayer = this.gameState.currentPlayer();
-    return createProfileSubmissionList(
-      {
-        authorName: currentPlayer.displayName,
-        avatarIndex: currentPlayer.avatarIndex,
-        tagline: this.gameState.tagline(),
-        bioAnswerByCategoryId: this.gameState.bioAnswerByCategoryId(),
-        answerByQuestionId: this.gameState.answerByQuestionId(),
-      },
-      this.gameState.activeQuestionList(),
-    );
-  });
-  protected readonly submissionStatusList = computed(() => {
-    return this.profileSubmissionList().map((submission, index) => ({
-      ...submission,
-      isSubmitted: index < this.submittedProfileCount(),
+    const bioAnswers = this.gameState.profileFieldList().map((field) => ({
+      id: field.id,
+      label: field.label,
+      value: field.options.find((option) => option.id === submission.bioAnswers[field.id])?.label ?? 'Sans réponse',
     }));
-  });
-  protected readonly isEveryProfileSubmitted = computed(() => {
-    return this.submittedProfileCount() === this.profileSubmissionList().length;
-  });
-  private readonly officialQuestionAnswerById: Readonly<Record<string, OfficialQuestionAnswer>> = Object.fromEntries([
-    {
-      id: 'romance',
-      label: 'Niveau de romantisme',
-      value: '7/10',
-      icon: 'heart',
-      score: 7,
-      maximumScore: 10,
-    },
-    { id: 'love-language', label: 'Langage d’amour', value: 'Moments de qualité', icon: 'chatbubble-ellipses' },
-    { id: 'first-date', label: 'Rendez-vous idéal', value: 'Pique-nique improvisé', icon: 'restaurant' },
-    { id: 'weekend', label: 'Week-end à deux', value: 'Tout improviser', icon: 'compass' },
-    {
-      id: 'intimacy',
-      label: 'Parler de ses envies',
-      value: '8/10',
-      icon: 'sparkles',
-      score: 8,
-      maximumScore: 10,
-    },
-  ].map((answer) => [answer.id, answer]));
-  protected readonly officialQuestionAnswerList = computed(() => {
-    return this.gameState.activeQuestionList().flatMap((question) => {
-      const answer = this.officialQuestionAnswerById[question.id];
-      return answer ? [answer] : [];
-    });
+    const questionAnswers = this.gameState.activeQuestionList().map((question) => ({
+      id: question.id,
+      label: question.label,
+      value: this.formatAnswer(question, submission.questionAnswers[question.id]),
+    }));
+    return [...bioAnswers, ...questionAnswers];
   });
 
   async ngOnInit(): Promise<void> {
     try {
-      await this.gameState.loadQuestionnaire();
+      await this.gameState.refreshLobby(this.route.snapshot.paramMap.get('code') ?? undefined);
     } catch {
-      // GameState exposes the load error.
+      await this.router.navigate(['/join'], { queryParams: { code: this.route.snapshot.paramMap.get('code') } });
     }
   }
 
-  ngOnDestroy(): void {
-    if (this.waitingTimeoutId !== undefined) {
-      clearTimeout(this.waitingTimeoutId);
+  protected selectSubmission(submissionId: string): void {
+    if (this.gameState.role() === 'lover') {
+      this.selectedSubmissionId.set(submissionId);
     }
   }
 
-  protected onShowWaiting(): void {
-    this.submittedProfileCount.set(3);
-    this.revealStep.set('waiting');
-    this.waitingTimeoutId = setTimeout(() => {
-      this.submittedProfileCount.set(this.profileSubmissionList().length);
-      this.waitingTimeoutId = undefined;
-    }, 1200);
-  }
-
-  protected onShowVersions(): void {
-    if (!this.isEveryProfileSubmitted()) {
+  protected async submitVote(): Promise<void> {
+    const submissionId = this.selectedSubmissionId();
+    if (!submissionId || this.gameState.role() !== 'lover') {
       return;
     }
-
-    this.revealStep.set('versions');
-  }
-
-  protected onShowVote(): void {
-    this.revealStep.set('vote');
-  }
-
-  protected onVersionSelect(versionId: string): void {
-    this.selectedVersionId.set(versionId);
-  }
-
-  protected onCompare(): void {
-    const selectedVersionId = this.selectedVersionId();
-    if (selectedVersionId === null) {
-      return;
+    this.isVoting.set(true);
+    try {
+      await this.gameState.voteForTagline(submissionId);
+    } catch {
+      // GameState exposes the API error.
+    } finally {
+      this.isVoting.set(false);
     }
+  }
 
-    this.gameState.selectBestTagline(selectedVersionId);
-    void this.router.navigate(['/game/demo/reveal/1/scores']);
+  protected initials(displayName: string): string {
+    return displayName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('');
+  }
+
+  protected submissionBio(submissionId: string): string {
+    const submission = this.gameState.game()?.submissions?.find((candidate) => candidate.id === submissionId);
+    if (!submission) {
+      return '';
+    }
+    return this.gameState.profileFieldList().map((field) => {
+      return field.options.find((option) => option.id === submission.bioAnswers[field.id])?.label ?? '';
+    }).filter(Boolean).join(' · ');
+  }
+
+  private formatAnswer(question: QuestionDefinition, answer: AnswerValue | undefined): string {
+    if (typeof answer === 'number') {
+      return `${answer}/${question.maximum ?? 10}`;
+    }
+    if (typeof answer === 'string') {
+      return question.options?.find((option) => option.id === answer)?.label ?? answer;
+    }
+    return 'Sans réponse';
   }
 }

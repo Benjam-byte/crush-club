@@ -1,4 +1,5 @@
 import type { Routes } from "@angular/router";
+import { lobbySessionGuard } from "@core/guards/lobby-session.guard";
 
 export const routes: Routes = [
   {
@@ -39,44 +40,51 @@ export const routes: Routes = [
   },
   {
     path: "lobby/:code",
+    canActivate: [lobbySessionGuard],
     loadComponent: () =>
       import("./pages/lobby/lobby.page").then((module) => module.LobbyPage),
     title: "Lobby Crush Club",
   },
   {
     path: "lobby/:code/photos",
+    canActivate: [lobbySessionGuard],
     loadComponent: () =>
       import("./pages/photos/photos.page").then((module) => module.PhotosPage),
     title: "Mes photos Crush Club",
   },
   {
-    path: "game/demo/role",
+    path: "game/:code/round/:roundNumber/role",
+    canActivate: [lobbySessionGuard],
     loadComponent: () =>
       import("./pages/role/role.page").then((module) => module.RolePage),
     title: "Ton rôle Crush Club",
   },
   {
-    path: "game/demo/round/1",
+    path: "game/:code/round/:roundNumber/profile",
+    canActivate: [lobbySessionGuard],
     loadComponent: () =>
       import("./pages/questionnaire/questionnaire.page").then(
         (module) => module.QuestionnairePage,
       ),
-    title: "Profil de Camille Crush Club",
+    title: "Profil Crush Club",
   },
   {
-    path: "game/demo/round/1/review",
+    path: "game/:code/round/:roundNumber/review",
+    canActivate: [lobbySessionGuard],
     loadComponent: () =>
       import("./pages/review/review.page").then((module) => module.ReviewPage),
     title: "Validation Crush Club",
   },
   {
-    path: "game/demo/reveal/1",
+    path: "game/:code/round/:roundNumber/reveal",
+    canActivate: [lobbySessionGuard],
     loadComponent: () =>
       import("./pages/reveal/reveal.page").then((module) => module.RevealPage),
     title: "Révélation Crush Club",
   },
   {
-    path: "game/demo/reveal/1/scores",
+    path: "game/:code/round/:roundNumber/scores",
+    canActivate: [lobbySessionGuard],
     loadComponent: () =>
       import("./pages/comparison/comparison.page").then(
         (module) => module.ComparisonPage,
@@ -84,7 +92,8 @@ export const routes: Routes = [
     title: "Scores finaux Crush Club",
   },
   {
-    path: "game/demo/reveal/1/comparison/:profileId",
+    path: "game/:code/round/:roundNumber/scores/:profileId",
+    canActivate: [lobbySessionGuard],
     loadComponent: () =>
       import("./pages/profile-comparison/profile-comparison.page").then(
         (module) => module.ProfileComparisonPage,
@@ -92,20 +101,8 @@ export const routes: Routes = [
     title: "Comparaison Crush Club",
   },
   {
-    path: "game/demo/reveal/1/comparison",
-    redirectTo: "game/demo/reveal/1/scores",
-    pathMatch: "full",
-  },
-  {
-    path: "game/demo/results/1",
-    loadComponent: () =>
-      import("./pages/round-results/round-results.page").then(
-        (module) => module.RoundResultsPage,
-      ),
-    title: "Résultats de la manche Crush Club",
-  },
-  {
-    path: "game/demo/final",
+    path: "game/:code/final",
+    canActivate: [lobbySessionGuard],
     loadComponent: () =>
       import("./pages/final-results/final-results.page").then(
         (module) => module.FinalResultsPage,

@@ -60,6 +60,7 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	apiServer.startMaintenance(ctx)
 
 	go func() {
 		logger.Info("http server starting", "address", address)
@@ -70,6 +71,7 @@ func main() {
 	}()
 
 	<-ctx.Done()
+	apiServer.hub.closeAll()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {

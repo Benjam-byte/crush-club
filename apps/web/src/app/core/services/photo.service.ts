@@ -1,23 +1,14 @@
 import { Injectable, signal } from '@angular/core';
-import type { DefaultPhotoCandidate, PhotoCandidate } from '../models/game.models';
+import type { PhotoCandidate } from '../models/game.models';
 
 const requiredPhotoCount = 4;
-
-const defaultPhotoList: readonly DefaultPhotoCandidate[] = [0, 1, 2, 3].map(
-  (avatarIndex) => ({
-    id: `default-photo-${avatarIndex}`,
-    kind: 'default',
-    atlas: 'camille',
-    avatarIndex,
-    isObjectUrl: false,
-  }),
-);
 
 @Injectable({
   providedIn: 'root',
 })
 export class PhotoService {
   private readonly photoPreviewListState = signal<readonly PhotoCandidate[]>([]);
+  private readonly photoFileListState = signal<readonly File[]>([]);
 
   readonly photoPreviewList = this.photoPreviewListState.asReadonly();
 
@@ -34,6 +25,7 @@ export class PhotoService {
     }
 
     this.revokeObjectUrlList();
+    this.photoFileListState.set(selectedFileList);
     const photoPreviewList = selectedFileList.map((file, index) => {
       return {
         id: `local-photo-${index}`,
@@ -47,14 +39,15 @@ export class PhotoService {
     return null;
   }
 
-  useDefaultPhotoList(): void {
-    this.revokeObjectUrlList();
-    this.photoPreviewListState.set(defaultPhotoList);
+  orderedFileList(photoIndexList: readonly number[]): readonly File[] {
+    const fileList = this.photoFileListState();
+    return photoIndexList.flatMap((index) => fileList[index] ? [fileList[index]] : []);
   }
 
   clearPhotoList(): void {
     this.revokeObjectUrlList();
     this.photoPreviewListState.set([]);
+    this.photoFileListState.set([]);
   }
 
   private revokeObjectUrlList(): void {

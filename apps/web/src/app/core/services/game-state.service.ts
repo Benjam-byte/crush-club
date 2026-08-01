@@ -1,13 +1,17 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import type {
   AnswerValue,
   LobbyPlayer,
-  LobbyResponse,
+  LobbyStateResponse,
   LobbyStatus,
   PlayerRole,
   QuestionnaireSnapshot,
+  RoundSubmissionInput,
 } from '@core/models/game.models';
 import { LobbyApiService } from './lobby-api.service';
+import { RealtimeLobbyService } from './realtime-lobby.service';
 
 interface StoredDraft {
   tagline: string
@@ -16,181 +20,192 @@ interface StoredDraft {
   loverQuestionId: string | null
 }
 
-interface StoredSession {
-  displayName: string
+interface StoredPlayerSession {
   lobbyCode: string
-  isHost: boolean
-  lobbyStatus: LobbyStatus
-  gameConfigId: string | null
-  gameConfigName: string
-  gameConfigVersion: number
-  gameConfigQuestionCount: number
+  playerId: string
+  reconnectToken: string
 }
 
-const sessionStorageKey = 'crush-club-session-v3';
+const sessionStorageKey = 'crush-club-player-session-v4';
+
+const emptyPlayer: LobbyPlayer = {
+  id: '',
+  displayName: '',
+  isHost: false,
+  isCurrentPlayer: true,
+  readyStatus: 'joining',
+  connected: false,
+  canExclude: false,
+  photoIds: [],
+  joinedAt: '',
+};
 
 @Injectable({
   providedIn: 'root',
 })
 export class GameStateService {
   private readonly lobbyApi = inject(LobbyApiService);
-  private readonly storedSession = this.readStoredSession();
-  private readonly displayNameState = signal(this.storedSession.displayName);
-  private readonly lobbyCodeState = signal(this.storedSession.lobbyCode);
-  private readonly isHostState = signal(this.storedSession.isHost);
-  private readonly lobbyStatusState = signal<LobbyStatus>(this.storedSession.lobbyStatus);
-  private readonly roleState = signal<PlayerRole>('cupid');
-  private readonly playerListState = signal<readonly LobbyPlayer[]>(
-    this.createPlayerList(this.storedSession.displayName, this.storedSession.isHost),
-  );
-  private readonly gameConfigIdState = signal<string | null>(this.storedSession.gameConfigId);
-  private readonly gameConfigNameState = signal(this.storedSession.gameConfigName);
-  private readonly gameConfigVersionState = signal(this.storedSession.gameConfigVersion);
-  private readonly gameConfigQuestionCountState = signal(this.storedSession.gameConfigQuestionCount);
-  private readonly questionnaireSnapshotState = signal<QuestionnaireSnapshot | null>(null);
+  private readonly realtime = inject(RealtimeLobbyService);
+  private readonly router = inject(Router);
+  private readonly storedSessionState = signal<StoredPlayerSession | null>(this.readStoredSession());
   private readonly taglineState = signal('');
   private readonly answerByQuestionIdState = signal<Record<string, AnswerValue>>({});
   private readonly bioAnswerByCategoryIdState = signal<Record<string, string>>({});
   private readonly loverQuestionIdState = signal<string | null>(null);
-  private readonly bestTaglineProfileIdState = signal<string | null>(null);
-  private readonly isProfileLockedState = signal(false);
-  private readonly isQuestionnaireLoadingState = signal(false);
   private readonly errorMessageState = signal<string | null>(null);
+  private readonly photoUrlByIdState = signal<Readonly<Record<string, string>>>({});
+  private readonly loadingPhotoIdSet = new Set<string>();
+  private restoredDraftKey = '';
 
-  readonly displayName = this.displayNameState.asReadonly();
-  readonly lobbyCode = this.lobbyCodeState.asReadonly();
-  readonly isHost = this.isHostState.asReadonly();
-  readonly lobbyStatus = this.lobbyStatusState.asReadonly();
-  readonly role = this.roleState.asReadonly();
-  readonly playerList = this.playerListState.asReadonly();
-  readonly gameConfigId = this.gameConfigIdState.asReadonly();
-  readonly gameConfigName = this.gameConfigNameState.asReadonly();
-  readonly gameConfigVersion = this.gameConfigVersionState.asReadonly();
-  readonly gameConfigQuestionCount = this.gameConfigQuestionCountState.asReadonly();
-  readonly questionnaireSnapshot = this.questionnaireSnapshotState.asReadonly();
+  readonly state = this.realtime.state;
+  readonly connectionStatus = this.realtime.connectionStatus;
+  readonly isRealtimeConnected = computed(() => this.connectionStatus() === 'connected');
+  readonly lobbyCode = computed(() => this.state()?.code ?? this.storedSessionState()?.lobbyCode ?? '');
+  readonly lobbyStatus = computed<LobbyStatus>(() => this.state()?.status ?? 'waiting_for_players');
+  readonly displayName = computed(() => this.currentPlayer().displayName);
+  readonly isHost = computed(() => this.currentPlayer().isHost);
+  readonly playerList = computed<readonly LobbyPlayer[]>(() => {
+    const state = this.state();
+    if (!state) {
+      return [];
+    }
+    return state.players.map((player) => ({
+      ...player,
+      isCurrentPlayer: player.id === state.currentPlayerId,
+    }));
+  });
+  readonly currentPlayer = computed<LobbyPlayer>(() => {
+    return this.playerList().find((player) => player.isCurrentPlayer) ?? emptyPlayer;
+  });
+  readonly gameConfigId = computed<string | null>(() => this.state()?.gameConfig.id ?? null);
+  readonly gameConfigName = computed(() => this.state()?.gameConfig.name ?? '');
+  readonly gameConfigVersion = computed(() => this.state()?.gameConfig.version ?? 0);
+  readonly gameConfigQuestionCount = computed(() => this.state()?.gameConfig.questionCount ?? 0);
+  readonly questionnaireSnapshot = computed<QuestionnaireSnapshot | null>(() => this.state()?.questionnaire ?? null);
   readonly activeQuestionList = computed(() => this.questionnaireSnapshot()?.questions ?? []);
+  readonly profileFieldList = computed(() => this.questionnaireSnapshot()?.profileFields ?? []);
+  readonly role = computed<PlayerRole>(() => this.state()?.game?.role === 'subject' ? 'lover' : 'cupid');
+  readonly game = computed(() => this.state()?.game ?? null);
+  readonly subjectPlayer = computed(() => {
+    const subjectID = this.game()?.subjectPlayerId;
+    return this.playerList().find((player) => player.id === subjectID) ?? emptyPlayer;
+  });
+  readonly nextSubjectPlayer = computed(() => {
+    const subjectID = this.game()?.nextSubjectPlayerId;
+    return this.playerList().find((player) => player.id === subjectID) ?? emptyPlayer;
+  });
   readonly tagline = this.taglineState.asReadonly();
   readonly answerByQuestionId = this.answerByQuestionIdState.asReadonly();
   readonly bioAnswerByCategoryId = this.bioAnswerByCategoryIdState.asReadonly();
   readonly loverQuestionId = this.loverQuestionIdState.asReadonly();
-  readonly bestTaglineProfileId = this.bestTaglineProfileIdState.asReadonly();
-  readonly isProfileLocked = this.isProfileLockedState.asReadonly();
-  readonly isQuestionnaireLoading = this.isQuestionnaireLoadingState.asReadonly();
+  readonly isProfileLocked = computed(() => this.game()?.submitted ?? false);
+  readonly isQuestionnaireLoading = computed(() => this.state() === null);
   readonly errorMessage = this.errorMessageState.asReadonly();
-
-  readonly currentPlayer = computed(() => {
-    return this.playerList().find((player) => player.isCurrentPlayer) ?? this.playerList()[0];
-  });
-
-  readonly isEveryPlayerReady = computed(() => {
-    return this.playerList().every((player) => player.readyStatus === 'ready');
-  });
-
   readonly canStartGame = computed(() => {
-    return this.isHost() && this.isEveryPlayerReady();
+    const players = this.playerList();
+    return this.game() === null &&
+      this.isHost() &&
+      this.isRealtimeConnected() &&
+      players.length >= 2 &&
+      players.length <= 10 &&
+      players.every((player) => player.connected && player.readyStatus === 'ready' && player.photoIds.length === 4);
+  });
+  readonly canStartNextRound = computed(() => {
+    const game = this.game();
+    const players = this.playerList();
+    return game?.phase === 'between_rounds' &&
+      this.isHost() &&
+      this.isRealtimeConnected() &&
+      players.length >= 2 &&
+      players.every((player) => player.connected);
   });
 
-  async createLobby(
-    displayName: string,
-    gameConfigId: string,
-    adultConfirmed: boolean,
-  ): Promise<string> {
+  constructor() {
+    effect(() => {
+      const state = this.state();
+      if (state) {
+        void this.loadMissingPhotos(state);
+        void this.synchronizeRoute(state);
+      }
+    });
+  }
+
+  async createLobby(displayName: string, gameConfigId: string): Promise<string> {
     this.errorMessageState.set(null);
     try {
-      const lobby = await this.lobbyApi.create({
+      const session = await this.lobbyApi.create({
         displayName,
-        adultConfirmed,
-        maxPlayers: 8,
+        maxPlayers: 10,
         gameConfigId,
       });
-      this.initializeSession(displayName, lobby, true);
-      if (lobby.reconnectToken) {
-        localStorage.setItem(`crush-club-reconnect-${lobby.code}`, lobby.reconnectToken);
-      }
-      return lobby.code;
+      this.establishSession(session.state, session.reconnectToken);
+      return session.state.code;
     } catch (error: unknown) {
-      this.errorMessageState.set('Impossible de créer le lobby pour le moment.');
+      this.captureError(error, 'Impossible de créer le lobby pour le moment.');
       throw error;
     }
   }
 
   async joinLobby(displayName: string, lobbyCode: string): Promise<string> {
-    const normalizedLobbyCode = lobbyCode.toUpperCase();
+    const normalizedCode = lobbyCode.toUpperCase();
     this.errorMessageState.set(null);
     try {
-      const lobby = await this.lobbyApi.get(normalizedLobbyCode);
-      this.initializeSession(displayName, lobby, false);
-      return normalizedLobbyCode;
+      const session = await this.lobbyApi.join(normalizedCode, displayName);
+      this.establishSession(session.state, session.reconnectToken);
+      return session.state.code;
     } catch (error: unknown) {
-      this.errorMessageState.set('Ce lobby est introuvable ou a expiré.');
+      this.captureError(error, 'Ce lobby est introuvable, complet ou déjà lancé.');
       throw error;
     }
   }
 
-  async refreshLobby(): Promise<void> {
-    const lobby = await this.lobbyApi.get(this.lobbyCode());
-    this.applyLobby(lobby);
+  async refreshLobby(routeCode?: string): Promise<void> {
+    const session = this.storedSessionState();
+    const code = (routeCode ?? session?.lobbyCode ?? '').toUpperCase();
+    if (!session || session.lobbyCode !== code) {
+      this.errorMessageState.set('Rejoins ce lobby pour accéder à sa partie.');
+      throw new Error('No player session for lobby');
+    }
+    this.errorMessageState.set(null);
+    try {
+      const state = await this.lobbyApi.getState(code, session.reconnectToken);
+      this.realtime.setState(state);
+      this.realtime.connect(code, session.reconnectToken);
+    } catch (error: unknown) {
+      this.captureError(error, 'Ta session joueur a expiré. Rejoins à nouveau le lobby.');
+      throw error;
+    }
   }
 
   async changeLobbyConfig(gameConfigId: string): Promise<void> {
-    this.errorMessageState.set(null);
-    try {
-      const lobby = await this.lobbyApi.changeConfig(this.lobbyCode(), gameConfigId);
-      this.applyLobby(lobby);
-      this.questionnaireSnapshotState.set(null);
-    } catch (error: unknown) {
-      this.errorMessageState.set('La configuration du lobby n’a pas pu être modifiée.');
-      throw error;
-    }
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.changeConfig(code, token, gameConfigId),
+      'La configuration du lobby n’a pas pu être modifiée.',
+    );
   }
 
-  async loadQuestionnaire(force = false): Promise<void> {
-    if (!force && this.questionnaireSnapshot()?.sourceVersion === this.gameConfigVersion()) {
-      return;
-    }
-    this.isQuestionnaireLoadingState.set(true);
-    this.errorMessageState.set(null);
-    try {
-      const snapshot = await this.lobbyApi.getQuestionnaire(this.lobbyCode());
-      this.questionnaireSnapshotState.set(snapshot);
-      this.gameConfigIdState.set(snapshot.sourceConfigId);
-      this.gameConfigNameState.set(snapshot.name);
-      this.gameConfigVersionState.set(snapshot.sourceVersion);
-      this.gameConfigQuestionCountState.set(snapshot.questions.length);
-      this.restoreDraft(snapshot);
-      this.persistSession();
-    } catch (error: unknown) {
-      this.errorMessageState.set('Le questionnaire n’a pas pu être chargé.');
-      throw error;
-    } finally {
-      this.isQuestionnaireLoadingState.set(false);
-    }
+  async uploadPhotos(photoList: readonly File[]): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.uploadPhotos(code, token, photoList),
+      'Les quatre photos n’ont pas pu être envoyées.',
+    );
   }
 
-  setCurrentPlayerReady(): void {
-    this.playerListState.update((playerList) => {
-      return playerList.map((player) => {
-        if (!player.isCurrentPlayer) {
-          return player;
-        }
-
-        return {
-          ...player,
-          readyStatus: 'ready',
-        };
-      });
-    });
-    this.lobbyStatusState.set('ready_to_start');
-    this.persistSession();
+  async loadQuestionnaire(): Promise<void> {
+    if (!this.state()) {
+      await this.refreshLobby();
+    }
+    this.restoreDraftForCurrentRound();
   }
 
   async startGame(): Promise<void> {
     if (!this.canStartGame()) {
       return;
     }
-    const lobby = await this.lobbyApi.start(this.lobbyCode());
-    this.applyLobby(lobby);
-    await this.loadQuestionnaire(true);
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.start(code, token),
+      'La partie n’a pas pu démarrer.',
+    );
   }
 
   saveTagline(tagline: string): void {
@@ -199,12 +214,10 @@ export class GameStateService {
   }
 
   saveBioAnswer(categoryId: string, optionId: string): void {
-    this.bioAnswerByCategoryIdState.update((answerByCategoryId) => {
-      return {
-        ...answerByCategoryId,
-        [categoryId]: optionId,
-      };
-    });
+    this.bioAnswerByCategoryIdState.update((answerByCategoryId) => ({
+      ...answerByCategoryId,
+      [categoryId]: optionId,
+    }));
     this.persistDraft();
   }
 
@@ -212,197 +225,261 @@ export class GameStateService {
     if (!this.activeQuestionList().some((question) => question.id === questionId)) {
       return;
     }
-    this.answerByQuestionIdState.update((answerByQuestionId) => {
-      return {
-        ...answerByQuestionId,
-        [questionId]: answer,
-      };
-    });
+    this.answerByQuestionIdState.update((answerByQuestionId) => ({
+      ...answerByQuestionId,
+      [questionId]: answer,
+    }));
     this.persistDraft();
   }
 
   selectLoverQuestion(questionId: string): void {
     const question = this.activeQuestionList().find((candidate) => candidate.id === questionId);
-    if (!question?.loverEligible) {
+    if (!question?.loverEligible || this.role() === 'lover') {
       return;
     }
     this.loverQuestionIdState.set(questionId);
     this.persistDraft();
   }
 
-  selectBestTagline(profileId: string): void {
-    this.bestTaglineProfileIdState.set(profileId);
+  async lockProfile(): Promise<void> {
+    const game = this.game();
+    if (!game || game.submitted) {
+      return;
+    }
+    const input: RoundSubmissionInput = {
+      bioAnswers: this.bioAnswerByCategoryId(),
+      questionAnswers: this.answerByQuestionId(),
+    };
+    if (game.role === 'cupid') {
+      input.tagline = this.tagline().trim();
+      input.loverQuestionId = this.loverQuestionId() ?? undefined;
+    }
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.submit(code, token, input),
+      'Ton profil n’a pas pu être verrouillé.',
+    );
+    localStorage.removeItem(this.currentDraftStorageKey());
   }
 
-  lockProfile(): void {
-    this.isProfileLockedState.set(true);
-    localStorage.removeItem(this.currentDraftStorageKey());
+  async voteForTagline(submissionId: string): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.vote(code, token, submissionId),
+      'Le vote n’a pas pu être enregistré.',
+    );
+  }
+
+  async returnToLobby(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.closeCurrentRound(code, token),
+      'Le retour au lobby n’a pas pu être synchronisé.',
+    );
+  }
+
+  async startNextRound(): Promise<void> {
+    if (!this.canStartNextRound()) {
+      return;
+    }
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.startNextRound(code, token),
+      'La manche suivante n’a pas pu démarrer.',
+    );
+  }
+
+  async excludePlayer(playerId: string): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.excludePlayer(code, token, playerId),
+      'Ce joueur ne peut pas encore être exclu.',
+    );
+  }
+
+  photoUrl(photoId: string | undefined): string | null {
+    return photoId ? this.photoUrlByIdState()[photoId] ?? null : null;
   }
 
   resetGame(): void {
     localStorage.removeItem(this.currentDraftStorageKey());
     localStorage.removeItem(sessionStorageKey);
-    this.displayNameState.set('Léa');
-    this.lobbyCodeState.set('AB7K');
-    this.isHostState.set(true);
-    this.lobbyStatusState.set('preparing_photos');
-    this.playerListState.set(this.createPlayerList('Léa'));
-    this.gameConfigIdState.set(null);
-    this.gameConfigNameState.set('');
-    this.gameConfigVersionState.set(0);
-    this.gameConfigQuestionCountState.set(0);
-    this.questionnaireSnapshotState.set(null);
+    this.storedSessionState.set(null);
+    this.realtime.disconnect();
+    for (const url of Object.values(this.photoUrlByIdState())) {
+      URL.revokeObjectURL(url);
+    }
+    this.photoUrlByIdState.set({});
     this.taglineState.set('');
     this.answerByQuestionIdState.set({});
     this.bioAnswerByCategoryIdState.set({});
     this.loverQuestionIdState.set(null);
-    this.bestTaglineProfileIdState.set(null);
-    this.isProfileLockedState.set(false);
+    this.errorMessageState.set(null);
+    this.restoredDraftKey = '';
   }
 
-  private initializeSession(displayName: string, lobby: LobbyResponse, isHost: boolean): void {
-    this.displayNameState.set(displayName);
-    this.lobbyCodeState.set(lobby.code);
-    this.isHostState.set(isHost);
-    this.playerListState.set(this.createPlayerList(displayName, isHost));
-    this.applyLobby(lobby);
-    this.questionnaireSnapshotState.set(null);
-    this.taglineState.set('');
-    this.answerByQuestionIdState.set({});
-    this.bioAnswerByCategoryIdState.set({});
-    this.loverQuestionIdState.set(null);
-    this.persistSession();
-  }
-
-  private applyLobby(lobby: LobbyResponse): void {
-    this.lobbyCodeState.set(lobby.code);
-    this.lobbyStatusState.set(lobby.status);
-    this.gameConfigIdState.set(lobby.gameConfig.id);
-    this.gameConfigNameState.set(lobby.gameConfig.name);
-    this.gameConfigVersionState.set(lobby.gameConfig.version);
-    this.gameConfigQuestionCountState.set(lobby.gameConfig.questionCount);
-    this.persistSession();
-  }
-
-  private createPlayerList(displayName: string, isHost = true): readonly LobbyPlayer[] {
-    return [
-      {
-        id: 'player-current',
-        displayName,
-        avatarIndex: 0,
-        isHost,
-        isCurrentPlayer: true,
-        readyStatus: 'preparing_photos',
-      },
-      {
-        id: 'player-marco',
-        displayName: 'Marco',
-        avatarIndex: 1,
-        isHost: !isHost,
-        isCurrentPlayer: false,
-        readyStatus: 'ready',
-      },
-      {
-        id: 'player-ines',
-        displayName: 'Inès',
-        avatarIndex: 2,
-        isHost: false,
-        isCurrentPlayer: false,
-        readyStatus: 'ready',
-      },
-      {
-        id: 'player-tom',
-        displayName: 'Tom',
-        avatarIndex: 3,
-        isHost: false,
-        isCurrentPlayer: false,
-        readyStatus: 'ready',
-      },
-    ];
-  }
-
-  private restoreDraft(snapshot: QuestionnaireSnapshot): void {
-    const storedDraft = this.readStoredDraft();
-    const validQuestionIDs = new Set(snapshot.questions.map((question) => question.id));
-    const validAnswerByQuestionId = Object.fromEntries(
-      Object.entries(storedDraft.answerByQuestionId).filter(([questionId]) => validQuestionIDs.has(questionId)),
-    );
-    const loverQuestion = snapshot.questions.find((question) => {
-      return question.id === storedDraft.loverQuestionId && question.loverEligible;
-    });
-    this.taglineState.set(storedDraft.tagline);
-    this.answerByQuestionIdState.set(validAnswerByQuestionId);
-    this.bioAnswerByCategoryIdState.set(storedDraft.bioAnswerByCategoryId);
-    this.loverQuestionIdState.set(loverQuestion?.id ?? null);
-  }
-
-  private persistDraft(): void {
-    const storedDraft: StoredDraft = {
-      tagline: this.tagline(),
-      answerByQuestionId: this.answerByQuestionId(),
-      bioAnswerByCategoryId: this.bioAnswerByCategoryId(),
-      loverQuestionId: this.loverQuestionId(),
+  private establishSession(state: LobbyStateResponse, reconnectToken: string): void {
+    const session: StoredPlayerSession = {
+      lobbyCode: state.code,
+      playerId: state.currentPlayerId,
+      reconnectToken,
     };
-    localStorage.setItem(this.currentDraftStorageKey(), JSON.stringify(storedDraft));
+    localStorage.setItem(sessionStorageKey, JSON.stringify(session));
+    this.storedSessionState.set(session);
+    this.realtime.setState(state);
+    this.realtime.connect(state.code, reconnectToken);
+    this.restoredDraftKey = '';
   }
 
-  private readStoredDraft(): StoredDraft {
-    const emptyDraft: StoredDraft = {
+  private async runStateCommand(
+    command: (code: string, reconnectToken: string) => Promise<LobbyStateResponse>,
+    fallbackMessage: string,
+  ): Promise<void> {
+    const session = this.storedSessionState();
+    if (!session) {
+      this.errorMessageState.set('Ta session joueur est introuvable.');
+      throw new Error('Missing player session');
+    }
+    this.errorMessageState.set(null);
+    try {
+      const state = await command(session.lobbyCode, session.reconnectToken);
+      this.realtime.setState(state);
+    } catch (error: unknown) {
+      this.captureError(error, fallbackMessage);
+      throw error;
+    }
+  }
+
+  private restoreDraftForCurrentRound(): void {
+    const draftKey = this.currentDraftStorageKey();
+    if (this.restoredDraftKey === draftKey) {
+      return;
+    }
+    this.restoredDraftKey = draftKey;
+    const storedValue = localStorage.getItem(draftKey);
+    let draft: StoredDraft = {
       tagline: '',
       answerByQuestionId: {},
       bioAnswerByCategoryId: {},
       loverQuestionId: null,
     };
-    const storedValue = localStorage.getItem(this.currentDraftStorageKey());
-    if (storedValue === null) {
-      return emptyDraft;
+    if (storedValue) {
+      try {
+        draft = { ...draft, ...(JSON.parse(storedValue) as Partial<StoredDraft>) };
+      } catch (error: unknown) {
+        console.error('Unable to restore the local questionnaire draft', error);
+      }
     }
-    try {
-      return JSON.parse(storedValue) as StoredDraft;
-    } catch (error: unknown) {
-      console.error('Unable to restore the local questionnaire draft', error);
-      return emptyDraft;
+    const validQuestionIDs = new Set(this.activeQuestionList().map((question) => question.id));
+    this.taglineState.set(draft.tagline);
+    this.answerByQuestionIdState.set(Object.fromEntries(
+      Object.entries(draft.answerByQuestionId).filter(([questionId]) => validQuestionIDs.has(questionId)),
+    ));
+    this.bioAnswerByCategoryIdState.set(draft.bioAnswerByCategoryId);
+    const loverQuestion = this.activeQuestionList().find((question) => {
+      return question.id === draft.loverQuestionId && question.loverEligible;
+    });
+    this.loverQuestionIdState.set(this.role() === 'lover' ? null : loverQuestion?.id ?? null);
+  }
+
+  private persistDraft(): void {
+    if (!this.state()?.game || this.isProfileLocked()) {
+      return;
     }
+    const draft: StoredDraft = {
+      tagline: this.tagline(),
+      answerByQuestionId: this.answerByQuestionId(),
+      bioAnswerByCategoryId: this.bioAnswerByCategoryId(),
+      loverQuestionId: this.loverQuestionId(),
+    };
+    localStorage.setItem(this.currentDraftStorageKey(), JSON.stringify(draft));
   }
 
   private currentDraftStorageKey(): string {
-    const playerKey = this.displayName().trim().toLocaleLowerCase().replace(/\s+/g, '-');
-    return `crush-club-draft:${this.lobbyCode()}:${playerKey}:${this.gameConfigId() ?? 'none'}:${this.gameConfigVersion()}`;
+    const session = this.storedSessionState();
+    const game = this.game();
+    return `crush-club-draft:${session?.lobbyCode ?? 'none'}:${session?.playerId ?? 'none'}:${game?.roundNumber ?? 0}:${this.gameConfigVersion()}`;
   }
 
-  private persistSession(): void {
-    const session: StoredSession = {
-      displayName: this.displayName(),
-      lobbyCode: this.lobbyCode(),
-      isHost: this.isHost(),
-      lobbyStatus: this.lobbyStatus(),
-      gameConfigId: this.gameConfigId(),
-      gameConfigName: this.gameConfigName(),
-      gameConfigVersion: this.gameConfigVersion(),
-      gameConfigQuestionCount: this.gameConfigQuestionCount(),
-    };
-    localStorage.setItem(sessionStorageKey, JSON.stringify(session));
-  }
-
-  private readStoredSession(): StoredSession {
-    const fallback: StoredSession = {
-      displayName: 'Léa',
-      lobbyCode: 'AB7K',
-      isHost: true,
-      lobbyStatus: 'preparing_photos',
-      gameConfigId: null,
-      gameConfigName: '',
-      gameConfigVersion: 0,
-      gameConfigQuestionCount: 0,
-    };
+  private readStoredSession(): StoredPlayerSession | null {
     const storedValue = localStorage.getItem(sessionStorageKey);
     if (!storedValue) {
-      return fallback;
+      return null;
     }
     try {
-      return { ...fallback, ...(JSON.parse(storedValue) as Partial<StoredSession>) };
+      const session = JSON.parse(storedValue) as Partial<StoredPlayerSession>;
+      if (!session.lobbyCode || !session.playerId || !session.reconnectToken) {
+        return null;
+      }
+      return session as StoredPlayerSession;
     } catch {
-      return fallback;
+      return null;
     }
+  }
+
+  private async loadMissingPhotos(state: LobbyStateResponse): Promise<void> {
+    const session = this.storedSessionState();
+    if (!session || session.lobbyCode !== state.code) {
+      return;
+    }
+    const photoIDList = state.players.flatMap((player) => player.photoIds);
+    for (const photoID of photoIDList) {
+      if (this.photoUrlByIdState()[photoID] || this.loadingPhotoIdSet.has(photoID)) {
+        continue;
+      }
+      this.loadingPhotoIdSet.add(photoID);
+      try {
+        const blob = await this.lobbyApi.getPhoto(state.code, session.reconnectToken, photoID);
+        const url = URL.createObjectURL(blob);
+        this.photoUrlByIdState.update((current) => ({ ...current, [photoID]: url }));
+      } catch (error: unknown) {
+        console.error('Unable to load a private lobby photo', error);
+      } finally {
+        this.loadingPhotoIdSet.delete(photoID);
+      }
+    }
+  }
+
+  private async synchronizeRoute(state: LobbyStateResponse): Promise<void> {
+    const currentURL = this.router.url.split('?')[0];
+    if (!currentURL.startsWith('/lobby/') && !currentURL.startsWith('/game/')) {
+      return;
+    }
+    if (!state.game || !state.status || state.status !== 'in_game' && state.status !== 'completed') {
+      const lobbyURL = `/lobby/${state.code}`;
+      if (currentURL !== lobbyURL && currentURL.startsWith('/game/')) {
+        await this.router.navigateByUrl(lobbyURL);
+      }
+      return;
+    }
+    if (state.game.phase === 'between_rounds') {
+      const lobbyURL = `/lobby/${state.code}`;
+      if (currentURL !== lobbyURL) {
+        await this.router.navigateByUrl(lobbyURL);
+      }
+      return;
+    }
+    const roundBase = `/game/${state.code}/round/${state.game.roundNumber}`;
+    let expectedPrefix = roundBase;
+    let destination = `${roundBase}/role`;
+    if (state.game.phase === 'reveal_and_vote') {
+      expectedPrefix = `${roundBase}/reveal`;
+      destination = expectedPrefix;
+    } else if (state.game.phase === 'round_results') {
+      expectedPrefix = `${roundBase}/scores`;
+      destination = expectedPrefix;
+    } else if (state.game.phase === 'completed') {
+      expectedPrefix = `/game/${state.code}/final`;
+      destination = expectedPrefix;
+    }
+    const collectingRouteIsValid = state.game.phase === 'collecting_submissions' &&
+      (currentURL.startsWith(roundBase) && !currentURL.includes('/reveal') && !currentURL.includes('/scores'));
+    if (!collectingRouteIsValid && !currentURL.startsWith(expectedPrefix)) {
+      await this.router.navigateByUrl(destination);
+    }
+  }
+
+  private captureError(error: unknown, fallbackMessage: string): void {
+    if (error instanceof HttpErrorResponse) {
+      const serverMessage = (error.error as { error?: { message?: string } } | null)?.error?.message;
+      this.errorMessageState.set(serverMessage ?? fallbackMessage);
+      return;
+    }
+    this.errorMessageState.set(fallbackMessage);
   }
 }

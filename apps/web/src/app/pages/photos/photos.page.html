@@ -70,11 +70,6 @@
                     La première position sera ta photo principale.
                   </p>
                 </div>
-                @if (selectionPhase() === 'default') {
-                  <span class="shrink-0 rounded-full bg-warning-50 px-2.5 py-1.5 text-[10px] font-extrabold text-warning-500">
-                    Photos par défaut
-                  </span>
-                }
               </div>
 
               <div class="grid grid-cols-4 gap-2">
@@ -91,20 +86,11 @@
                       [attr.aria-pressed]="selectedSlotIndex() === slotIndex"
                       (click)="onSlotSelect(slotIndex)"
                     >
-                      @if (photo.kind === 'local') {
-                        <img
-                          class="h-full w-full object-cover"
-                          [src]="photo.source"
-                          [alt]="'Photo sélectionnée ' + (slotIndex + 1)"
-                        />
-                      } @else {
-                        <app-profile-portrait
-                          class="block h-full"
-                          [atlas]="photo.atlas"
-                          [avatarIndex]="photo.avatarIndex"
-                          [alt]="'Photo par défaut ' + (slotIndex + 1)"
-                        />
-                      }
+                      <img
+                        class="h-full w-full object-cover"
+                        [src]="photo.source"
+                        [alt]="'Photo sélectionnée ' + (slotIndex + 1)"
+                      />
 
                       @if (selectedSlotIndex() === slotIndex) {
                         <span class="selected-photo__active-indicator" aria-hidden="true">
@@ -151,9 +137,10 @@
             <ion-button
               class="action-button w-full"
               expand="block"
+              [disabled]="isUploading() || !gameState.isRealtimeConnected()"
               (click)="onValidate()"
             >
-              Valider l’ordre des photos
+              {{ isUploading() ? 'Envoi en cours…' : 'Valider l’ordre des photos' }}
               <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
             </ion-button>
           </section>

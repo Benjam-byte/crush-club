@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   IonButton,
   IonContent,
@@ -10,7 +10,6 @@ import {
   IonToast,
 } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
-import { ProfilePortraitComponent } from '../../core/components/profile-portrait/profile-portrait.component';
 import { GameStateService } from '../../core/services/game-state.service';
 import { GameConfigService } from '../../core/services/game-config.service';
 
@@ -24,7 +23,6 @@ import { GameConfigService } from '../../core/services/game-config.service';
     IonSelectOption,
     IonToast,
     PageHeaderComponent,
-    ProfilePortraitComponent,
   ],
   templateUrl: './lobby.page.html',
   styleUrl: './lobby.page.scss',
@@ -34,16 +32,20 @@ export class LobbyPage implements OnInit {
   protected readonly gameState = inject(GameStateService);
   protected readonly gameConfigs = inject(GameConfigService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly isToastOpen = signal(false);
   protected readonly isConfigUpdating = signal(false);
+  protected readonly isStartingNextRound = signal(false);
+  protected readonly leaderboard = computed(() => this.gameState.game()?.leaderboard ?? []);
+  protected readonly nextRoundNumber = computed(() => (this.gameState.game()?.roundNumber ?? 0) + 1);
   protected readonly readyPlayerCount = computed(() => {
     return this.gameState.playerList().filter((player) => player.readyStatus === 'ready').length;
   });
 
   async ngOnInit(): Promise<void> {
     try {
-      await this.gameState.refreshLobby();
+      await this.gameState.refreshLobby(this.route.snapshot.paramMap.get('code') ?? undefined);
       if (this.gameState.isHost()) {
         await this.gameConfigs.initialize();
       }
@@ -96,7 +98,36 @@ export class LobbyPage implements OnInit {
 
     try {
       await this.gameState.startGame();
-      await this.router.navigate(['/game/demo/role']);
+      const game = this.gameState.game();
+      if (game) {
+        await this.router.navigate(['/game', this.gameState.lobbyCode(), 'round', game.roundNumber, 'role']);
+      }
+    } catch {
+      // GameState exposes the API error.
+    }
+  }
+
+  protected async onStartNextRound(): Promise<void> {
+    if (!this.gameState.canStartNextRound()) {
+      return;
+    }
+    this.isStartingNextRound.set(true);
+    try {
+      await this.gameState.startNextRound();
+    } catch {
+      // GameState exposes the API error.
+    } finally {
+      this.isStartingNextRound.set(false);
+    }
+  }
+
+  protected initials(displayName: string): string {
+    return displayName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('');
+  }
+
+  protected async onExcludePlayer(playerId: string): Promise<void> {
+    try {
+      await this.gameState.excludePlayer(playerId);
     } catch {
       // GameState exposes the API error.
     }

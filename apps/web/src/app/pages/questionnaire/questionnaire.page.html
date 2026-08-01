@@ -1,10 +1,13 @@
 <div class="ion-page">
   <ion-content>
     <main class="app-shell min-h-full pb-40">
-      <app-page-header title="Profil de Camille" backLink="/game/demo/role" />
+      <app-page-header
+        [title]="gameState.role() === 'lover' ? 'Mon vrai profil' : 'Profil de ' + gameState.subjectPlayer().displayName"
+        [backLink]="'/game/' + gameState.lobbyCode() + '/round/' + gameState.game()?.roundNumber + '/role'"
+      />
 
       <section class="px-5 pt-1">
-        @if (currentStepIndex() === 0) {
+        @if (hasTaglineStep() && currentStepIndex() === 0) {
           <section class="questionnaire-step-content mt-2">
             <header class="mb-3">
               <div class="flex items-center gap-2">
@@ -13,13 +16,13 @@
                 </span>
                 <h2 class="text-base font-extrabold text-ink-900">Phrase d’accroche</h2>
               </div>
-              <p class="mt-1.5 text-sm leading-6 text-ink-500">Écris comme si tu étais Camille.</p>
+              <p class="mt-1.5 text-sm leading-6 text-ink-500">Écris comme si tu étais {{ gameState.subjectPlayer().displayName }}.</p>
             </header>
 
             <div class="surface-card p-5">
               <label class="sr-only" for="tagline">Phrase d’accroche</label>
               <p class="text-sm leading-6 text-ink-500">
-                C’est le seul champ libre. L’Amoureuse votera anonymement.
+                C’est le seul champ libre. L’Amoureuse choisira ensuite sa préférée.
               </p>
               <textarea
                 id="tagline"
@@ -50,7 +53,9 @@
             <fieldset class="surface-card p-5">
               <legend class="sr-only">{{ category.label }}</legend>
               <p class="text-sm font-extrabold text-ink-900">{{ category.label }}</p>
-              <p class="mt-1 text-sm leading-6 text-ink-500">Choisis la proposition qui ressemble le plus à Camille.</p>
+              <p class="mt-1 text-sm leading-6 text-ink-500">
+                {{ gameState.role() === 'lover' ? 'Choisis la réponse qui te correspond vraiment.' : 'Choisis la proposition qui ressemble le plus à ' + gameState.subjectPlayer().displayName + '.' }}
+              </p>
               <div class="mt-4 grid gap-2">
                 @for (option of category.optionList; track option.id) {
                   <label

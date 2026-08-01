@@ -3,9 +3,9 @@ import type { OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import type { AnswerValue } from '@core/models/game.models';
+import type { BioCategory } from '@core/models/game.models';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
 import { QuestionCardComponent } from '../../core/components/question-card/question-card.component';
-import { bioCategoryList } from '../../core/data/questionnaire.data';
 import { GameStateService } from '../../core/services/game-state.service';
 
 const taglineMaximumLength = 100;
@@ -21,10 +21,17 @@ export class QuestionnairePage implements OnInit {
   protected readonly gameState = inject(GameStateService);
   private readonly router = inject(Router);
 
-  protected readonly bioCategoryList = bioCategoryList;
+  protected readonly bioCategoryList = computed<readonly BioCategory[]>(() => {
+    return this.gameState.profileFieldList().map((field) => ({
+      id: field.id,
+      label: field.label,
+      optionList: field.options,
+    }));
+  });
+  protected readonly hasTaglineStep = computed(() => this.gameState.role() !== 'lover');
   protected readonly taglineMaximumLength = taglineMaximumLength;
   protected readonly requiredAnswerCount = computed(() => {
-    return 1 + bioCategoryList.length + this.gameState.activeQuestionList().length;
+    return (this.hasTaglineStep() ? 1 : 0) + this.bioCategoryList().length + this.gameState.activeQuestionList().length;
   });
   protected readonly stepNumberList = computed(() => {
     return Array.from({ length: this.requiredAnswerCount() }, (_, index) => index + 1);
@@ -32,13 +39,14 @@ export class QuestionnairePage implements OnInit {
   protected readonly currentStepIndex = signal(0);
   protected readonly currentStepNumber = computed(() => this.currentStepIndex() + 1);
   protected readonly currentBioCategory = computed(() => {
-    const categoryIndex = this.currentStepIndex() - 1;
-    return categoryIndex >= 0 && categoryIndex < bioCategoryList.length
-      ? bioCategoryList[categoryIndex]
+    const categoryIndex = this.currentStepIndex() - (this.hasTaglineStep() ? 1 : 0);
+    const categoryList = this.bioCategoryList();
+    return categoryIndex >= 0 && categoryIndex < categoryList.length
+      ? categoryList[categoryIndex]
       : undefined;
   });
   protected readonly currentQuestion = computed(() => {
-    const questionIndex = this.currentStepIndex() - bioCategoryList.length - 1;
+    const questionIndex = this.currentStepIndex() - this.bioCategoryList().length - (this.hasTaglineStep() ? 1 : 0);
     const questionList = this.gameState.activeQuestionList();
     return questionIndex >= 0 && questionIndex < questionList.length
       ? questionList[questionIndex]
@@ -48,22 +56,22 @@ export class QuestionnairePage implements OnInit {
     return this.currentStepIndex() === this.requiredAnswerCount() - 1;
   });
   protected readonly completedAnswerCount = computed(() => {
-    const hasTagline = this.gameState.tagline().trim().length > 0;
+    const hasTagline = !this.hasTaglineStep() || this.gameState.tagline().trim().length > 0;
     const bioAnswerByCategoryId = this.gameState.bioAnswerByCategoryId();
     const answerByQuestionId = this.gameState.answerByQuestionId();
-    const bioAnswerCount = bioCategoryList.filter(
+    const bioAnswerCount = this.bioCategoryList().filter(
       (category) => bioAnswerByCategoryId[category.id] !== undefined,
     ).length;
     const questionAnswerCount = this.gameState.activeQuestionList().filter(
       (question) => answerByQuestionId[question.id] !== undefined,
     ).length;
-    return (hasTagline ? 1 : 0) + bioAnswerCount + questionAnswerCount;
+    return (this.hasTaglineStep() && hasTagline ? 1 : 0) + bioAnswerCount + questionAnswerCount;
   });
   protected readonly canContinue = computed(() => {
     return this.completedAnswerCount() === this.requiredAnswerCount();
   });
   protected readonly currentStepAnswered = computed(() => {
-    if (this.currentStepIndex() === 0) {
+    if (this.hasTaglineStep() && this.currentStepIndex() === 0) {
       return this.gameState.tagline().trim().length > 0;
     }
 
@@ -116,6 +124,9 @@ export class QuestionnairePage implements OnInit {
       return;
     }
 
-    void this.router.navigate(['/game/demo/round/1/review']);
+    const game = this.gameState.game();
+    if (game) {
+      void this.router.navigate(['/game', this.gameState.lobbyCode(), 'round', game.roundNumber, 'review']);
+    }
   }
 }

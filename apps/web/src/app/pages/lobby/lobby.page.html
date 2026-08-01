@@ -4,6 +4,107 @@
       <app-page-header title="Le lobby" backLink="/" />
 
       <section class="space-y-4 px-5 pt-3">
+        @if (!gameState.isRealtimeConnected()) {
+          <p class="rounded-2xl bg-warning-50 px-4 py-3 text-xs font-semibold text-warning-500">
+            Reconnexion au lobby en cours… Les actions sont momentanément désactivées.
+          </p>
+        }
+        @if (gameState.game()?.phase === 'between_rounds') {
+          <header class="text-center">
+            <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
+              Entracte · manche {{ gameState.game()?.roundNumber }} terminée
+            </p>
+            <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-ink-900">Tout le monde revient au lobby</h1>
+            <p class="mt-2 text-sm leading-6 text-ink-600">
+              La manche {{ nextRoundNumber() }}/{{ gameState.game()?.totalRounds }} commencera quand l’hôte la lancera.
+            </p>
+          </header>
+
+          @let nextSubject = gameState.nextSubjectPlayer();
+          @let nextSubjectPhoto = gameState.photoUrl(nextSubject.photoIds[0]);
+          <section class="lobby-code-card relative overflow-hidden rounded-[28px] p-6 text-center text-white">
+            <p class="text-xs font-bold uppercase tracking-[0.18em] text-white/75">Prochain Amoureux</p>
+            <div class="mx-auto mt-4 size-20 overflow-hidden rounded-[24px] border-4 border-white/70 bg-brand-100">
+              @if (nextSubjectPhoto) {
+                <img class="h-full w-full object-cover" [src]="nextSubjectPhoto" [alt]="'Photo de ' + nextSubject.displayName" />
+              } @else {
+                <span class="grid h-full place-items-center text-lg font-extrabold text-brand-600">{{ initials(nextSubject.displayName) }}</span>
+              }
+            </div>
+            <h2 class="mt-3 text-2xl font-extrabold">{{ nextSubject.displayName }}</h2>
+            <p class="mt-2 text-xs font-semibold text-white/80">Code du lobby · {{ gameState.lobbyCode() }}</p>
+          </section>
+
+          <section class="surface-card overflow-hidden">
+            <header class="border-b border-peach-100 px-5 py-4">
+              <h2 class="text-base font-extrabold text-ink-900">Classement cumulé</h2>
+            </header>
+            <ol class="divide-y divide-peach-100">
+              @for (entry of leaderboard(); track entry.playerId; let rank = $index) {
+                <li class="flex min-h-[64px] items-center gap-3 px-4 py-3">
+                  <span class="grid size-8 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">{{ rank + 1 }}</span>
+                  <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{ entry.displayName }}</span>
+                  <span class="text-right">
+                    <span class="block text-xs font-extrabold text-success-500">+{{ entry.roundScore }} cette manche</span>
+                    <span class="block text-sm font-extrabold text-brand-600">Total {{ entry.score }}</span>
+                  </span>
+                </li>
+              }
+            </ol>
+          </section>
+
+          <section class="surface-card overflow-hidden">
+            <header class="flex items-center justify-between border-b border-peach-100 px-5 py-4">
+              <h2 class="text-base font-extrabold text-ink-900">Présence du groupe</h2>
+              <span class="text-xs font-extrabold text-brand-600">{{ gameState.playerList().length }} joueurs</span>
+            </header>
+            <ul class="divide-y divide-peach-100">
+              @for (player of gameState.playerList(); track player.id) {
+                <li class="flex min-h-[60px] items-center gap-3 px-4 py-3">
+                  <span class="size-2.5 rounded-full" [class.bg-success-500]="player.connected" [class.bg-warning-500]="!player.connected"></span>
+                  <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">
+                    {{ player.displayName }}
+                    @if (player.isHost) { <span class="text-[10px] uppercase text-warning-500">· hôte</span> }
+                  </span>
+                  <span class="text-[10px] font-bold" [class.text-success-500]="player.connected" [class.text-warning-500]="!player.connected">
+                    {{ player.connected ? 'En ligne' : 'Reconnexion…' }}
+                  </span>
+                  @if (gameState.isHost() && !player.isCurrentPlayer && player.canExclude) {
+                    <button
+                      class="rounded-xl bg-danger-50 px-2 py-1 text-[10px] font-extrabold text-danger-500"
+                      type="button"
+                      [disabled]="!gameState.isRealtimeConnected()"
+                      (click)="onExcludePlayer(player.id)"
+                    >Exclure</button>
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+
+          @if (gameState.isHost()) {
+            <ion-button
+              class="action-button w-full"
+              expand="block"
+              [disabled]="!gameState.canStartNextRound() || isStartingNextRound()"
+              (click)="onStartNextRound()"
+            >
+              <ion-icon name="rocket" slot="start" aria-hidden="true" />
+              {{ isStartingNextRound() ? 'Lancement…' : (gameState.canStartNextRound() ? 'Lancer la manche suivante' : 'En attente du groupe') }}
+              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+            </ion-button>
+          } @else {
+            <div class="surface-card p-5 text-center">
+              <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
+              <p class="mt-2 text-sm font-extrabold text-ink-900">En attente de l’hôte</p>
+              <p class="mt-1 text-xs text-ink-500">La nouvelle manche s’ouvrira automatiquement.</p>
+            </div>
+          }
+
+          @if (gameState.errorMessage(); as errorMessage) {
+            <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
+          }
+        } @else {
         <div class="lobby-code-card relative overflow-hidden rounded-[28px] p-6 text-center text-white">
           <div class="absolute -left-6 -top-8 size-28 rounded-full border-[18px] border-white/10"></div>
           <div class="absolute -bottom-12 -right-8 size-36 rounded-full border-[24px] border-white/10"></div>
@@ -54,7 +155,7 @@
                 labelPlacement="stacked"
                 interface="action-sheet"
                 [value]="gameState.gameConfigId()"
-                [disabled]="isConfigUpdating()"
+                [disabled]="isConfigUpdating() || !gameState.isRealtimeConnected()"
                 (ionChange)="onConfigChange($event)"
               >
                 @for (config of gameConfigs.configList(); track config.id) {
@@ -87,13 +188,16 @@
 
           <ul class="divide-y divide-peach-100">
             @for (player of gameState.playerList(); track player.id) {
+              @let playerPhotoUrl = gameState.photoUrl(player.photoIds[0]);
               <li class="flex min-h-[68px] items-center gap-3 px-4 py-3">
                 <div class="size-11 shrink-0 overflow-hidden rounded-2xl ring-2 ring-white shadow-md">
-                  <app-profile-portrait
-                    class="block h-full"
-                    [avatarIndex]="player.avatarIndex"
-                    [alt]="'Portrait fictif de ' + player.displayName"
-                  />
+                  @if (playerPhotoUrl) {
+                    <img class="h-full w-full object-cover" [src]="playerPhotoUrl" [alt]="'Photo de ' + player.displayName" />
+                  } @else {
+                    <span class="grid h-full w-full place-items-center bg-brand-100 text-xs font-extrabold text-brand-600">
+                      {{ initials(player.displayName) }}
+                    </span>
+                  }
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
@@ -106,22 +210,30 @@
                     }
                   </div>
                   <p class="mt-0.5 text-[11px] text-ink-500">
-                    {{ player.readyStatus === 'ready' ? 'Profil photo validé' : 'Prépare ses photos' }}
+                    {{ !player.connected ? 'Hors ligne · reconnexion possible' : (player.readyStatus === 'ready' ? 'Profil photo validé' : 'Prépare ses photos') }}
                   </p>
                 </div>
                 <span
                   class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold"
-                  [class.bg-success-50]="player.readyStatus === 'ready'"
-                  [class.text-success-500]="player.readyStatus === 'ready'"
-                  [class.bg-warning-50]="player.readyStatus !== 'ready'"
-                  [class.text-warning-500]="player.readyStatus !== 'ready'"
+                  [class.bg-success-50]="player.readyStatus === 'ready' && player.connected"
+                  [class.text-success-500]="player.readyStatus === 'ready' && player.connected"
+                  [class.bg-warning-50]="player.readyStatus !== 'ready' || !player.connected"
+                  [class.text-warning-500]="player.readyStatus !== 'ready' || !player.connected"
                 >
                   <ion-icon
-                    [name]="player.readyStatus === 'ready' ? 'checkmark-circle' : 'camera'"
+                    [name]="!player.connected ? 'cloud-offline-outline' : (player.readyStatus === 'ready' ? 'checkmark-circle' : 'camera')"
                     aria-hidden="true"
                   />
-                  {{ player.readyStatus === 'ready' ? 'Prêt' : 'Photos' }}
+                  {{ !player.connected ? 'Absent' : (player.readyStatus === 'ready' ? 'Prêt' : 'Photos') }}
                 </span>
+                @if (gameState.isHost() && !player.isCurrentPlayer && player.canExclude) {
+                  <button
+                    class="rounded-xl bg-danger-50 px-2 py-1 text-[10px] font-extrabold text-danger-500"
+                    type="button"
+                    [disabled]="!gameState.isRealtimeConnected()"
+                    (click)="onExcludePlayer(player.id)"
+                  >Exclure</button>
+                }
               </li>
             }
           </ul>
@@ -129,11 +241,11 @@
 
         <div class="surface-card grid grid-cols-3 divide-x divide-peach-100 px-2 py-4 text-center">
           <div>
-            <p class="text-sm font-extrabold text-ink-900">4</p>
+            <p class="text-sm font-extrabold text-ink-900">2</p>
             <p class="mt-1 text-[10px] font-semibold text-ink-500">joueurs min.</p>
           </div>
           <div>
-            <p class="text-sm font-extrabold text-ink-900">4</p>
+            <p class="text-sm font-extrabold text-ink-900">{{ gameState.playerList().length - 1 }}</p>
             <p class="mt-1 text-[10px] font-semibold text-ink-500">Cupidons</p>
           </div>
           <div>
@@ -156,7 +268,7 @@
             (click)="onStartGame()"
           >
             <ion-icon name="rocket" slot="start" aria-hidden="true" />
-            {{ gameState.canStartGame() ? 'Lancer la partie' : 'En attente du groupe' }}
+            {{ gameState.canStartGame() ? 'Lancer la partie' : (gameState.isHost() ? 'En attente du groupe' : 'En attente de l’hôte') }}
             <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
           </ion-button>
         }
@@ -164,6 +276,7 @@
         <p class="text-center text-[11px] leading-5 text-ink-500">
           Le démarrage devient disponible dès que tout le monde a validé ses quatre photos.
         </p>
+        }
       </section>
     </main>
 

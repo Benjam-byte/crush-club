@@ -43,6 +43,17 @@ cd apps/api
 go test ./...
 ```
 
+Le parcours d'intégration réel s'exécute contre la stack Docker exposée sur le port 8080 :
+
+```bash
+cd apps/api
+API_INTEGRATION_URL=http://localhost:8080 go test ./cmd/api -run '^TestMultiplayer' -count=1 -v
+```
+
+Il couvre notamment quatre joueurs et quatre manches dans l'ordre d'arrivée, les trois entractes, les quatre
+photos par joueur, la confidentialité, les snapshots WebSocket, la reconnexion, les scores de manche et les
+totaux persistants, ainsi que les connexions concurrentes jusqu'à la capacité maximale.
+
 ## Docker
 
 ```bash
@@ -51,6 +62,22 @@ docker compose up --build
 ```
 
 Le service web est exposé sur `http://localhost:8080`. Nginx relaie `/api` et `/ws` vers l'API Go.
+
+## Multijoueur temps réel
+
+PostgreSQL est la source de vérité des participants, manches, soumissions, votes et classements. Les
+commandes passent par REST avec le jeton joueur dans `Authorization: Bearer ...`; `/ws/lobbies/:code`
+demande ce même jeton dans son premier message, puis diffuse des snapshots personnalisés et révisionnés.
+Le navigateur ne garde que sa session de reconnexion et ses brouillons non envoyés.
+
+Une partie accepte 2 à 10 joueurs et démarre quand tous les joueurs connectés ont envoyé exactement quatre
+photos. Chaque participant devient la cible d'une manche dans l'ordre d'arrivée. La cible fournit les
+réponses officielles et choisit anonymement une accroche; les autres envoient une prédiction et leur LOVER.
+Après chaque résultat, l'hôte ramène tout le groupe au lobby d'entracte, puis lance manuellement la manche
+suivante. La dernière manche ouvre le classement final. Une revanche crée toujours un nouveau lobby, de
+nouvelles sessions et exige quatre nouvelles photos par joueur.
+Les photos privées et les lobbies expirent après 24 heures. Une déconnexion conserve la place 90 secondes,
+puis autorise l'exclusion et, pour l'hôte, le transfert de ses droits au plus ancien joueur connecté.
 
 ## Déploiement Coolify
 

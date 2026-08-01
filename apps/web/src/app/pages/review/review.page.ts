@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import type { OnInit } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import {
   IonButton,
   IonContent,
@@ -26,7 +26,6 @@ interface ReviewItem {
 })
 export class ReviewPage implements OnInit {
   protected readonly gameState = inject(GameStateService);
-  private readonly router = inject(Router);
 
   protected readonly reviewItemList = computed<readonly ReviewItem[]>(() => {
     return this.gameState.activeQuestionList().map((question) => {
@@ -43,6 +42,13 @@ export class ReviewPage implements OnInit {
       (reviewItem) => reviewItem.id === this.gameState.loverQuestionId(),
     );
   });
+  protected readonly canLockProfile = computed(() => {
+    return this.gameState.role() === 'lover' || this.selectedLoverItem() !== undefined;
+  });
+  protected readonly profileLink = computed(() => {
+    const game = this.gameState.game();
+    return game ? `/game/${this.gameState.lobbyCode()}/round/${game.roundNumber}/profile` : '/';
+  });
 
   async ngOnInit(): Promise<void> {
     try {
@@ -55,9 +61,15 @@ export class ReviewPage implements OnInit {
     this.gameState.selectLoverQuestion(questionId);
   }
 
-  protected onLockProfile(): void {
-    this.gameState.lockProfile();
-    void this.router.navigate(['/game/demo/reveal/1']);
+  protected async onLockProfile(): Promise<void> {
+    if (!this.canLockProfile()) {
+      return;
+    }
+    try {
+      await this.gameState.lockProfile();
+    } catch {
+      // GameState exposes the API error while the player remains on the review page.
+    }
   }
 
   private formatAnswer(question: QuestionDefinition, answer: AnswerValue | undefined): string {

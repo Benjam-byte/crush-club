@@ -96,7 +96,7 @@ VALUES
     'love-language',
     'single_choice',
     'Langage de l''amour',
-    'Comment Camille montre-t-elle son affection ?',
+    'Comment cette personne montre-t-elle son affection ?',
     10,
     true,
     '[{"id":"words","label":"Mots valorisants"},{"id":"time","label":"Moments de qualité"},{"id":"acts","label":"Petites attentions"},{"id":"touch","label":"Contact physique"}]'::jsonb,

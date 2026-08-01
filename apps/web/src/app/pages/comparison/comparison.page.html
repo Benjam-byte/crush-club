@@ -1,118 +1,85 @@
 <div class="ion-page">
   <ion-content>
     <main class="app-shell min-h-full pb-8">
-      <app-page-header
-        title="Scores finaux"
-        backLink="/game/demo/reveal/1"
-        [centerTitle]="true"
-        [showDecoration]="false"
-      />
+      <app-page-header title="Résultats de la manche" [centerTitle]="true" [showDecoration]="false" />
 
-      <section class="px-5 pt-2">
-        <div class="mb-5 text-center">
-          <h2 class="text-2xl font-extrabold tracking-tight text-ink-900">Qui connaît le mieux Camille&nbsp;?</h2>
-          <p class="mt-2 text-sm leading-6 text-ink-600">
-            Similarité des 10 réponses structurées, plus {{ bestTaglineBonusPointCount }} points pour la meilleure accroche.
+      <section class="space-y-5 px-5 pt-2">
+        <header class="text-center">
+          <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
+            Manche {{ gameState.game()?.roundNumber }}/{{ gameState.game()?.totalRounds }}
           </p>
-        </div>
+          <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-ink-900">
+            Qui connaît le mieux {{ gameState.subjectPlayer().displayName }}&nbsp;?
+          </h1>
+          <p class="mt-2 text-sm leading-6 text-ink-600">Gain de la manche et total cumulé, calculés par le serveur.</p>
+        </header>
 
         <section class="space-y-3">
-          @for (scoredProfile of scoredProfileList(); track scoredProfile.submission.id; let rank = $index) {
+          @for (entry of leaderboard(); track entry.playerId; let rank = $index) {
+            @let result = roundResult(entry.playerId);
+            @let photoUrl = playerPhotoUrl(entry.playerId);
             <button
-              class="result-profile-card surface-card flex w-full items-center gap-3 p-4 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+              class="result-profile-card surface-card flex w-full items-center gap-3 p-4 text-left"
               [class.result-profile-card--winner]="rank === 0"
               type="button"
-              (click)="onProfileSelect(scoredProfile.submission.id)"
+              [disabled]="!result"
+              (click)="onProfileSelect(entry.playerId)"
             >
-              <span
-                class="grid size-8 shrink-0 place-items-center rounded-xl text-xs font-extrabold"
-                [class.result-profile-card__rank--winner]="rank === 0"
-                [class.text-white]="rank === 0"
-                [class.bg-peach-100]="rank !== 0"
-                [class.text-ink-500]="rank !== 0"
-              >
-                @if (rank === 0) {
-                  <ion-icon name="trophy" aria-hidden="true" />
-                } @else {
-                  {{ rank + 1 }}
-                }
+              <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">
+                {{ rank + 1 }}
               </span>
-              <span
-                class="result-profile-card__portrait size-12 shrink-0 overflow-hidden rounded-2xl"
-                [class.result-profile-card__portrait--winner]="rank === 0"
-              >
-                <app-profile-portrait
-                  class="block h-full"
-                  atlas="camille"
-                  [avatarIndex]="scoredProfile.submission.avatarIndex"
-                  [alt]="'Portrait fictif de ' + scoredProfile.submission.authorName"
-                />
+              <span class="size-12 shrink-0 overflow-hidden rounded-2xl bg-brand-100">
+                @if (photoUrl) {
+                  <img class="h-full w-full object-cover" [src]="photoUrl" [alt]="'Photo de ' + entry.displayName" />
+                } @else {
+                  <span class="grid h-full w-full place-items-center text-xs font-extrabold text-brand-600">{{ initials(entry.displayName) }}</span>
+                }
               </span>
               <span class="min-w-0 flex-1">
-                @if (rank === 0) {
-                  <span class="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-white/75">
-                    Gagnant
-                  </span>
-                }
-                <span
-                  class="block truncate font-extrabold"
-                  [class.text-lg]="rank === 0"
-                  [class.text-white]="rank === 0"
-                  [class.text-sm]="rank !== 0"
-                  [class.text-ink-900]="rank !== 0"
-                >
-                  {{ scoredProfile.submission.authorName }}
-                  @if (scoredProfile.submission.id === 'player-current') {
-                    <span
-                      class="font-semibold"
-                      [class.text-white]="rank === 0"
-                      [class.text-ink-500]="rank !== 0"
-                    >· toi</span>
-                  }
+                <span class="block truncate text-sm font-extrabold" [class.text-white]="rank === 0" [class.text-ink-900]="rank !== 0">
+                  {{ entry.displayName }}
+                  @if (entry.playerId === gameState.currentPlayer().id) { <span class="font-semibold">· toi</span> }
                 </span>
-                <span
-                  class="mt-1 block text-xs leading-5"
-                  [class.text-white]="rank === 0"
-                  [class.text-ink-500]="rank !== 0"
-                >
-                  {{ scoredProfile.similarityPercentage }} % de similarité
-                  @if (scoredProfile.taglineBonus > 0) {
-                    · +{{ scoredProfile.taglineBonus }} accroche
+                <span class="mt-1 block text-xs" [class.text-white]="rank === 0" [class.text-ink-500]="rank !== 0">
+                  @if (result) {
+                    {{ result.exactCount }} réponses exactes
+                    @if (result.taglineBonus > 0) { · +{{ result.taglineBonus }} accroche }
+                    @if (result.loverAdjustment !== 0) { · {{ result.loverAdjustment > 0 ? '+' : '' }}{{ result.loverAdjustment }} LOVER }
+                    · voir le détail
+                  } @else {
+                    Amoureux de la manche · aucun point à gagner
                   }
                 </span>
               </span>
-              <span class="shrink-0 text-right">
-                <span
-                  class="block font-extrabold"
-                  [class.text-3xl]="rank === 0"
-                  [class.text-white]="rank === 0"
-                  [class.text-xl]="rank !== 0"
-                  [class.text-brand-600]="rank !== 0"
-                >{{ scoredProfile.finalScore }}</span>
-                <span
-                  class="block text-[10px] font-bold"
-                  [class.text-white]="rank === 0"
-                  [class.text-ink-500]="rank !== 0"
-                >points</span>
+              <span class="text-right">
+                <span class="block text-lg font-extrabold" [class.text-white]="rank === 0" [class.text-brand-600]="rank !== 0">+{{ entry.roundScore }}</span>
+                <span class="block text-[10px] font-bold" [class.text-white]="rank === 0" [class.text-ink-500]="rank !== 0">cette manche</span>
+                <span class="mt-1 block text-xs font-extrabold" [class.text-white]="rank === 0" [class.text-ink-700]="rank !== 0">Total {{ entry.score }}</span>
               </span>
             </button>
           }
         </section>
 
-        <div class="mt-6 grid gap-3">
-          <ion-button class="action-button w-full" expand="block" (click)="onReturnToLobby()">
-            <ion-icon name="people" slot="start" aria-hidden="true" />
-            Retourner dans le lobby
+        @if (gameState.isHost()) {
+          <ion-button class="action-button w-full" expand="block" [disabled]="isAdvancing() || !gameState.isRealtimeConnected()" (click)="onNextRound()">
+            {{ isAdvancing() ? 'Synchronisation…' : (isLastRound() ? 'Voir le classement final' : 'Retour au lobby') }}
+            <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
           </ion-button>
-          <ion-button
-            class="action-button action-button--secondary w-full"
-            expand="block"
-            (click)="onQuitGame()"
-          >
-            <ion-icon name="close" slot="start" aria-hidden="true" />
-            Quitter la partie
-          </ion-button>
-        </div>
+        } @else {
+          <div class="surface-card p-5 text-center">
+            <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
+            <p class="mt-2 text-sm font-extrabold text-ink-900">En attente de l’hôte</p>
+            <p class="mt-1 text-xs text-ink-500">Le prochain écran s’ouvrira automatiquement.</p>
+          </div>
+        }
+
+        @if (gameState.errorMessage(); as errorMessage) {
+          <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
+        }
+
+        <ion-button class="action-button action-button--secondary w-full" expand="block" (click)="onQuitGame()">
+          Quitter la partie
+        </ion-button>
       </section>
     </main>
   </ion-content>

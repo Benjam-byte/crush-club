@@ -99,6 +99,10 @@ ion-content {
   --background: transparent;
 }
 
+ion-button::part(native) {
+  gap: 4px;
+}
+
 .ion-page {
   background: transparent;
 }

@@ -41,9 +41,11 @@ func (e validationError) Error() string {
 }
 
 type api struct {
-	pool          *pgxpool.Pool
-	logger        *slog.Logger
-	secureCookies bool
+	pool             *pgxpool.Pool
+	logger           *slog.Logger
+	secureCookies    bool
+	hub              *realtimeHub
+	photoStoragePath string
 }
 
 type dbQuerier interface {
@@ -92,10 +94,11 @@ type gameConfig struct {
 }
 
 type questionnaireSnapshot struct {
-	SourceConfigID string     `json:"sourceConfigId"`
-	SourceVersion  int        `json:"sourceVersion"`
-	Name           string     `json:"name"`
-	Questions      []question `json:"questions"`
+	SourceConfigID string         `json:"sourceConfigId"`
+	SourceVersion  int            `json:"sourceVersion"`
+	Name           string         `json:"name"`
+	Questions      []question     `json:"questions"`
+	ProfileFields  []profileField `json:"profileFields"`
 }
 
 type gameConfigInput struct {
@@ -130,7 +133,14 @@ type lobbyResponse struct {
 }
 
 func newAPI(pool *pgxpool.Pool, logger *slog.Logger, secureCookies bool) *api {
-	return &api{pool: pool, logger: logger, secureCookies: secureCookies}
+	a := &api{
+		pool:             pool,
+		logger:           logger,
+		secureCookies:    secureCookies,
+		photoStoragePath: envOr("PHOTO_STORAGE_PATH", "./data/photos"),
+	}
+	a.hub = newRealtimeHub(a)
+	return a
 }
 
 func (a *api) routes() *http.ServeMux {
@@ -144,9 +154,19 @@ func (a *api) routes() *http.ServeMux {
 	mux.HandleFunc("DELETE /api/v1/game-configs/{id}", a.handleDeleteConfig)
 	mux.HandleFunc("POST /api/v1/lobbies", a.handleCreateLobby)
 	mux.HandleFunc("GET /api/v1/lobbies/{code}", a.handleGetLobby)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/players", a.handleJoinLobby)
+	mux.HandleFunc("GET /api/v1/lobbies/{code}/state", a.handleGetLobbyState)
+	mux.HandleFunc("PUT /api/v1/lobbies/{code}/players/me/photos", a.handleUploadPlayerPhotos)
+	mux.HandleFunc("GET /api/v1/lobbies/{code}/photos/{photoID}", a.handleGetPlayerPhoto)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/players/{playerID}/exclude", a.handleExcludePlayer)
 	mux.HandleFunc("PUT /api/v1/lobbies/{code}/game-config", a.handleChangeLobbyConfig)
 	mux.HandleFunc("GET /api/v1/lobbies/{code}/questionnaire", a.handleGetQuestionnaire)
-	mux.HandleFunc("POST /api/v1/lobbies/{code}/start", a.handleStartLobby)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/start", a.handleStartMultiplayerGame)
+	mux.HandleFunc("PUT /api/v1/lobbies/{code}/rounds/current/submission", a.handleSubmitCurrentRound)
+	mux.HandleFunc("PUT /api/v1/lobbies/{code}/rounds/current/vote", a.handleVoteCurrentRound)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/rounds/current/next", a.handleNextRound)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/rounds/next/start", a.handleStartNextRound)
+	mux.HandleFunc("GET /ws/lobbies/{code}", a.handleLobbyWebSocket)
 	return mux
 }
 
@@ -488,24 +508,23 @@ func (a *api) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		DisplayName    string `json:"displayName"`
-		AdultConfirmed bool   `json:"adultConfirmed"`
-		MaxPlayers     int    `json:"maxPlayers"`
-		GameConfigID   string `json:"gameConfigId"`
+		DisplayName  string `json:"displayName"`
+		MaxPlayers   int    `json:"maxPlayers"`
+		GameConfigID string `json:"gameConfigId"`
 	}
 	if !decodeRequest(w, r, &input) {
 		return
 	}
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
-	if len([]rune(input.DisplayName)) < 2 || len([]rune(input.DisplayName)) > 24 || !input.AdultConfirmed {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "A display name and adult confirmation are required")
+	if len([]rune(input.DisplayName)) < 2 || len([]rune(input.DisplayName)) > 24 {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "A valid display name is required")
 		return
 	}
 	if input.MaxPlayers == 0 {
-		input.MaxPlayers = 8
+		input.MaxPlayers = maximumPlayerCount
 	}
-	if input.MaxPlayers < 4 || input.MaxPlayers > 10 {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "maxPlayers must be between 4 and 10")
+	if input.MaxPlayers < minimumPlayerCount || input.MaxPlayers > maximumPlayerCount {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "maxPlayers must be between 2 and 10")
 		return
 	}
 	if input.GameConfigID == "" {
@@ -575,9 +594,22 @@ func (a *api) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := lobbyFromSnapshot(lobbyCode, "waiting_for_players", input.MaxPlayers, snapshotFromConfig(config))
-	response.ReconnectToken = reconnectToken
-	writeJSON(w, http.StatusCreated, response)
+	player := authenticatedPlayer{
+		ID:          playerID,
+		LobbyID:     lobbyID,
+		Code:        lobbyCode,
+		DisplayName: input.DisplayName,
+		IsHost:      true,
+	}
+	state, err := a.loadLobbyState(r.Context(), player)
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, playerSessionResponse{
+		ReconnectToken: reconnectToken,
+		State:          state,
+	})
 }
 
 func (a *api) handleGetLobby(w http.ResponseWriter, r *http.Request) {
@@ -594,6 +626,14 @@ func (a *api) handleGetLobby(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) handleChangeLobbyConfig(w http.ResponseWriter, r *http.Request) {
+	player, playerOK := a.requirePlayer(w, r)
+	if !playerOK {
+		return
+	}
+	if !player.IsHost {
+		writeError(w, http.StatusForbidden, "host_required", "Only the lobby host can change its configuration")
+		return
+	}
 	identityID, ok := a.requireIdentity(w, r)
 	if !ok {
 		return
@@ -654,7 +694,8 @@ func (a *api) handleChangeLobbyConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := tx.Exec(r.Context(), `
 		UPDATE lobbies
-		SET game_config_id = $1, game_config_version = $2, game_config_snapshot = $3, updated_at = now()
+		SET game_config_id = $1, game_config_version = $2, game_config_snapshot = $3,
+		    revision = revision + 1, updated_at = now()
 		WHERE code = $4
 	`, config.ID, config.Version, snapshotJSON, code); err != nil {
 		a.internalError(w, r, err)
@@ -664,10 +705,19 @@ func (a *api) handleChangeLobbyConfig(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, lobbyFromSnapshot(code, status, maxPlayers, snapshotValue))
+	state, err := a.loadLobbyState(r.Context(), player)
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	a.hub.publish(code)
+	writeJSON(w, http.StatusOK, state)
 }
 
 func (a *api) handleGetQuestionnaire(w http.ResponseWriter, r *http.Request) {
+	if _, ok := a.requirePlayer(w, r); !ok {
+		return
+	}
 	var snapshotJSON []byte
 	err := a.pool.QueryRow(r.Context(), `
 		SELECT game_config_snapshot
@@ -682,9 +732,15 @@ func (a *api) handleGetQuestionnaire(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(snapshotJSON)
+	var snapshot questionnaireSnapshot
+	if err := json.Unmarshal(snapshotJSON, &snapshot); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if len(snapshot.ProfileFields) == 0 {
+		snapshot.ProfileFields = defaultProfileFields()
+	}
+	writeJSON(w, http.StatusOK, snapshot)
 }
 
 func (a *api) handleStartLobby(w http.ResponseWriter, r *http.Request) {
@@ -1167,6 +1223,7 @@ func snapshotFromConfig(config gameConfig) questionnaireSnapshot {
 		SourceVersion:  config.Version,
 		Name:           config.Name,
 		Questions:      questions,
+		ProfileFields:  defaultProfileFields(),
 	}
 }
 

@@ -1,40 +1,49 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import type { OnInit } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
-import type { LeaderboardEntry } from '@core/models/game.models';
 import { BrandMarkComponent } from '../../core/components/brand-mark/brand-mark.component';
-import { ProfilePortraitComponent } from '../../core/components/profile-portrait/profile-portrait.component';
 import { GameStateService } from '../../core/services/game-state.service';
 
 @Component({
   selector: 'app-final-results-page',
-  imports: [BrandMarkComponent, IonButton, IonContent, IonIcon, ProfilePortraitComponent],
+  imports: [BrandMarkComponent, IonButton, IonContent, IonIcon],
   templateUrl: './final-results.page.html',
   styleUrl: './final-results.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FinalResultsPage {
-  private readonly gameState = inject(GameStateService);
+export class FinalResultsPage implements OnInit {
+  protected readonly gameState = inject(GameStateService);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  protected readonly leaderboard = computed(() => this.gameState.game()?.leaderboard ?? []);
+  protected readonly winner = computed(() => this.leaderboard()[0]);
 
-  protected readonly leaderboardEntryList: readonly LeaderboardEntry[] = [
-    { id: 'lea', displayName: 'Léa', avatarIndex: 0, score: 245, exactCount: 12 },
-    { id: 'marco', displayName: 'Marco', avatarIndex: 1, score: 195, exactCount: 9 },
-    { id: 'ines', displayName: 'Inès', avatarIndex: 2, score: 165, exactCount: 8 },
-    { id: 'tom', displayName: 'Tom', avatarIndex: 3, score: 125, exactCount: 6 },
-  ];
+  async ngOnInit(): Promise<void> {
+    try {
+      await this.gameState.refreshLobby(this.route.snapshot.paramMap.get('code') ?? undefined);
+    } catch {
+      await this.router.navigate(['/join'], { queryParams: { code: this.route.snapshot.paramMap.get('code') } });
+    }
+  }
 
   protected onReplay(): void {
+    const wasHost = this.gameState.isHost();
     this.gameState.resetGame();
-    void this.router.navigate(['/join'], {
-      queryParams: {
-        mode: 'create',
-      },
-    });
+    void this.router.navigate(['/join'], { queryParams: wasHost ? { mode: 'create' } : undefined });
   }
 
   protected onNewLobby(): void {
     this.gameState.resetGame();
     void this.router.navigate(['/']);
+  }
+
+  protected playerPhotoUrl(playerId: string): string | null {
+    const player = this.gameState.playerList().find((candidate) => candidate.id === playerId);
+    return this.gameState.photoUrl(player?.photoIds[0]);
+  }
+
+  protected initials(displayName: string): string {
+    return displayName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('');
   }
 }

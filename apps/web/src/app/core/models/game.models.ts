@@ -5,31 +5,7 @@ export interface LocalPhotoCandidate {
   isObjectUrl: true
 }
 
-export interface DefaultPhotoCandidate {
-  id: string
-  kind: 'default'
-  atlas: 'camille'
-  avatarIndex: number
-  isObjectUrl: false
-}
-
-export type PhotoCandidate = LocalPhotoCandidate | DefaultPhotoCandidate
-
-export interface ProfileVersion {
-  id: string
-  authorName: string
-  tagline: string
-  bio: string
-  matchPercentage: number
-  avatarIndex: number
-}
-
-export interface BadgeDefinition {
-  icon: string
-  label: string
-  owner: string
-  tone: 'brand' | 'purple' | 'ink' | 'gold'
-}
+export type PhotoCandidate = LocalPhotoCandidate
 
 export type LobbyStatus =
   | 'waiting_for_players'
@@ -41,7 +17,7 @@ export type LobbyStatus =
 
 export type PlayerReadyStatus = 'joining' | 'preparing_photos' | 'ready'
 
-export type PlayerRole = 'lover' | 'cupid' | 'spectator'
+export type PlayerRole = 'lover' | 'cupid'
 
 export type QuestionType =
   | 'single_choice'
@@ -58,10 +34,15 @@ export type AnswerValue = string | number | readonly string[]
 export interface LobbyPlayer {
   id: string
   displayName: string
-  avatarIndex: number
   isHost: boolean
   isCurrentPlayer: boolean
   readyStatus: PlayerReadyStatus
+  connected: boolean
+  disconnectedAt?: string
+  reconnectDeadline?: string
+  canExclude: boolean
+  photoIds: readonly string[]
+  joinedAt: string
 }
 
 export interface QuestionOption {
@@ -115,6 +96,13 @@ export interface QuestionnaireSnapshot {
   sourceVersion: number
   name: string
   questions: readonly QuestionDefinition[]
+  profileFields: readonly ProfileFieldDefinition[]
+}
+
+export interface ProfileFieldDefinition {
+  id: string
+  label: string
+  options: readonly QuestionOption[]
 }
 
 export interface LobbyGameConfigSummary {
@@ -129,39 +117,102 @@ export interface LobbyResponse {
   status: LobbyStatus
   maxPlayers: number
   gameConfig: LobbyGameConfigSummary
-  reconnectToken?: string
+}
+
+export type GamePhase =
+  | 'collecting_submissions'
+  | 'reveal_and_vote'
+  | 'round_results'
+  | 'between_rounds'
+  | 'completed'
+
+export interface RoundSubmissionView {
+  id: string
+  playerId?: string
+  authorName?: string
+  tagline?: string
+  bioAnswers: Readonly<Record<string, string>>
+  questionAnswers: Readonly<Record<string, AnswerValue>>
+  loverQuestionId?: string
+  submittedAt: string
+}
+
+export interface ScoreLineView {
+  id: string
+  label: string
+  officialAnswer: AnswerValue
+  predictedAnswer: AnswerValue
+  baseScore: number
+  maximumScore: number
+  finalScore: number
+  exact: boolean
+  isLoverApplied: boolean
+}
+
+export interface RoundResultView {
+  playerId: string
+  displayName: string
+  baseScore: number
+  loverAdjustment: number
+  taglineBonus: number
+  totalScore: number
+  exactCount: number
+  scoreLines: readonly ScoreLineView[]
+}
+
+export interface LeaderboardEntryView {
+  playerId: string
+  displayName: string
+  score: number
+  roundScore: number
+  exactCount: number
+  taglineBonusCount: number
+}
+
+export interface GameStateView {
+  id: string
+  phase: GamePhase
+  roundNumber: number
+  totalRounds: number
+  role: 'subject' | 'cupid'
+  subjectPlayerId: string
+  nextSubjectPlayerId?: string
+  submitted: boolean
+  submittedCount: number
+  requiredCount: number
+  officialSubmission?: RoundSubmissionView
+  submissions?: readonly RoundSubmissionView[]
+  roundResults?: readonly RoundResultView[]
+  leaderboard?: readonly LeaderboardEntryView[]
+}
+
+export interface LobbyStateResponse {
+  revision: number
+  serverTime: string
+  code: string
+  status: LobbyStatus
+  maxPlayers: number
+  currentPlayerId: string
+  players: readonly Omit<LobbyPlayer, 'isCurrentPlayer'>[]
+  gameConfig: LobbyGameConfigSummary
+  questionnaire: QuestionnaireSnapshot
+  game?: GameStateView
+}
+
+export interface PlayerSessionResponse {
+  reconnectToken: string
+  state: LobbyStateResponse
+}
+
+export interface RoundSubmissionInput {
+  tagline?: string
+  bioAnswers: Readonly<Record<string, string>>
+  questionAnswers: Readonly<Record<string, AnswerValue>>
+  loverQuestionId?: string
 }
 
 export interface BioCategory {
   id: string
   label: string
   optionList: readonly QuestionOption[]
-}
-
-export type ScoreStatus =
-  | 'exact'
-  | 'close'
-  | 'wrong'
-  | 'lover_success'
-  | 'lover_failed'
-
-export interface ScoreLine {
-  id: string
-  label: string
-  officialAnswer: string
-  predictedAnswer: string
-  normalScore: number
-  maximumScore: number
-  finalScore: number
-  status: ScoreStatus
-  isLoverApplied: boolean
-}
-
-export interface LeaderboardEntry {
-  id: string
-  displayName: string
-  avatarIndex: number
-  score: number
-  exactCount: number
-  badge?: string
 }

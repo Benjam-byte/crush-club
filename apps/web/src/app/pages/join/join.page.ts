@@ -4,7 +4,6 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   IonButton,
-  IonCheckbox,
   IonContent,
   IonIcon,
   IonInput,
@@ -19,7 +18,6 @@ import { GameStateService } from '../../core/services/game-state.service';
   selector: 'app-join-page',
   imports: [
     IonButton,
-    IonCheckbox,
     IonContent,
     IonIcon,
     IonInput,
@@ -59,7 +57,6 @@ export class JoinPage implements OnInit {
       validators: [Validators.required, Validators.minLength(2), Validators.maxLength(24)],
     }),
     gameConfigId: new FormControl('', { nonNullable: true }),
-    adultConfirmed: new FormControl(false, { nonNullable: true }),
   });
 
   async ngOnInit(): Promise<void> {
@@ -86,9 +83,7 @@ export class JoinPage implements OnInit {
     if (!this.isCreateMode() && this.joinForm.controls.lobbyCode.invalid) {
       return;
     }
-    if (this.isCreateMode() && (
-      !this.joinForm.controls.gameConfigId.value || !this.joinForm.controls.adultConfirmed.value
-    )) {
+    if (this.isCreateMode() && !this.joinForm.controls.gameConfigId.value) {
       return;
     }
 
@@ -99,7 +94,6 @@ export class JoinPage implements OnInit {
         ? await this.gameState.createLobby(
             displayName,
             this.joinForm.controls.gameConfigId.value,
-            this.joinForm.controls.adultConfirmed.value,
           )
         : await this.gameState.joinLobby(displayName, this.joinForm.controls.lobbyCode.value);
       await this.router.navigate(['/lobby', lobbyCode]);

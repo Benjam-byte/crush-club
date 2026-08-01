@@ -8,11 +8,10 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 })
 export class ProfilePortraitComponent {
   readonly avatarIndex = input(0);
-  readonly atlas = input<'players' | 'camille'>('players');
   readonly alt = input.required<string>();
 
   protected readonly portraitClass = computed(() => {
     const normalizedIndex = Math.max(0, Math.min(3, this.avatarIndex()));
-    return `profile-portrait--${this.atlas()} profile-portrait--position-${normalizedIndex}`;
+    return `profile-portrait--position-${normalizedIndex}`;
   });
 }

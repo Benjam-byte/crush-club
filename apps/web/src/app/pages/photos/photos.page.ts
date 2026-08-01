@@ -6,17 +6,16 @@ import {
   signal,
 } from '@angular/core';
 import type { OnDestroy, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
-import { ProfilePortraitComponent } from '../../core/components/profile-portrait/profile-portrait.component';
 import { GameStateService } from '../../core/services/game-state.service';
 import { PhotoService } from '../../core/services/photo.service';
 import { PhotoSelectionTimer, photoSelectionDurationMs } from './photo-selection-timer';
 
 const requiredPhotoCount = 4;
 
-type PhotoSelectionPhase = 'pending' | 'local' | 'default';
+type PhotoSelectionPhase = 'pending' | 'local';
 
 @Component({
   selector: 'app-photos-page',
@@ -25,7 +24,6 @@ type PhotoSelectionPhase = 'pending' | 'local' | 'default';
     IonContent,
     IonIcon,
     PageHeaderComponent,
-    ProfilePortraitComponent,
   ],
   templateUrl: './photos.page.html',
   styleUrl: './photos.page.scss',
@@ -35,12 +33,14 @@ export class PhotosPage implements OnInit, OnDestroy {
   protected readonly gameState = inject(GameStateService);
   protected readonly photoService = inject(PhotoService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly selectedPhotoIndexList = signal<number[]>([]);
   protected readonly selectedSlotIndex = signal(0);
   protected readonly selectionPhase = signal<PhotoSelectionPhase>('pending');
   protected readonly remainingSelectionSeconds = signal(photoSelectionDurationMs / 1000);
   protected readonly errorMessage = signal<string | null>(null);
+  protected readonly isUploading = signal(false);
   protected readonly slotIndexList = [0, 1, 2, 3] as const;
   protected readonly countdownLabel = computed(() => {
     const remainingSeconds = this.remainingSelectionSeconds();
@@ -63,7 +63,13 @@ export class PhotosPage implements OnInit, OnDestroy {
     this.selectionTimer.refresh();
   };
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
+    try {
+      await this.gameState.refreshLobby(this.route.snapshot.paramMap.get('code') ?? undefined);
+    } catch {
+      await this.router.navigate(['/join'], { queryParams: { code: this.route.snapshot.paramMap.get('code') } });
+      return;
+    }
     this.photoService.clearPhotoList();
     this.selectionTimer.start(
       (remainingSeconds) => this.remainingSelectionSeconds.set(remainingSeconds),
@@ -135,7 +141,7 @@ export class PhotosPage implements OnInit, OnDestroy {
     this.selectedSlotIndex.set(destinationIndex);
   }
 
-  protected onValidate(): void {
+  protected async onValidate(): Promise<void> {
     if (
       this.hasValidated ||
       this.selectionPhase() === 'pending' ||
@@ -146,9 +152,19 @@ export class PhotosPage implements OnInit, OnDestroy {
 
     this.hasValidated = true;
     this.stopSelectionTimer();
-    this.gameState.setCurrentPlayerReady();
-    this.photoService.clearPhotoList();
-    void this.router.navigate(['/lobby', this.gameState.lobbyCode()]);
+    this.isUploading.set(true);
+    this.errorMessage.set(null);
+    try {
+      const orderedPhotoList = this.photoService.orderedFileList(this.selectedPhotoIndexList());
+      await this.gameState.uploadPhotos(orderedPhotoList);
+      this.photoService.clearPhotoList();
+      await this.router.navigate(['/lobby', this.gameState.lobbyCode()]);
+    } catch {
+      this.hasValidated = false;
+      this.errorMessage.set(this.gameState.errorMessage() ?? 'Les photos n’ont pas pu être envoyées.');
+    } finally {
+      this.isUploading.set(false);
+    }
   }
 
   private expirePhotoSelection(): void {
@@ -157,11 +173,7 @@ export class PhotosPage implements OnInit, OnDestroy {
     }
 
     this.stopSelectionTimer();
-    this.photoService.useDefaultPhotoList();
-    this.selectedPhotoIndexList.set([0, 1, 2, 3]);
-    this.selectedSlotIndex.set(0);
-    this.selectionPhase.set('default');
-    this.errorMessage.set(null);
+    this.errorMessage.set('Le délai indicatif est écoulé, mais tu peux toujours choisir tes quatre photos.');
   }
 
   private stopSelectionTimer(): void {
