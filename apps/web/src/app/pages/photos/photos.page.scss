@@ -1,0 +1,117 @@
+.selection-timer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--color-layer-border);
+  border-radius: 22px;
+  background: white;
+  box-shadow: var(--shadow-card);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.selection-timer--warning {
+  border-color: rgb(212 71 88 / 0.35);
+  background: var(--color-danger-50);
+}
+
+.selection-timer__value {
+  min-width: 76px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--color-layer-soft);
+  color: var(--color-brand-600);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-align: center;
+}
+
+.selection-timer__value--warning {
+  background: white;
+  color: var(--color-danger-500);
+}
+
+.photo-picker-button {
+  display: inline-flex;
+  width: 100%;
+  min-height: 56px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-inline: 16px;
+  border: 1px dashed var(--color-brand-500);
+  border-radius: 18px;
+  background: white;
+  color: var(--color-brand-600);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.selected-photo {
+  border-color: transparent;
+  box-shadow: 0 8px 18px rgb(89 42 50 / 0.08);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.selected-photo--active {
+  z-index: 1;
+  border-color: var(--color-brand-500);
+  box-shadow:
+    0 0 0 3px white,
+    0 0 0 6px rgb(242 83 106 / 0.3),
+    0 16px 30px rgb(242 83 106 / 0.28);
+  transform: translateY(-4px) scale(1.03);
+}
+
+.selected-photo__active-indicator {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 2px solid white;
+  border-radius: 999px;
+  background: var(--color-brand-500);
+  box-shadow: 0 5px 12px rgb(89 42 50 / 0.24);
+  color: white;
+  font-size: 14px;
+}
+
+.photo-tool-button {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-inline: 10px;
+  border: 1px solid var(--color-layer-border);
+  border-radius: 14px;
+  background: white;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.photo-tool-button:disabled {
+  opacity: 0.4;
+}
+
+@media (max-width: 359px) {
+  .selection-timer {
+    grid-template-columns: 1fr;
+  }
+
+  .selection-timer__value {
+    width: fit-content;
+  }
+}

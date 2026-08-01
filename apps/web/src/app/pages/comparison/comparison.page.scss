@@ -1,0 +1,22 @@
+.result-profile-card {
+  padding-inline: 1.25rem;
+  border: 2px solid transparent;
+}
+
+.result-profile-card--winner {
+  padding-block: 1.25rem;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--color-brand-600), var(--color-lover-500));
+  box-shadow: 0 18px 42px rgb(142 98 199 / 0.24);
+}
+
+.result-profile-card__portrait--winner {
+  width: 4rem;
+  height: 4rem;
+  border: 3px solid rgb(255 255 255 / 0.8);
+  border-radius: 22px;
+}
+
+.result-profile-card__rank--winner {
+  background: rgb(255 255 255 / 0.2);
+}

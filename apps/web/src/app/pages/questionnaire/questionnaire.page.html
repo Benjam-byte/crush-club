@@ -1,0 +1,140 @@
+<div class="ion-page">
+  <ion-content>
+    <main class="app-shell min-h-full pb-40">
+      <app-page-header title="Profil de Camille" backLink="/game/demo/role" />
+
+      <section class="px-5 pt-1">
+        @if (currentStepIndex() === 0) {
+          <section class="questionnaire-step-content mt-2">
+            <header class="mb-3">
+              <div class="flex items-center gap-2">
+                <span class="grid size-7 place-items-center rounded-xl bg-brand-100 text-brand-600">
+                  <ion-icon name="create-outline" aria-hidden="true" />
+                </span>
+                <h2 class="text-base font-extrabold text-ink-900">Phrase d’accroche</h2>
+              </div>
+              <p class="mt-1.5 text-sm leading-6 text-ink-500">Écris comme si tu étais Camille.</p>
+            </header>
+
+            <div class="surface-card p-5">
+              <label class="sr-only" for="tagline">Phrase d’accroche</label>
+              <p class="text-sm leading-6 text-ink-500">
+                C’est le seul champ libre. L’Amoureuse votera anonymement.
+              </p>
+              <textarea
+                id="tagline"
+                class="tagline-input mt-4 min-h-24 w-full resize-none rounded-2xl border border-peach-200 bg-peach-50 p-4 text-sm leading-6 text-ink-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
+                [maxLength]="taglineMaximumLength"
+                [value]="gameState.tagline()"
+                (input)="onTaglineInput($event)"
+              ></textarea>
+              <p class="mt-2 text-right text-xs font-bold text-ink-500">
+                {{ gameState.tagline().length }}/{{ taglineMaximumLength }}
+              </p>
+            </div>
+          </section>
+        } @else if (currentBioCategory(); as category) {
+          <section class="questionnaire-step-content mt-2">
+            <header class="mb-3">
+              <div class="flex items-center gap-2">
+                <span class="grid size-7 place-items-center rounded-xl bg-brand-100 text-brand-600">
+                  <ion-icon name="sparkles" aria-hidden="true" />
+                </span>
+                <h2 class="text-base font-extrabold text-ink-900">Bio automatique</h2>
+              </div>
+              <p class="mt-1.5 text-sm leading-6 text-ink-500">
+                Un choix pour la catégorie « {{ category.label }} ».
+              </p>
+            </header>
+
+            <fieldset class="surface-card p-5">
+              <legend class="sr-only">{{ category.label }}</legend>
+              <p class="text-sm font-extrabold text-ink-900">{{ category.label }}</p>
+              <p class="mt-1 text-sm leading-6 text-ink-500">Choisis la proposition qui ressemble le plus à Camille.</p>
+              <div class="mt-4 grid gap-2">
+                @for (option of category.optionList; track option.id) {
+                  <label
+                    class="radio-option mx-1 flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-bold transition"
+                    [class.radio-option--selected]="gameState.bioAnswerByCategoryId()[category.id] === option.id"
+                  >
+                    <span>{{ option.label }}</span>
+                    <input
+                      class="radio-option__input shrink-0"
+                      type="radio"
+                      [name]="'bio-' + category.id"
+                      [value]="option.id"
+                      [checked]="gameState.bioAnswerByCategoryId()[category.id] === option.id"
+                      (change)="onBioOptionSelect(category.id, option.id)"
+                    />
+                  </label>
+                }
+              </div>
+            </fieldset>
+          </section>
+        } @else if (currentQuestion(); as question) {
+          <section class="questionnaire-step-content mt-2">
+            <header class="mb-3">
+              <div class="flex items-center gap-2">
+                <span class="grid size-7 place-items-center rounded-xl bg-brand-100 text-brand-600">
+                  <ion-icon name="heart-outline" aria-hidden="true" />
+                </span>
+                <h2 class="text-base font-extrabold text-ink-900">À toi de jouer</h2>
+              </div>
+            </header>
+
+            <app-question-card
+              [question]="question"
+              [answer]="gameState.answerByQuestionId()[question.id]"
+              (answerChange)="onQuestionAnswer(question.id, $event)"
+            />
+          </section>
+        }
+      </section>
+    </main>
+  </ion-content>
+
+  <footer class="questionnaire-footer safe-bottom fixed inset-x-0 bottom-0 z-20 mx-auto max-w-[580px] border-t border-peach-200 bg-white/95 px-5 pt-3">
+    <div class="flex items-center justify-between gap-3">
+      <p class="text-sm font-extrabold text-ink-900">
+        Étape {{ currentStepNumber() }} sur {{ requiredAnswerCount() }}
+      </p>
+      <p class="text-xs font-semibold text-ink-500">
+        {{ completedAnswerCount() }}/{{ requiredAnswerCount() }} répondues
+      </p>
+    </div>
+
+    <ol class="mt-2 flex gap-1" aria-label="Progression du questionnaire">
+      @for (stepNumber of stepNumberList(); track stepNumber) {
+        <li
+          class="questionnaire-step-segment h-1.5 min-w-0 flex-1 rounded-full"
+          [class.questionnaire-step-segment--completed]="stepNumber < currentStepNumber()"
+          [attr.aria-label]="'Étape ' + stepNumber"
+          [attr.aria-current]="stepNumber === currentStepNumber() ? 'step' : null"
+        ></li>
+      }
+    </ol>
+
+    <div class="mt-3 grid gap-3" [class.grid-cols-2]="currentStepIndex() > 0">
+      @if (currentStepIndex() > 0) {
+        <ion-button
+          class="action-button action-button--secondary w-full"
+          expand="block"
+          (click)="onPrevious()"
+        >
+          <ion-icon name="arrow-back" slot="start" aria-hidden="true" />
+          Retour
+        </ion-button>
+      }
+
+      <ion-button
+        class="action-button w-full"
+        expand="block"
+        [disabled]="!canAdvance()"
+        (click)="onNext()"
+      >
+        {{ isFinalStep() ? 'Valider mes réponses' : 'Suivant' }}
+        <ion-icon [name]="isFinalStep() ? 'checkmark' : 'arrow-forward'" slot="end" aria-hidden="true" />
+      </ion-button>
+    </div>
+  </footer>
+</div>

@@ -1,0 +1,29 @@
+.profile-portrait {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 200% 200%;
+}
+
+.profile-portrait--players {
+  background-image: url('/assets/images/players-atlas.png');
+}
+
+.profile-portrait--camille {
+  background-image: url('/assets/images/camille-atlas.png');
+}
+
+.profile-portrait--position-0 {
+  background-position: 0 0;
+}
+
+.profile-portrait--position-1 {
+  background-position: 100% 0;
+}
+
+.profile-portrait--position-2 {
+  background-position: 0 100%;
+}
+
+.profile-portrait--position-3 {
+  background-position: 100% 100%;
+}

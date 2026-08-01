@@ -1,0 +1,134 @@
+<div class="ion-page">
+  <ion-content>
+    <main class="app-shell decorative-grid relative flex min-h-full flex-col overflow-hidden px-5">
+      <div class="pointer-events-none absolute -left-12 top-24 size-40 rounded-full bg-brand-200/45 blur-3xl"></div>
+      <div class="pointer-events-none absolute -right-20 top-80 size-52 rounded-full bg-lover-500/10 blur-3xl"></div>
+
+      <header class="relative z-10 flex w-full min-w-0 items-center gap-3 pt-5">
+        <div class="flex items-center gap-3">
+          <app-brand-mark />
+          <span class="text-lg font-extrabold tracking-tight text-brand-600">Crush Club</span>
+        </div>
+      </header>
+
+      <section class="relative z-10 flex w-full min-w-0 flex-1 flex-col items-center pb-6 pt-8 text-center">
+        <div class="mb-5 rounded-full border border-brand-100 bg-white/75 px-4 py-2 text-xs font-bold text-brand-600 shadow-sm">
+          Le jeu qui révèle qui te connaît vraiment
+        </div>
+
+        <h1 class="max-w-sm text-[44px] font-extrabold leading-[0.98] tracking-[-0.055em] text-ink-900">
+          Tes amis te
+          <span class="brand-word block text-brand-600">voient comment&nbsp;?</span>
+        </h1>
+        <p class="mt-4 w-full max-w-sm text-[15px] leading-6 text-ink-600">
+          Créez de faux profils, misez votre <strong class="text-ink-900">LOVER</strong> et découvrez
+          qui connaît le mieux le groupe.
+        </p>
+
+        <div class="profile-stack relative mt-6 h-64 w-full max-w-[340px]" aria-label="Aperçu des profils du jeu">
+          <article class="profile-card profile-card--left" aria-hidden="true">
+            <app-profile-portrait class="block h-full" [avatarIndex]="1" alt="" />
+          </article>
+          <article class="profile-card profile-card--right" aria-hidden="true">
+            <app-profile-portrait class="block h-full" [avatarIndex]="2" alt="" />
+          </article>
+          <article class="profile-card profile-card--center">
+            <div class="relative h-[174px] overflow-hidden rounded-[22px]">
+              <app-profile-portrait class="block h-full" [avatarIndex]="0" alt="Profil fictif de Léa" />
+              <div class="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/55 to-transparent"></div>
+              <div class="absolute bottom-3 left-3 text-left text-white">
+                <p class="text-lg font-extrabold">Léa, 28</p>
+                <p class="text-[10px] font-semibold text-white/85">Aventurière · Musique · Brunch</p>
+              </div>
+            </div>
+            <div class="flex items-center justify-between px-3 py-2.5">
+              <span class="rounded-full bg-peach-100 px-2.5 py-1 text-[9px] font-bold text-brand-600">Profil mystère</span>
+              <div class="flex items-center gap-1 text-brand-500">
+                <ion-icon name="heart" aria-hidden="true" />
+                <span class="text-[10px] font-extrabold">87%</span>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="mt-auto flex w-full flex-col gap-3">
+          <div class="grid gap-4">
+            <ion-button class="action-button w-full" expand="block" routerLink="/join" [queryParams]="{ mode: 'create' }">
+              <ion-icon name="rocket" slot="start" aria-hidden="true" />
+              Créer un lobby
+              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+            </ion-button>
+            <ion-button class="action-button action-button--secondary w-full" expand="block" routerLink="/join">
+              <ion-icon name="people" slot="start" aria-hidden="true" />
+              Rejoindre un lobby
+              <ion-icon name="chevron-forward" slot="end" aria-hidden="true" />
+            </ion-button>
+            <ion-button class="action-button action-button--secondary w-full" expand="block" routerLink="/game-configs">
+              <ion-icon name="options-outline" slot="start" aria-hidden="true" />
+              Mes questionnaires
+              <ion-icon name="chevron-forward" slot="end" aria-hidden="true" />
+            </ion-button>
+          </div>
+          <button
+            id="how-it-works-trigger"
+            type="button"
+            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-ink-600 underline decoration-brand-200 underline-offset-4 focus-visible:outline-2 focus-visible:outline-brand-500"
+          >
+            <ion-icon name="help-circle-outline" aria-hidden="true" />
+            Comment ça marche&nbsp;?
+          </button>
+        </div>
+      </section>
+
+    </main>
+
+    <ion-modal
+      #howItWorksModal
+      class="how-it-works-modal"
+      trigger="how-it-works-trigger"
+      [initialBreakpoint]="0.62"
+      [breakpoints]="[0, 0.62, 0.9]"
+      handleBehavior="cycle"
+    >
+      <ng-template>
+        <ion-content>
+          <section class="px-5 pb-8 pt-3 text-left">
+            <header class="flex min-h-12 items-center justify-between gap-4">
+              <div>
+                <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">Comment ça marche&nbsp;?</p>
+                <h2 class="mt-1 text-2xl font-extrabold tracking-tight text-ink-900">Une partie, trois temps</h2>
+              </div>
+              <ion-button
+                aria-label="Fermer"
+                fill="clear"
+                shape="round"
+                size="small"
+                (click)="howItWorksModal.dismiss()"
+              >
+                <ion-icon name="close" slot="icon-only" aria-hidden="true" />
+              </ion-button>
+            </header>
+
+            <ol class="mt-6 space-y-5">
+              <li class="grid grid-cols-[2rem_1fr] items-center gap-x-3">
+                <span class="grid size-8 place-items-center rounded-xl bg-brand-100 text-sm font-extrabold text-brand-600">1</span>
+                <h3 class="text-sm font-extrabold text-ink-900">Prépare ton profil</h3>
+                <p class="col-start-2 mt-1 text-xs leading-5 text-ink-600">Quatre photos restent privées au groupe.</p>
+              </li>
+              <li class="grid grid-cols-[2rem_1fr] items-center gap-x-3">
+                <span class="grid size-8 place-items-center rounded-xl bg-brand-100 text-sm font-extrabold text-brand-600">2</span>
+                <h3 class="text-sm font-extrabold text-ink-900">Devine tes proches</h3>
+                <p class="col-start-2 mt-1 text-xs leading-5 text-ink-600">Les mêmes choix, mais pas toujours les mêmes réponses.</p>
+              </li>
+              <li class="grid grid-cols-[2rem_1fr] items-center gap-x-3">
+                <span class="grid size-8 place-items-center rounded-xl bg-brand-100 text-sm font-extrabold text-brand-600">3</span>
+                <h3 class="text-sm font-extrabold text-ink-900">Révélez tout ensemble</h3>
+                <p class="col-start-2 mt-1 text-xs leading-5 text-ink-600">Scores, surprises et discussions garanties.</p>
+              </li>
+            </ol>
+          </section>
+        </ion-content>
+      </ng-template>
+    </ion-modal>
+  </ion-content>
+</div>

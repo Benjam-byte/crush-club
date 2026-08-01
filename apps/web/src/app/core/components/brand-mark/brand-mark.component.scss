@@ -1,0 +1,24 @@
+.brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, var(--color-coral-400), var(--color-brand-500));
+  box-shadow:
+    0 10px 24px rgb(242 83 106 / 0.28),
+    inset 0 1px 1px rgb(255 255 255 / 0.42);
+  transform: rotate(-5deg);
+}
+
+.brand-mark ion-icon {
+  font-size: 22px;
+}
+
+.brand-mark--large {
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
+}
+
+.brand-mark--large ion-icon {
+  font-size: 32px;
+}

@@ -1,0 +1,33 @@
+<header class="grid min-h-16 grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3 px-5 py-3">
+  @if (backLink()) {
+    <a
+      class="grid size-11 shrink-0 place-items-center rounded-2xl text-ink-700 transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+      [routerLink]="backLink()"
+      aria-label="Revenir à l'écran précédent"
+    >
+      <ion-icon name="arrow-back" class="text-xl" aria-hidden="true" />
+    </a>
+  } @else {
+    <app-brand-mark />
+  }
+
+  <div class="min-w-0">
+    <h1
+      class="text-xl font-extrabold tracking-tight text-ink-900"
+      [class.truncate]="!wrapTitle()"
+      [class.whitespace-pre-line]="wrapTitle()"
+      [class.leading-tight]="wrapTitle()"
+      [class.text-center]="centerTitle()"
+    >
+      {{ title() }}
+    </h1>
+  </div>
+
+  @if (showDecoration()) {
+    <div class="grid size-11 place-items-center rounded-2xl bg-white/70 text-brand-400" aria-hidden="true">
+      <ion-icon name="heart" />
+    </div>
+  } @else {
+    <span class="size-11" aria-hidden="true"></span>
+  }
+</header>

@@ -1,0 +1,55 @@
+.brand-word {
+  background: linear-gradient(120deg, var(--color-brand-600), var(--color-coral-400));
+  background-clip: text;
+  color: transparent;
+}
+
+.profile-card {
+  position: absolute;
+  overflow: hidden;
+  border: 5px solid white;
+  border-radius: 28px;
+  background: white;
+  box-shadow: var(--shadow-floating);
+}
+
+.profile-card--left,
+.profile-card--right {
+  top: 28px;
+  width: 142px;
+  height: 202px;
+  opacity: 0.88;
+}
+
+.profile-card--left {
+  left: 14px;
+  transform: rotate(-10deg);
+}
+
+.profile-card--right {
+  right: 14px;
+  transform: rotate(10deg);
+}
+
+.profile-card--center {
+  top: 0;
+  left: 50%;
+  z-index: 2;
+  width: 178px;
+  transform: translateX(-50%) rotate(-1deg);
+}
+
+ion-modal.how-it-works-modal {
+  --background: var(--color-layer-bg);
+  --border-radius: 28px 28px 0 0;
+}
+
+@media (max-width: 359px) {
+  .profile-card--left {
+    left: 2px;
+  }
+
+  .profile-card--right {
+    right: 2px;
+  }
+}

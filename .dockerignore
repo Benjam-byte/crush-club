@@ -1,0 +1,11 @@
+.git
+.env
+.pnpm-store
+tmp
+node_modules
+**/node_modules
+**/.angular
+**/dist
+**/coverage
+*.log
+crush-club-claude-code-pack.zip

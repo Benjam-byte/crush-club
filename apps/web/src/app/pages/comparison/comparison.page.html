@@ -1,0 +1,119 @@
+<div class="ion-page">
+  <ion-content>
+    <main class="app-shell min-h-full pb-8">
+      <app-page-header
+        title="Scores finaux"
+        backLink="/game/demo/reveal/1"
+        [centerTitle]="true"
+        [showDecoration]="false"
+      />
+
+      <section class="px-5 pt-2">
+        <div class="mb-5 text-center">
+          <h2 class="text-2xl font-extrabold tracking-tight text-ink-900">Qui connaît le mieux Camille&nbsp;?</h2>
+          <p class="mt-2 text-sm leading-6 text-ink-600">
+            Similarité des 10 réponses structurées, plus {{ bestTaglineBonusPointCount }} points pour la meilleure accroche.
+          </p>
+        </div>
+
+        <section class="space-y-3">
+          @for (scoredProfile of scoredProfileList(); track scoredProfile.submission.id; let rank = $index) {
+            <button
+              class="result-profile-card surface-card flex w-full items-center gap-3 p-4 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+              [class.result-profile-card--winner]="rank === 0"
+              type="button"
+              (click)="onProfileSelect(scoredProfile.submission.id)"
+            >
+              <span
+                class="grid size-8 shrink-0 place-items-center rounded-xl text-xs font-extrabold"
+                [class.result-profile-card__rank--winner]="rank === 0"
+                [class.text-white]="rank === 0"
+                [class.bg-peach-100]="rank !== 0"
+                [class.text-ink-500]="rank !== 0"
+              >
+                @if (rank === 0) {
+                  <ion-icon name="trophy" aria-hidden="true" />
+                } @else {
+                  {{ rank + 1 }}
+                }
+              </span>
+              <span
+                class="result-profile-card__portrait size-12 shrink-0 overflow-hidden rounded-2xl"
+                [class.result-profile-card__portrait--winner]="rank === 0"
+              >
+                <app-profile-portrait
+                  class="block h-full"
+                  atlas="camille"
+                  [avatarIndex]="scoredProfile.submission.avatarIndex"
+                  [alt]="'Portrait fictif de ' + scoredProfile.submission.authorName"
+                />
+              </span>
+              <span class="min-w-0 flex-1">
+                @if (rank === 0) {
+                  <span class="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-white/75">
+                    Gagnant
+                  </span>
+                }
+                <span
+                  class="block truncate font-extrabold"
+                  [class.text-lg]="rank === 0"
+                  [class.text-white]="rank === 0"
+                  [class.text-sm]="rank !== 0"
+                  [class.text-ink-900]="rank !== 0"
+                >
+                  {{ scoredProfile.submission.authorName }}
+                  @if (scoredProfile.submission.id === 'player-current') {
+                    <span
+                      class="font-semibold"
+                      [class.text-white]="rank === 0"
+                      [class.text-ink-500]="rank !== 0"
+                    >· toi</span>
+                  }
+                </span>
+                <span
+                  class="mt-1 block text-xs leading-5"
+                  [class.text-white]="rank === 0"
+                  [class.text-ink-500]="rank !== 0"
+                >
+                  {{ scoredProfile.similarityPercentage }} % de similarité
+                  @if (scoredProfile.taglineBonus > 0) {
+                    · +{{ scoredProfile.taglineBonus }} accroche
+                  }
+                </span>
+              </span>
+              <span class="shrink-0 text-right">
+                <span
+                  class="block font-extrabold"
+                  [class.text-3xl]="rank === 0"
+                  [class.text-white]="rank === 0"
+                  [class.text-xl]="rank !== 0"
+                  [class.text-brand-600]="rank !== 0"
+                >{{ scoredProfile.finalScore }}</span>
+                <span
+                  class="block text-[10px] font-bold"
+                  [class.text-white]="rank === 0"
+                  [class.text-ink-500]="rank !== 0"
+                >points</span>
+              </span>
+            </button>
+          }
+        </section>
+
+        <div class="mt-6 grid gap-3">
+          <ion-button class="action-button w-full" expand="block" (click)="onReturnToLobby()">
+            <ion-icon name="people" slot="start" aria-hidden="true" />
+            Retourner dans le lobby
+          </ion-button>
+          <ion-button
+            class="action-button action-button--secondary w-full"
+            expand="block"
+            (click)="onQuitGame()"
+          >
+            <ion-icon name="close" slot="start" aria-hidden="true" />
+            Quitter la partie
+          </ion-button>
+        </div>
+      </section>
+    </main>
+  </ion-content>
+</div>

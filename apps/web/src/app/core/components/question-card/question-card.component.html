@@ -1,0 +1,108 @@
+<article class="surface-card p-5">
+  <header>
+    <div class="flex items-center gap-3">
+      <div class="grid size-9 shrink-0 place-items-center rounded-2xl bg-peach-100 text-brand-600">
+        <ion-icon
+          [name]="question().type === 'integer_range' ? 'sparkles' : 'heart-outline'"
+          aria-hidden="true"
+        />
+      </div>
+      <h3 class="min-w-0 flex-1 text-[15px] font-extrabold leading-5 text-ink-900">
+        {{ question().label }}
+      </h3>
+    </div>
+    @if (question().description) {
+      <p class="mt-2 text-sm leading-6 text-ink-500">{{ question().description }}</p>
+    }
+  </header>
+
+  @switch (question().type) {
+    @case ('integer_range') {
+      <div class="mt-5">
+        <div class="mb-2 flex items-center justify-between">
+          <span class="text-xs font-semibold text-ink-500">{{ question().minimumLabel }}</span>
+          <span class="rounded-full bg-brand-500 px-3 py-1 text-sm font-extrabold text-white">
+            {{ numericAnswer() }}/{{ question().maximum }}
+          </span>
+          <span class="text-xs font-semibold text-ink-500">{{ question().maximumLabel }}</span>
+        </div>
+        <input
+          class="range-input w-full"
+          type="range"
+          [min]="question().minimum ?? 0"
+          [max]="question().maximum ?? 10"
+          [value]="numericAnswer()"
+          [attr.aria-label]="question().label"
+          (input)="onRangeInput($event)"
+        />
+      </div>
+    }
+
+    @case ('single_choice') {
+      <div class="mt-4 grid gap-2">
+        @for (option of question().options ?? []; track option.id) {
+          <label
+            class="radio-option flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-bold transition"
+            [class.radio-option--selected]="answer() === option.id"
+          >
+            <span>{{ option.label }}</span>
+            <input
+              class="radio-option__input shrink-0"
+              type="radio"
+              [name]="question().id"
+              [value]="option.id"
+              [checked]="answer() === option.id"
+              (change)="onOptionSelect(option.id)"
+            />
+          </label>
+        }
+      </div>
+    }
+
+    @case ('binary_choice') {
+      <div class="mt-5 grid gap-3">
+        @for (option of question().options ?? []; track option.id) {
+          <button
+            class="option-button binary-option relative grid min-h-24 w-full place-items-center rounded-3xl border px-12 py-6 text-center text-sm font-extrabold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+            [class.option-button--selected]="answer() === option.id"
+            type="button"
+            [attr.aria-pressed]="answer() === option.id"
+            (click)="onOptionSelect(option.id)"
+          >
+            <span>{{ option.label }}</span>
+            <span
+              class="binary-option__indicator absolute right-4 grid size-6 place-items-center rounded-full border"
+              [class.binary-option__indicator--selected]="answer() === option.id"
+              aria-hidden="true"
+            >
+              @if (answer() === option.id) {
+                <ion-icon name="checkmark" aria-hidden="true" />
+              }
+            </span>
+          </button>
+        }
+      </div>
+    }
+
+    @default {
+      <div class="mt-4 grid gap-2">
+        @for (option of question().options ?? []; track option.id) {
+          <button
+            class="option-button flex min-h-12 items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-left text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+            [class.option-button--selected]="answer() === option.id"
+            type="button"
+            [attr.aria-pressed]="answer() === option.id"
+            (click)="onOptionSelect(option.id)"
+          >
+            <span>{{ option.label }}</span>
+            @if (answer() === option.id) {
+              <span class="grid size-5 shrink-0 place-items-center rounded-full bg-brand-500 text-white">
+                <ion-icon name="checkmark" aria-hidden="true" />
+              </span>
+            }
+          </button>
+        }
+      </div>
+    }
+  }
+</article>

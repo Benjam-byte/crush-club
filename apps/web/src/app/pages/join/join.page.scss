@@ -1,0 +1,20 @@
+.form-input {
+  min-height: 72px;
+  border: 1px solid var(--color-layer-border);
+  border-radius: 18px;
+  background: var(--color-layer-bg);
+  --color: var(--color-text-primary);
+  --highlight-color-focused: var(--color-brand-500);
+  --label-color: var(--color-text-secondary);
+  --padding-bottom: 12px;
+  --padding-end: 16px;
+  --padding-start: 16px;
+  --padding-top: 12px;
+  --placeholder-color: #9c898c;
+}
+
+.code-input {
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}

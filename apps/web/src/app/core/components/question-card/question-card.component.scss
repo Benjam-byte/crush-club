@@ -1,0 +1,66 @@
+.option-button {
+  border-color: var(--color-layer-border);
+  background: var(--color-layer-bg);
+  color: var(--color-text-secondary);
+}
+
+.option-button--selected {
+  border-color: var(--color-brand-500);
+  background: #fff0eb;
+  color: var(--color-brand-600);
+  box-shadow: 0 0 0 3px rgb(242 83 106 / 0.08);
+}
+
+.binary-option {
+  box-shadow: 0 8px 18px rgb(89 42 50 / 0.07);
+}
+
+.binary-option__indicator {
+  border-color: var(--color-layer-border);
+  background: white;
+  color: white;
+}
+
+.binary-option__indicator--selected {
+  border-color: var(--color-brand-500);
+  background: var(--color-brand-500);
+}
+
+.range-input {
+  height: 24px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  accent-color: var(--color-brand-500);
+}
+
+.range-input::-webkit-slider-runnable-track {
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffc7c4, #f2536a);
+}
+
+.range-input::-webkit-slider-thumb {
+  width: 23px;
+  height: 23px;
+  margin-top: -8px;
+  appearance: none;
+  border: 4px solid white;
+  border-radius: 50%;
+  background: var(--color-brand-500);
+  box-shadow: 0 4px 12px rgb(89 42 50 / 0.22);
+}
+
+.range-input::-moz-range-track {
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffc7c4, #f2536a);
+}
+
+.range-input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 4px solid white;
+  border-radius: 50%;
+  background: var(--color-brand-500);
+}

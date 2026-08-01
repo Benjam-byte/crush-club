@@ -1,0 +1,117 @@
+<div class="ion-page">
+  <ion-content>
+    <main class="app-shell min-h-full pb-8">
+      <app-page-header
+        [title]="isCreateMode() ? 'Crée ton lobby' : 'Rejoins la partie'"
+        backLink="/"
+      />
+
+      <section class="px-5 pt-4">
+        <div class="surface-card overflow-hidden">
+          <div class="relative bg-gradient-to-br from-brand-500 to-coral-400 px-6 py-7 text-white">
+            <div class="absolute -right-7 -top-10 size-32 rounded-full border-[22px] border-white/10"></div>
+            <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-white/75">
+              {{ isCreateMode() ? 'Tu seras l’hôte' : 'Invitation reçue' }}
+            </p>
+            <h2 class="mt-2 max-w-xs text-2xl font-extrabold leading-tight">
+              {{ isCreateMode() ? 'Rassemble le groupe en quelques secondes.' : 'Entre dans le club.' }}
+            </h2>
+            <p class="mt-2 max-w-sm text-sm leading-6 text-white/85">
+              Un pseudo suffit. Aucun compte permanent ne sera créé.
+            </p>
+          </div>
+
+          <form class="space-y-5 p-5" [formGroup]="joinForm" (ngSubmit)="onSubmit()">
+            @if (!isCreateMode()) {
+              <div>
+                <ion-input
+                  class="form-input code-input"
+                  formControlName="lobbyCode"
+                  label="Code du lobby"
+                  labelPlacement="stacked"
+                  maxlength="6"
+                  placeholder="AB7K"
+                  autocomplete="off"
+                  inputmode="text"
+                  (ionInput)="onLobbyCodeInput()"
+                />
+                @if (hasSubmitted() && joinForm.controls.lobbyCode.invalid) {
+                  <p class="mt-2 flex items-center gap-2 text-xs font-semibold text-danger-500">
+                    <ion-icon name="close" aria-hidden="true" />
+                    Saisis le code de 4 à 6 caractères.
+                  </p>
+                }
+              </div>
+            }
+
+            <div>
+              <ion-input
+                class="form-input"
+                formControlName="displayName"
+                label="Ton pseudonyme"
+                labelPlacement="stacked"
+                maxlength="24"
+                placeholder="Comment on t’appelle ?"
+                autocomplete="nickname"
+              />
+              @if (hasSubmitted() && joinForm.controls.displayName.invalid) {
+                <p class="mt-2 flex items-center gap-2 text-xs font-semibold text-danger-500">
+                  <ion-icon name="close" aria-hidden="true" />
+                  Choisis un pseudo de 2 à 24 caractères.
+                </p>
+              }
+            </div>
+
+            @if (isCreateMode()) {
+              <div>
+                <ion-select
+                  class="form-input"
+                  formControlName="gameConfigId"
+                  label="Questionnaire du lobby"
+                  labelPlacement="stacked"
+                  interface="action-sheet"
+                  placeholder="Choisir une configuration"
+                >
+                  @for (config of gameConfigs.configList(); track config.id) {
+                    <ion-select-option [value]="config.id">
+                    {{ config.name }} · {{ config.questionIds.length }} questions{{ config.isPublic && !config.isOwner ? ' · partagé' : '' }}
+                    </ion-select-option>
+                  }
+                </ion-select>
+                <a class="mt-2 inline-flex text-xs font-bold text-brand-600 underline" routerLink="/game-configs">
+                  Gérer mes configurations
+                </a>
+                @if (hasSubmitted() && !joinForm.controls.gameConfigId.value) {
+                  <p class="mt-2 text-xs font-semibold text-danger-500">Choisis un questionnaire.</p>
+                }
+              </div>
+
+              <ion-checkbox formControlName="adultConfirmed" labelPlacement="end" alignment="start">
+                <span class="text-xs leading-5 text-ink-600">Je confirme que tous les participants sont majeurs.</span>
+              </ion-checkbox>
+              @if (hasSubmitted() && !joinForm.controls.adultConfirmed.value) {
+                <p class="text-xs font-semibold text-danger-500">Cette confirmation est obligatoire.</p>
+              }
+            }
+
+            @if (gameConfigs.errorMessage() || gameState.errorMessage(); as errorMessage) {
+              <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">
+                {{ errorMessage }}
+              </p>
+            }
+
+            <ion-button class="action-button w-full" expand="block" type="submit" [disabled]="isSubmitting()">
+              {{ isSubmitting() ? 'Connexion…' : (isCreateMode() ? 'Créer mon lobby' : 'Rejoindre le lobby') }}
+              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+            </ion-button>
+          </form>
+        </div>
+
+        <div class="mt-5 flex items-start gap-3 rounded-2xl px-2 text-xs leading-5 text-ink-500">
+          <ion-icon class="mt-0.5 shrink-0 text-brand-500" name="shield-checkmark" aria-hidden="true" />
+          <p>Ta session reste liée à cette partie uniquement. Tes réponses ne sont jamais publiques.</p>
+        </div>
+      </section>
+    </main>
+  </ion-content>
+</div>

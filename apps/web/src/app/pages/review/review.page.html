@@ -1,0 +1,134 @@
+<div class="ion-page">
+  <ion-content>
+    <main class="app-shell min-h-full pb-8">
+      <app-page-header title="Validation du profil" backLink="/game/demo/round/1" />
+
+      <section class="space-y-4 px-5 pt-2">
+        <div class="rounded-[26px] bg-gradient-to-br from-brand-500 to-coral-400 p-5 text-white shadow-floating">
+          <div class="flex items-start gap-3">
+            <div class="grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20">
+              <ion-icon class="text-2xl" name="heart" aria-hidden="true" />
+            </div>
+            <div>
+              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-white/75">
+                Ton pouvoir
+              </p>
+              <h2 class="mt-1 text-xl font-extrabold">Mise ton unique LOVER</h2>
+              <p class="mt-2 text-xs leading-5 text-white/85">
+                Exact&nbsp;: le maximum est doublé. Sinon, tu perds les points
+                qui te séparent du maximum.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <section class="surface-card overflow-hidden">
+          <header class="flex items-start justify-between gap-4 border-b border-peach-100 px-5 py-4">
+            <div class="min-w-0 flex-1">
+              <h2 class="text-base font-extrabold text-ink-900">
+                Tes réponses
+              </h2>
+              <p class="mt-1 text-xs text-ink-500">
+                Appuie sur un cœur pour déplacer ton LOVER.
+              </p>
+            </div>
+            <button
+              class="grid size-10 shrink-0 place-items-center rounded-2xl text-brand-600 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+              type="button" aria-label="Modifier mes réponses" title="Modifier mes réponses"
+              routerLink="/game/demo/round/1">
+              <ion-icon name="create-outline" aria-hidden="true" />
+            </button>
+          </header>
+
+          <ul class="divide-y divide-peach-100">
+            @for (reviewItem of reviewItemList(); track reviewItem.id) {
+            <li class="review-row flex items-center gap-3 px-4 py-3"
+              [class.review-row--lover]="gameState.loverQuestionId() === reviewItem.id">
+              <div class="grid size-9 shrink-0 place-items-center rounded-2xl"
+                [class.bg-brand-100]="gameState.loverQuestionId() !== reviewItem.id"
+                [class.text-brand-600]="gameState.loverQuestionId() !== reviewItem.id"
+                [class.bg-brand-500]="gameState.loverQuestionId() === reviewItem.id"
+                [class.text-white]="gameState.loverQuestionId() === reviewItem.id">
+                <ion-icon [name]="gameState.loverQuestionId() === reviewItem.id ? 'heart' : 'heart-outline'"
+                  aria-hidden="true" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-xs font-extrabold text-ink-900">
+                  {{ reviewItem.label }}
+                </p>
+                <p class="mt-1 truncate text-[11px] text-ink-500">
+                  {{ reviewItem.answerLabel }}
+                </p>
+              </div>
+              @if (gameState.loverQuestionId() === reviewItem.id) {
+              <span
+                class="rounded-full bg-brand-500 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-white">
+                LOVER
+              </span>
+              }
+              <button
+                class="grid size-11 shrink-0 place-items-center rounded-2xl border border-peach-200 bg-white text-xl text-brand-500 focus-visible:outline-2 focus-visible:outline-brand-500"
+                type="button" [attr.aria-label]="'Miser le LOVER sur ' + reviewItem.label"
+                [attr.aria-pressed]="gameState.loverQuestionId() === reviewItem.id"
+                (click)="onLoverSelect(reviewItem.id)">
+                <ion-icon [name]="gameState.loverQuestionId() === reviewItem.id ? 'heart' : 'heart-outline'"
+                  aria-hidden="true" />
+              </button>
+            </li>
+            }
+          </ul>
+        </section>
+
+        @if (selectedLoverItem(); as loverItem) {
+        <div class="surface-card border-brand-200 p-5">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-xs font-extrabold uppercase tracking-[0.12em] text-brand-600">
+                Mise actuelle
+              </p>
+              <p class="mt-1 text-sm font-extrabold text-ink-900">
+                {{ loverItem.label }}
+              </p>
+            </div>
+            <div class="rounded-2xl bg-brand-500 px-3 py-2 text-center text-white">
+              <p class="text-lg font-extrabold">
+                +{{ loverItem.maximumScore * 2 }}
+              </p>
+              <p class="text-[8px] font-bold uppercase tracking-wide text-white/80">
+                si exact
+              </p>
+            </div>
+          </div>
+          <div class="mt-4 grid grid-cols-2 gap-2 text-center">
+            <div class="rounded-2xl bg-success-50 p-3">
+              <p class="text-xs font-extrabold text-success-500">
+                Cœur parfait
+              </p>
+              <p class="mt-1 text-[10px] text-ink-500">Double le maximum</p>
+            </div>
+            <div class="rounded-2xl bg-lover-50 p-3">
+              <p class="text-xs font-extrabold text-lover-500">Cœur brisé</p>
+              <p class="mt-1 text-[10px] text-ink-500">
+                Score normal − maximum
+              </p>
+            </div>
+          </div>
+        </div>
+        }
+
+        <div class="rounded-2xl bg-warning-50 px-4 py-3 text-xs leading-5 text-ink-600">
+          <strong class="text-warning-500">Attention&nbsp;:</strong>
+          après le verrouillage, plus aucune réponse ni mise LOVER ne pourra
+          être modifiée.
+        </div>
+
+        <ion-button class="action-button action-button--lover w-full" expand="block" (click)="onLockProfile()">
+          <ion-icon name="lock-closed" slot="start" aria-hidden="true" />
+          Verrouiller mon profil
+          <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+        </ion-button>
+      </section>
+    </main>
+
+  </ion-content>
+</div>

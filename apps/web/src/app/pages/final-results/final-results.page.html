@@ -1,0 +1,104 @@
+<div class="ion-page">
+  <ion-content>
+    <main class="app-shell decorative-grid relative min-h-full overflow-hidden px-5 pb-8 pt-6">
+      <div class="pointer-events-none absolute -left-14 top-16 size-44 rounded-full bg-brand-200/45 blur-3xl"></div>
+      <div class="pointer-events-none absolute -right-20 top-72 size-56 rounded-full bg-gold-500/10 blur-3xl"></div>
+
+      <header class="relative z-10 text-center">
+        <div class="mx-auto w-fit">
+          <app-brand-mark size="large" />
+        </div>
+        <p class="mt-5 text-xs font-extrabold uppercase tracking-[0.18em] text-brand-600">Fin de partie</p>
+        <h1 class="mt-2 text-4xl font-extrabold tracking-[-0.05em] text-ink-900">Les cœurs ont parlé.</h1>
+        <p class="mt-2 text-sm leading-6 text-ink-600">Quatre manches, vingt LOVER et beaucoup trop de vérités.</p>
+      </header>
+
+      <section class="podium relative z-10 mt-7 grid grid-cols-3 items-end gap-2">
+        <article class="podium-place podium-place--second">
+          <div class="mx-auto size-16 overflow-hidden rounded-[22px] border-4 border-white shadow-lg">
+            <app-profile-portrait class="block h-full" [avatarIndex]="1" alt="Portrait fictif de Marco" />
+          </div>
+          <span class="podium-rank">2</span>
+          <h2>Marco</h2>
+          <p>195 pts</p>
+        </article>
+
+        <article class="podium-place podium-place--first">
+          <div class="mx-auto size-20 overflow-hidden rounded-[26px] border-4 border-white shadow-lg">
+            <app-profile-portrait class="block h-full" [avatarIndex]="0" alt="Portrait fictif de Léa" />
+          </div>
+          <span class="podium-rank">1</span>
+          <ion-icon class="podium-crown" name="trophy" aria-hidden="true" />
+          <h2>Léa</h2>
+          <p>245 pts</p>
+        </article>
+
+        <article class="podium-place podium-place--third">
+          <div class="mx-auto size-16 overflow-hidden rounded-[22px] border-4 border-white shadow-lg">
+            <app-profile-portrait class="block h-full" [avatarIndex]="2" alt="Portrait fictif de Inès" />
+          </div>
+          <span class="podium-rank">3</span>
+          <h2>Inès</h2>
+          <p>165 pts</p>
+        </article>
+      </section>
+
+      <section class="surface-card relative z-10 mt-4 overflow-hidden">
+        <ol class="divide-y divide-peach-100">
+          @for (entry of leaderboardEntryList; track entry.id; let rank = $index) {
+            <li class="flex min-h-[62px] items-center gap-3 px-4 py-3">
+              <span class="w-5 text-center text-xs font-extrabold text-ink-500">{{ rank + 1 }}</span>
+              <div class="size-9 overflow-hidden rounded-xl">
+                <app-profile-portrait class="block h-full" [avatarIndex]="entry.avatarIndex" [alt]="'Portrait fictif de ' + entry.displayName" />
+              </div>
+              <p class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{ entry.displayName }}</p>
+              <p class="text-sm font-extrabold text-brand-600">{{ entry.score }} pts</p>
+            </li>
+          }
+        </ol>
+      </section>
+
+      <section class="relative z-10 mt-4 grid grid-cols-3 gap-2">
+        <article class="surface-card p-3 text-center">
+          <ion-icon class="text-xl text-brand-500" name="heart" aria-hidden="true" />
+          <p class="mt-1 text-xl font-extrabold text-ink-900">12</p>
+          <p class="text-[9px] font-semibold leading-4 text-ink-500">LOVER réussis</p>
+        </article>
+        <article class="surface-card p-3 text-center">
+          <ion-icon class="text-xl text-brand-500" name="checkmark-circle" aria-hidden="true" />
+          <p class="mt-1 text-xl font-extrabold text-ink-900">27</p>
+          <p class="text-[9px] font-semibold leading-4 text-ink-500">réponses exactes</p>
+        </article>
+        <article class="surface-card p-3 text-center">
+          <ion-icon class="text-xl text-brand-500" name="sparkles" aria-hidden="true" />
+          <p class="mt-1 text-xl font-extrabold text-ink-900">87%</p>
+          <p class="text-[9px] font-semibold leading-4 text-ink-500">meilleure affinité</p>
+        </article>
+      </section>
+
+      <div class="surface-card relative z-10 mt-4 flex items-center gap-3 p-4">
+        <div class="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-100 text-xl text-brand-600">
+          <ion-icon name="heart" aria-hidden="true" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-[10px] font-bold uppercase tracking-wide text-ink-500">Tu connais le mieux</p>
+          <p class="mt-1 text-sm font-extrabold text-ink-900">Camille · 87% d’affinité</p>
+        </div>
+        <div class="size-11 overflow-hidden rounded-2xl">
+          <app-profile-portrait class="block h-full" atlas="camille" [avatarIndex]="0" alt="Portrait fictif de Camille" />
+        </div>
+      </div>
+
+      <div class="relative z-10 mt-5 space-y-3">
+        <ion-button class="action-button w-full" expand="block" (click)="onReplay()">
+          <ion-icon name="refresh" slot="start" aria-hidden="true" />
+          Rejouer avec le groupe
+        </ion-button>
+        <ion-button class="action-button action-button--secondary w-full" expand="block" (click)="onNewLobby()">
+          <ion-icon name="people" slot="start" aria-hidden="true" />
+          Nouveau lobby
+        </ion-button>
+      </div>
+    </main>
+  </ion-content>
+</div>

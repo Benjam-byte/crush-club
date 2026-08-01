@@ -1,0 +1,126 @@
+<div class="ion-page">
+  <ion-content>
+    <main class="app-shell min-h-full pb-8">
+      <app-page-header title="Mes configurations" backLink="/" />
+
+      <section class="space-y-4 px-5 pt-3">
+        <header class="rounded-[28px] bg-gradient-to-br from-brand-500 to-coral-400 p-6 text-white shadow-floating">
+          <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-white/75">Questionnaires</p>
+          <h1 class="mt-1 text-2xl font-extrabold">Compose tes parties</h1>
+          <p class="mt-2 text-sm leading-6 text-white/85">
+            Crée tes formulaires sur une page dédiée, puis choisis-les pour tes lobbys.
+          </p>
+        </header>
+
+        @if (gameConfigs.errorMessage(); as errorMessage) {
+          <div class="rounded-2xl bg-danger-50 p-4 text-sm font-semibold text-danger-500">
+            <p>{{ errorMessage }}</p>
+            <button class="mt-3 underline" type="button" (click)="retry()">Réessayer</button>
+          </div>
+        }
+
+        @if (gameConfigs.isLoading()) {
+          <div class="surface-card p-6 text-center text-sm font-semibold text-ink-500">
+            Chargement des configurations…
+          </div>
+        } @else {
+          <section class="surface-card overflow-hidden">
+            <header class="flex items-center justify-between border-b border-peach-100 px-5 py-4">
+              <div>
+                <h2 class="text-base font-extrabold text-ink-900">Modèles Crush Club</h2>
+                <p class="mt-1 text-xs text-ink-500">À dupliquer pour les personnaliser.</p>
+              </div>
+            </header>
+            <ul class="divide-y divide-peach-100">
+              @for (config of systemConfigList(); track config.id) {
+                <li class="flex items-center gap-3 px-5 py-4">
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-extrabold text-ink-900">{{ config.name }}</p>
+                    <p class="mt-1 text-xs text-ink-500">{{ config.questionIds.length }} questions</p>
+                  </div>
+                  <ion-button fill="outline" size="small" [disabled]="isBusy()" (click)="duplicate(config)">
+                    Dupliquer
+                  </ion-button>
+                </li>
+              }
+            </ul>
+          </section>
+
+          <section class="surface-card overflow-hidden">
+            <header class="flex items-center justify-between gap-4 border-b border-peach-100 px-5 py-4">
+              <div>
+                <h2 class="text-base font-extrabold text-ink-900">Mes questionnaires</h2>
+                <p class="mt-1 text-xs text-ink-500">Disponibles sur cet appareil.</p>
+              </div>
+              <ion-button size="small" routerLink="/game-configs/new">
+                <ion-icon name="add" slot="start" aria-hidden="true" />
+                Nouveau formulaire
+              </ion-button>
+            </header>
+            @if (personalConfigList().length === 0) {
+              <div class="px-5 py-7 text-center">
+                <p class="text-sm text-ink-500">Aucun formulaire personnel pour le moment.</p>
+                <a class="mt-3 inline-flex text-sm font-extrabold text-brand-600 underline" routerLink="/game-configs/new">
+                  Créer mon premier formulaire
+                </a>
+              </div>
+            } @else {
+              <ul class="divide-y divide-peach-100">
+                @for (config of personalConfigList(); track config.id) {
+                  <li class="flex items-center gap-2 px-5 py-4">
+                    <a
+                      class="min-w-0 flex-1 text-left"
+                      [routerLink]="['/game-configs', config.id, 'edit']"
+                    >
+                      <span class="flex items-center gap-2">
+                        <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{ config.name }}</span>
+                        <span
+                          class="shrink-0 rounded-full px-2 py-1 text-[10px] font-extrabold"
+                          [class.bg-success-50]="config.isPublic"
+                          [class.text-success-500]="config.isPublic"
+                          [class.bg-peach-100]="!config.isPublic"
+                          [class.text-ink-500]="!config.isPublic"
+                        >
+                          {{ config.isPublic ? 'Partagé' : 'Privé' }}
+                        </span>
+                      </span>
+                      <span class="mt-1 block text-xs text-ink-500">{{ config.questionIds.length }} questions · v{{ config.version }}</span>
+                    </a>
+                    <button class="icon-action" type="button" aria-label="Dupliquer" [disabled]="isBusy()" (click)="duplicate(config)">
+                      <ion-icon name="copy-outline" aria-hidden="true" />
+                    </button>
+                    <button class="icon-action text-danger-500" type="button" aria-label="Supprimer" (click)="delete(config)">
+                      <ion-icon name="trash-outline" aria-hidden="true" />
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+
+          @if (sharedConfigList().length > 0) {
+            <section class="surface-card overflow-hidden">
+              <header class="border-b border-peach-100 px-5 py-4">
+                <h2 class="text-base font-extrabold text-ink-900">Partagés par la communauté</h2>
+                <p class="mt-1 text-xs text-ink-500">Utilise-les dans un lobby ou crée ta propre copie.</p>
+              </header>
+              <ul class="divide-y divide-peach-100">
+                @for (config of sharedConfigList(); track config.id) {
+                  <li class="flex items-center gap-3 px-5 py-4">
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-sm font-extrabold text-ink-900">{{ config.name }}</p>
+                      <p class="mt-1 text-xs text-ink-500">{{ config.questionIds.length }} questions · partagé</p>
+                    </div>
+                    <ion-button fill="outline" size="small" [disabled]="isBusy()" (click)="duplicate(config)">
+                      Dupliquer
+                    </ion-button>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+        }
+      </section>
+    </main>
+  </ion-content>
+</div>

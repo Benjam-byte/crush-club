@@ -1,0 +1,8 @@
+.env
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+apps/api/tmp/
+apps/api/internal/database/generated/*.go

@@ -1,0 +1,34 @@
+.questionnaire-step-segment {
+  background: var(--color-layer-border);
+  transition: background 160ms ease;
+}
+
+.questionnaire-step-segment--completed {
+  background: linear-gradient(90deg, var(--color-brand-500), var(--color-coral-400));
+}
+
+.questionnaire-step-content {
+  animation: questionnaire-step-enter 180ms ease-out;
+}
+
+.questionnaire-footer {
+  backdrop-filter: blur(16px);
+}
+
+@keyframes questionnaire-step-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .questionnaire-step-content {
+    animation: none;
+  }
+}
