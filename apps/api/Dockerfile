@@ -16,6 +16,11 @@ USER app
 EXPOSE 8080
 ENTRYPOINT ["/app/api"]
 
+FROM production AS coolify
+COPY --from=build /out/migrate /app/migrate
+COPY --from=build /src/migrations /app/migrations
+ENTRYPOINT ["/bin/sh", "-c", "/app/migrate up && exec /app/api"]
+
 FROM alpine:3.22 AS migration
 RUN apk add --no-cache ca-certificates
 WORKDIR /app

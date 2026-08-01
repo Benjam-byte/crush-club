@@ -52,6 +52,14 @@ docker compose up --build
 
 Le service web est exposé sur `http://localhost:8080`. Nginx relaie `/api` et `/ws` vers l'API Go.
 
+## Déploiement Coolify
+
+Le fichier `compose.coolify.yaml` déploie le frontend Angular/Nginx, l'API Go, les migrations et
+PostgreSQL dans une seule ressource Docker Compose. Dans Coolify, sélectionnez ce fichier, renseignez
+les variables de `.env.example`, puis associez uniquement le service `web` au domaine HTTPS public.
+L'image API Coolify applique les migrations avant chaque démarrage. Les services `api` et `postgres`
+restent internes à la stack. Les volumes `postgres-data` et `photo-data` persistent entre les déploiements.
+
 ## Configurations de jeu
 
 Les questions sont stockées dans PostgreSQL et le preset `Classique` est créé par la migration
