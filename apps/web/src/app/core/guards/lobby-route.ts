@@ -4,7 +4,7 @@ export function shouldApplyLobbySnapshot(
   current: LobbyStateResponse | null,
   next: LobbyStateResponse,
 ): boolean {
-  return current === null || next.code !== current.code || next.revision >= current.revision;
+  return current === null || next.code !== current.code || next.revision > current.revision;
 }
 
 export function permittedLobbyUrl(state: LobbyStateResponse, requestedUrl: string): string {

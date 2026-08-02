@@ -98,10 +98,6 @@ export class LobbyPage implements OnInit {
 
     try {
       await this.gameState.startGame();
-      const game = this.gameState.game();
-      if (game) {
-        await this.router.navigate(['/game', this.gameState.lobbyCode(), 'round', game.roundNumber, 'role']);
-      }
     } catch {
       // GameState exposes the API error.
     }
