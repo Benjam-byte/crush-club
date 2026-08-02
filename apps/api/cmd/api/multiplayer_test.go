@@ -64,6 +64,48 @@ func TestValidateRoundSubmissionSeparatesSubjectAndCupid(t *testing.T) {
 	}
 }
 
+func TestLegacySubmissionGetsPrimaryPhotoFallback(t *testing.T) {
+	snapshot := multiplayerTestSnapshot()
+	answers := map[string]json.RawMessage{
+		"choice": json.RawMessage(`"yes"`),
+		"range":  json.RawMessage(`7`),
+	}
+	if !needsLegacyPrimaryPhotoFallback(snapshot, answers) {
+		t.Fatal("complete legacy answers should receive a primary photo fallback")
+	}
+
+	addLegacyPrimaryPhotoFallback(answers, "photo-1")
+	input := roundSubmissionInput{
+		BioAnswers:      map[string]string{"quality": "funny"},
+		QuestionAnswers: answers,
+	}
+	if err := validateRoundSubmission(snapshot, input, "official"); err != nil {
+		t.Fatalf("legacy submission rejected after fallback: %v", err)
+	}
+
+	addLegacyPrimaryPhotoFallback(answers, "photo-2")
+	primaryPhotoID, err := primaryPhotoAnswer(answers)
+	if err != nil || primaryPhotoID != "photo-1" {
+		t.Fatalf("fallback overwrote the primary photo: %q, %v", primaryPhotoID, err)
+	}
+}
+
+func TestPrimaryPhotoFallbackRejectsIncompleteOrCurrentSubmission(t *testing.T) {
+	snapshot := multiplayerTestSnapshot()
+	if needsLegacyPrimaryPhotoFallback(snapshot, map[string]json.RawMessage{
+		"choice": json.RawMessage(`"yes"`),
+	}) {
+		t.Fatal("incomplete answers should not receive a fallback")
+	}
+	if needsLegacyPrimaryPhotoFallback(snapshot, map[string]json.RawMessage{
+		primaryPhotoQuestionID: json.RawMessage(`"photo-1"`),
+		"choice":               json.RawMessage(`"yes"`),
+		"range":                json.RawMessage(`7`),
+	}) {
+		t.Fatal("current submissions should not receive a fallback")
+	}
+}
+
 func TestScorePredictionAppliesLoverAndTaglineBonusDeterministically(t *testing.T) {
 	snapshot := multiplayerTestSnapshot()
 	official := storedSubmission{

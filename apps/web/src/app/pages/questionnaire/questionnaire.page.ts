@@ -69,7 +69,7 @@ export class QuestionnairePage implements OnInit {
     return (hasPrimaryPhoto ? 1 : 0) + (this.hasTaglineStep() && hasTagline ? 1 : 0) + bioAnswerCount + questionAnswerCount;
   });
   protected readonly canContinue = computed(() => {
-    return this.completedAnswerCount() === this.requiredAnswerCount();
+    return this.gameState.isDraftComplete();
   });
   protected readonly currentStepAnswered = computed(() => {
     if (this.currentStepIndex() === 0) {
@@ -97,6 +97,10 @@ export class QuestionnairePage implements OnInit {
   async ngOnInit(): Promise<void> {
     try {
       await this.gameState.loadQuestionnaire();
+      const incompleteStep = this.gameState.firstIncompleteDraftStep();
+      if (incompleteStep !== null) {
+        this.currentStepIndex.set(incompleteStep);
+      }
     } catch {
       // GameState exposes the load error in the template.
     }

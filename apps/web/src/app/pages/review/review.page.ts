@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   IonButton,
   IonContent,
@@ -26,6 +26,8 @@ interface ReviewItem {
 })
 export class ReviewPage implements OnInit {
   protected readonly gameState = inject(GameStateService);
+  private readonly router = inject(Router);
+  protected readonly isLocking = signal(false);
 
   protected readonly reviewItemList = computed<readonly ReviewItem[]>(() => {
     return this.gameState.activeQuestionList().map((question) => {
@@ -43,7 +45,8 @@ export class ReviewPage implements OnInit {
     );
   });
   protected readonly canLockProfile = computed(() => {
-    return this.gameState.role() === 'lover' || this.selectedLoverItem() !== undefined;
+    return this.gameState.isDraftComplete() &&
+      (this.gameState.role() === 'lover' || this.selectedLoverItem() !== undefined);
   });
   protected readonly profileLink = computed(() => {
     const game = this.gameState.game();
@@ -53,6 +56,9 @@ export class ReviewPage implements OnInit {
   async ngOnInit(): Promise<void> {
     try {
       await this.gameState.loadQuestionnaire();
+      if (!this.gameState.isProfileLocked() && !this.gameState.isDraftComplete()) {
+        await this.router.navigateByUrl(this.profileLink());
+      }
     } catch {
       // GameState exposes the load error.
     }
@@ -62,13 +68,16 @@ export class ReviewPage implements OnInit {
   }
 
   protected async onLockProfile(): Promise<void> {
-    if (!this.canLockProfile()) {
+    if (!this.canLockProfile() || this.isLocking()) {
       return;
     }
+    this.isLocking.set(true);
     try {
       await this.gameState.lockProfile();
     } catch {
       // GameState exposes the API error while the player remains on the review page.
+    } finally {
+      this.isLocking.set(false);
     }
   }
 

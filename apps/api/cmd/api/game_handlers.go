@@ -201,6 +201,23 @@ func (a *api) handleSubmitCurrentRound(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
+	if needsLegacyPrimaryPhotoFallback(snapshot, input.QuestionAnswers) {
+		var fallbackPhotoID string
+		err = tx.QueryRow(r.Context(), `
+			SELECT id::text
+			FROM player_photos
+			WHERE player_id = $1
+			ORDER BY position, id
+			LIMIT 1
+		`, subjectPlayerID).Scan(&fallbackPhotoID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			a.internalError(w, r, err)
+			return
+		}
+		if err == nil {
+			addLegacyPrimaryPhotoFallback(input.QuestionAnswers, fallbackPhotoID)
+		}
+	}
 	if err := validateRoundSubmission(snapshot, input, kind); err != nil {
 		writeError(w, http.StatusUnprocessableEntity, "invalid_submission", err.Error())
 		return
@@ -810,6 +827,25 @@ func validateRoundSubmission(snapshot questionnaireSnapshot, input roundSubmissi
 		return validationError{"select one eligible LOVER question"}
 	}
 	return nil
+}
+
+func needsLegacyPrimaryPhotoFallback(snapshot questionnaireSnapshot, answerByQuestionID map[string]json.RawMessage) bool {
+	if _, exists := answerByQuestionID[primaryPhotoQuestionID]; exists || len(answerByQuestionID) != len(snapshot.Questions) {
+		return false
+	}
+	for _, item := range snapshot.Questions {
+		if _, exists := answerByQuestionID[item.ID]; !exists {
+			return false
+		}
+	}
+	return true
+}
+
+func addLegacyPrimaryPhotoFallback(answerByQuestionID map[string]json.RawMessage, photoID string) {
+	if _, exists := answerByQuestionID[primaryPhotoQuestionID]; exists {
+		return
+	}
+	answerByQuestionID[primaryPhotoQuestionID], _ = json.Marshal(photoID)
 }
 
 func primaryPhotoAnswer(answerByQuestionID map[string]json.RawMessage) (string, error) {

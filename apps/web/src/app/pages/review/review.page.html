@@ -16,8 +16,8 @@
               </p>
               <h2 class="mt-1 text-xl font-extrabold">Mise ton unique LOVER</h2>
               <p class="mt-2 text-xs leading-5 text-white/85">
-                Exact&nbsp;: le maximum est doublé. Sinon, tu perds les points
-                qui te séparent du maximum.
+                Mets ton cœur sur une réponse. Si tu as tout bon, tu gagnes deux fois plus de points.
+                Si tu te trompes, tu perds des points.
               </p>
             </div>
           </div>
@@ -103,9 +103,15 @@
           après le verrouillage, plus aucune réponse{{ gameState.role() === 'lover' ? '' : ' ni mise LOVER' }} ne pourra être modifiée.
         </div>
 
-        <ion-button class="action-button action-button--lover w-full" expand="block" [disabled]="!canLockProfile() || !gameState.isRealtimeConnected()" (click)="onLockProfile()">
+        @if (gameState.errorMessage(); as errorMessage) {
+          <p class="rounded-2xl bg-danger-50 px-4 py-3 text-xs font-bold leading-5 text-danger-500" role="alert">
+            {{ errorMessage }}
+          </p>
+        }
+
+        <ion-button class="action-button action-button--lover w-full" expand="block" [disabled]="!canLockProfile() || !gameState.isRealtimeConnected() || isLocking()" (click)="onLockProfile()">
           <ion-icon name="lock-closed" slot="start" aria-hidden="true" />
-          Verrouiller mon profil
+          {{ isLocking() ? 'Verrouillage…' : 'Verrouiller mon profil' }}
           <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
         </ion-button>
         }

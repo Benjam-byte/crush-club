@@ -9,10 +9,12 @@ import type {
   LobbyStateResponse,
   LobbyStatus,
   PlayerRole,
+  QuestionDefinition,
   QuestionnaireSnapshot,
   RoundSubmissionInput,
 } from '@core/models/game.models';
 import { LobbyApiService } from './lobby-api.service';
+import { restoredPrimaryPhotoId } from './game-state-draft';
 import { RealtimeLobbyService } from './realtime-lobby.service';
 
 interface StoredDraft {
@@ -42,6 +44,18 @@ const emptyPlayer: LobbyPlayer = {
   photoIds: [],
   joinedAt: '',
 };
+
+function isQuestionAnswerValid(question: QuestionDefinition, answer: AnswerValue | undefined): boolean {
+  if (question.type === 'integer_range') {
+    return typeof answer === 'number' && Number.isInteger(answer) &&
+      question.minimum !== undefined && question.maximum !== undefined &&
+      answer >= question.minimum && answer <= question.maximum;
+  }
+  if (question.type === 'single_choice' || question.type === 'binary_choice') {
+    return typeof answer === 'string' && question.options?.some((option) => option.id === answer) === true;
+  }
+  return answer !== undefined;
+}
 
 @Injectable({
   providedIn: 'root',
@@ -106,6 +120,35 @@ export class GameStateService {
   readonly isProfileLocked = computed(() => this.game()?.submitted ?? false);
   readonly isQuestionnaireLoading = computed(() => this.state() === null);
   readonly errorMessage = this.errorMessageState.asReadonly();
+  readonly firstIncompleteDraftStep = computed<number | null>(() => {
+    if (!this.primaryPhotoId() || !this.subjectPlayer().photoIds.includes(this.primaryPhotoId() ?? '')) {
+      return 0;
+    }
+    let stepIndex = 1;
+    if (this.role() !== 'lover') {
+      const taglineLength = this.tagline().trim().length;
+      if (taglineLength < 1 || taglineLength > 100) {
+        return stepIndex;
+      }
+      stepIndex++;
+    }
+    const bioAnswers = this.bioAnswerByCategoryId();
+    for (const field of this.profileFieldList()) {
+      if (!field.options.some((option) => option.id === bioAnswers[field.id])) {
+        return stepIndex;
+      }
+      stepIndex++;
+    }
+    const questionAnswers = this.answerByQuestionId();
+    for (const question of this.activeQuestionList()) {
+      if (!isQuestionAnswerValid(question, questionAnswers[question.id])) {
+        return stepIndex;
+      }
+      stepIndex++;
+    }
+    return null;
+  });
+  readonly isDraftComplete = computed(() => this.firstIncompleteDraftStep() === null);
   readonly canStartGame = computed(() => {
     const players = this.playerList();
     return this.game() === null &&
@@ -396,17 +439,19 @@ export class GameStateService {
         console.error('Unable to restore the local questionnaire draft', error);
       }
     }
+    const storedQuestionAnswers = draft.answerByQuestionId ?? {};
+    const storedBioAnswers = draft.bioAnswerByCategoryId ?? {};
     const validQuestionIDs = new Set(this.activeQuestionList().map((question) => question.id));
-    this.primaryPhotoIdState.set(
-      draft.primaryPhotoId && this.subjectPlayer().photoIds.includes(draft.primaryPhotoId)
-        ? draft.primaryPhotoId
-        : null,
-    );
-    this.taglineState.set(draft.tagline);
-    this.answerByQuestionIdState.set(Object.fromEntries(
-      Object.entries(draft.answerByQuestionId).filter(([questionId]) => validQuestionIDs.has(questionId)),
+    this.primaryPhotoIdState.set(restoredPrimaryPhotoId(
+      draft.primaryPhotoId,
+      storedQuestionAnswers,
+      this.subjectPlayer().photoIds,
     ));
-    this.bioAnswerByCategoryIdState.set(draft.bioAnswerByCategoryId);
+    this.taglineState.set(typeof draft.tagline === 'string' ? draft.tagline : '');
+    this.answerByQuestionIdState.set(Object.fromEntries(
+      Object.entries(storedQuestionAnswers).filter(([questionId]) => validQuestionIDs.has(questionId)),
+    ));
+    this.bioAnswerByCategoryIdState.set(storedBioAnswers);
     const loverQuestion = this.activeQuestionList().find((question) => {
       return question.id === draft.loverQuestionId && question.loverEligible;
     });
