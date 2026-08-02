@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { activeNavigationUrl } from '@core/guards/lobby-route';
 import type {
   AnswerValue,
   LobbyPlayer,
@@ -436,7 +437,9 @@ export class GameStateService {
   }
 
   private async synchronizeRoute(state: LobbyStateResponse): Promise<void> {
-    const currentURL = this.router.url.split('?')[0];
+    const pendingNavigation = this.router.currentNavigation();
+    const pendingURL = (pendingNavigation?.finalUrl ?? pendingNavigation?.extractedUrl)?.toString();
+    const currentURL = activeNavigationUrl(this.router.url, pendingURL);
     if (!currentURL.startsWith('/lobby/') && !currentURL.startsWith('/game/')) {
       return;
     }

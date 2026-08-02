@@ -7,6 +7,10 @@ export function shouldApplyLobbySnapshot(
   return current === null || next.code !== current.code || next.revision > current.revision;
 }
 
+export function activeNavigationUrl(currentUrl: string, pendingUrl?: string): string {
+  return (pendingUrl ?? currentUrl).split('?')[0];
+}
+
 export function permittedLobbyUrl(state: LobbyStateResponse, requestedUrl: string): string {
   const lobbyUrl = `/lobby/${state.code}`;
   const photosUrl = `${lobbyUrl}/photos`;
