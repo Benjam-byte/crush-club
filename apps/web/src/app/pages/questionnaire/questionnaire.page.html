@@ -7,7 +7,48 @@
       />
 
       <section class="px-5 pt-1">
-        @if (hasTaglineStep() && currentStepIndex() === 0) {
+        @if (currentStepIndex() === 0) {
+          <section class="questionnaire-step-content mt-2">
+            <header class="mb-3">
+              <div class="flex items-center gap-2">
+                <span class="grid size-7 place-items-center rounded-xl bg-brand-100 text-brand-600">
+                  <ion-icon name="images-outline" aria-hidden="true" />
+                </span>
+                <h2 class="text-base font-extrabold text-ink-900">Photo principale</h2>
+              </div>
+              <p class="mt-1.5 text-sm leading-6 text-ink-500">
+                {{ gameState.role() === 'lover' ? 'Choisis la photo qui te représente le mieux.' : 'Quelle photo ' + gameState.subjectPlayer().displayName + ' choisirait comme photo principale ?' }}
+              </p>
+            </header>
+
+            <fieldset class="surface-card p-4">
+              <legend class="sr-only">Choisir la photo principale</legend>
+              <div class="grid grid-cols-2 gap-3">
+                @for (photoId of gameState.subjectPlayer().photoIds; track photoId; let photoIndex = $index) {
+                  <button
+                    class="primary-photo-option relative aspect-[3/4] overflow-hidden rounded-[22px] border-2 bg-peach-100 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+                    [class.primary-photo-option--selected]="gameState.primaryPhotoId() === photoId"
+                    type="button"
+                    [attr.aria-label]="'Choisir la photo ' + (photoIndex + 1) + ' comme photo principale'"
+                    [attr.aria-pressed]="gameState.primaryPhotoId() === photoId"
+                    (click)="onPrimaryPhotoSelect(photoId)"
+                  >
+                    @if (gameState.photoUrl(photoId); as photoUrl) {
+                      <img class="h-full w-full object-cover" [src]="photoUrl" [alt]="'Photo ' + (photoIndex + 1) + ' de ' + gameState.subjectPlayer().displayName" />
+                    } @else {
+                      <span class="grid h-full place-items-center text-xs font-extrabold text-brand-600">Photo {{ photoIndex + 1 }}</span>
+                    }
+                    @if (gameState.primaryPhotoId() === photoId) {
+                      <span class="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-brand-500 text-white shadow-lg" aria-hidden="true">
+                        <ion-icon name="checkmark" />
+                      </span>
+                    }
+                  </button>
+                }
+              </div>
+            </fieldset>
+          </section>
+        } @else if (hasTaglineStep() && currentStepIndex() === 1) {
           <section class="questionnaire-step-content mt-2">
             <header class="mb-3">
               <div class="flex items-center gap-2">

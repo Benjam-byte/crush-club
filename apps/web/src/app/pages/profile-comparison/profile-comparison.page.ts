@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { IonButton, IonContent } from '@ionic/angular/standalone';
+import { primaryPhotoQuestionId } from '@core/models/game.models';
 import type { AnswerValue } from '@core/models/game.models';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
 import { GameStateService } from '../../core/services/game-state.service';
@@ -38,6 +39,9 @@ export class ProfileComparisonPage implements OnInit {
   }
 
   protected formatValue(itemId: string, value: AnswerValue): string {
+    if (itemId === primaryPhotoQuestionId) {
+      return 'Photo sélectionnée';
+    }
     if (typeof value === 'number') {
       const question = this.gameState.activeQuestionList().find((candidate) => candidate.id === itemId);
       return `${value}/${question?.maximum ?? 10}`;
@@ -49,6 +53,12 @@ export class ProfileComparisonPage implements OnInit {
         profileField?.options.find((option) => option.id === value)?.label ?? value;
     }
     return value.join(', ');
+  }
+
+  protected photoAnswerUrl(itemId: string, value: AnswerValue): string | null {
+    return itemId === primaryPhotoQuestionId && typeof value === 'string'
+      ? this.gameState.photoUrl(value)
+      : null;
   }
 
   protected initials(displayName: string): string {

@@ -1,6 +1,6 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import type {
   LobbyResponse,
   LobbyStateResponse,
@@ -82,6 +82,14 @@ export class LobbyApiService {
       this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/start`, null, {
         headers: this.authorizationHeaders(reconnectToken),
       }),
+    );
+  }
+
+  leave(code: string, reconnectToken: string): Promise<void> {
+    return firstValueFrom(
+      this.http.post<void>(`/api/v1/lobbies/${code}/players/me/leave`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }).pipe(timeout(3000)),
     );
   }
 

@@ -205,6 +205,25 @@ func (a *api) handleSubmitCurrentRound(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "invalid_submission", err.Error())
 		return
 	}
+	primaryPhotoID, err := primaryPhotoAnswer(input.QuestionAnswers)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_submission", err.Error())
+		return
+	}
+	var primaryPhotoIsValid bool
+	if err := tx.QueryRow(r.Context(), `
+		SELECT EXISTS(
+		  SELECT 1 FROM player_photos
+		  WHERE id::text = $1 AND player_id = $2
+		)
+	`, primaryPhotoID, subjectPlayerID).Scan(&primaryPhotoIsValid); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if !primaryPhotoIsValid {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_submission", "select one of the subject photos")
+		return
+	}
 	input.Tagline = strings.TrimSpace(input.Tagline)
 	bioJSON, _ := json.Marshal(input.BioAnswers)
 	questionJSON, _ := json.Marshal(input.QuestionAnswers)
@@ -750,8 +769,11 @@ func validateRoundSubmission(snapshot questionnaireSnapshot, input roundSubmissi
 			return validationError{fmt.Sprintf("invalid answer for profile field %s", field.ID)}
 		}
 	}
-	if len(input.QuestionAnswers) != len(snapshot.Questions) {
+	if len(input.QuestionAnswers) != len(snapshot.Questions)+1 {
 		return validationError{"answer every questionnaire question"}
+	}
+	if _, err := primaryPhotoAnswer(input.QuestionAnswers); err != nil {
+		return err
 	}
 	for _, item := range snapshot.Questions {
 		answer, exists := input.QuestionAnswers[item.ID]
@@ -788,6 +810,18 @@ func validateRoundSubmission(snapshot questionnaireSnapshot, input roundSubmissi
 		return validationError{"select one eligible LOVER question"}
 	}
 	return nil
+}
+
+func primaryPhotoAnswer(answerByQuestionID map[string]json.RawMessage) (string, error) {
+	rawAnswer, exists := answerByQuestionID[primaryPhotoQuestionID]
+	if !exists {
+		return "", validationError{"select a primary photo"}
+	}
+	var photoID string
+	if err := json.Unmarshal(rawAnswer, &photoID); err != nil || strings.TrimSpace(photoID) == "" {
+		return "", validationError{"select a primary photo"}
+	}
+	return photoID, nil
 }
 
 func containsOption(options []questionOption, value string) bool {
@@ -878,7 +912,28 @@ func scorePrediction(
 	baseTotal := 0
 	loverAdjustment := 0
 	exactCount := 0
-	lineList := make([]scoreLine, 0, len(snapshot.ProfileFields)+len(snapshot.Questions))
+	lineList := make([]scoreLine, 0, 1+len(snapshot.ProfileFields)+len(snapshot.Questions))
+	officialPhotoID, err := primaryPhotoAnswer(official.QuestionAnswers)
+	if err != nil {
+		return 0, 0, 0, 0, 0, nil, err
+	}
+	predictedPhotoID, err := primaryPhotoAnswer(prediction.QuestionAnswers)
+	if err != nil {
+		return 0, 0, 0, 0, 0, nil, err
+	}
+	photoIsExact := officialPhotoID == predictedPhotoID
+	photoScore := 0
+	if photoIsExact {
+		photoScore = primaryPhotoMaximumScore
+		exactCount++
+	}
+	baseTotal += photoScore
+	lineList = append(lineList, scoreLine{
+		ID: primaryPhotoQuestionID, Label: "Photo principale",
+		OfficialAnswer: officialPhotoID, PredictedAnswer: predictedPhotoID,
+		BaseScore: photoScore, MaximumScore: primaryPhotoMaximumScore,
+		FinalScore: photoScore, Exact: photoIsExact,
+	})
 	for _, field := range snapshot.ProfileFields {
 		officialValue := official.BioAnswers[field.ID]
 		predictedValue := prediction.BioAnswers[field.ID]

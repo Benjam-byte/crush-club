@@ -67,7 +67,7 @@
                 <div>
                   <h3 class="text-base font-extrabold text-ink-900">Tes quatre finales</h3>
                   <p class="mt-1 text-xs leading-5 text-ink-600">
-                    La première position sera ta photo principale.
+                    Tu choisiras ta photo principale au début de chaque manche.
                   </p>
                 </div>
               </div>
@@ -98,15 +98,9 @@
                         </span>
                       }
 
-                      @if (slotIndex === 0) {
-                        <span class="absolute left-1.5 top-1.5 rounded-full bg-brand-500 px-2 py-1 text-[8px] font-extrabold uppercase tracking-wide text-white">
-                          Principale
-                        </span>
-                      } @else {
-                        <span class="absolute left-2 top-2 grid size-5 place-items-center rounded-full bg-white/90 text-[9px] font-extrabold text-ink-900">
-                          {{ slotIndex + 1 }}
-                        </span>
-                      }
+                      <span class="absolute left-2 top-2 grid size-5 place-items-center rounded-full bg-white/90 text-[9px] font-extrabold text-ink-900">
+                        {{ slotIndex + 1 }}
+                      </span>
                     </button>
                   }
                 }

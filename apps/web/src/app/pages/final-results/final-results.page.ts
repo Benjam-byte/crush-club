@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
@@ -18,6 +18,7 @@ export class FinalResultsPage implements OnInit {
   private readonly router = inject(Router);
   protected readonly leaderboard = computed(() => this.gameState.game()?.leaderboard ?? []);
   protected readonly winner = computed(() => this.leaderboard()[0]);
+  protected readonly isLeaving = signal(false);
 
   async ngOnInit(): Promise<void> {
     try {
@@ -27,15 +28,31 @@ export class FinalResultsPage implements OnInit {
     }
   }
 
-  protected onReplay(): void {
+  protected async onReplay(): Promise<void> {
+    if (this.isLeaving()) {
+      return;
+    }
+    this.isLeaving.set(true);
     const wasHost = this.gameState.isHost();
-    this.gameState.resetGame();
-    void this.router.navigate(['/join'], { queryParams: wasHost ? { mode: 'create' } : undefined });
+    try {
+      await this.gameState.leaveGame();
+      await this.router.navigate(['/join'], { queryParams: wasHost ? { mode: 'create' } : undefined });
+    } finally {
+      this.isLeaving.set(false);
+    }
   }
 
-  protected onNewLobby(): void {
-    this.gameState.resetGame();
-    void this.router.navigate(['/']);
+  protected async onNewLobby(): Promise<void> {
+    if (this.isLeaving()) {
+      return;
+    }
+    this.isLeaving.set(true);
+    try {
+      await this.gameState.leaveGame();
+      await this.router.navigate(['/']);
+    } finally {
+      this.isLeaving.set(false);
+    }
   }
 
   protected playerPhotoUrl(playerId: string): string | null {

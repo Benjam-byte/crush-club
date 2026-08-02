@@ -17,6 +17,7 @@ export class ComparisonPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly isAdvancing = signal(false);
+  protected readonly isLeaving = signal(false);
   protected readonly roundResults = computed(() => this.gameState.game()?.roundResults ?? []);
   protected readonly leaderboard = computed(() => this.gameState.game()?.leaderboard ?? []);
   protected readonly isLastRound = computed(() => {
@@ -54,9 +55,17 @@ export class ComparisonPage implements OnInit {
     }
   }
 
-  protected onQuitGame(): void {
-    this.gameState.resetGame();
-    void this.router.navigate(['/']);
+  protected async onQuitGame(): Promise<void> {
+    if (this.isLeaving()) {
+      return;
+    }
+    this.isLeaving.set(true);
+    try {
+      await this.gameState.leaveGame();
+      await this.router.navigate(['/']);
+    } finally {
+      this.isLeaving.set(false);
+    }
   }
 
   protected playerPhotoUrl(playerId: string): string | null {

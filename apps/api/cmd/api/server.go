@@ -12,6 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -46,6 +47,8 @@ type api struct {
 	secureCookies    bool
 	hub              *realtimeHub
 	photoStoragePath string
+	photoRetention   time.Duration
+	lobbyEmptyGrace  time.Duration
 }
 
 type dbQuerier interface {
@@ -138,6 +141,8 @@ func newAPI(pool *pgxpool.Pool, logger *slog.Logger, secureCookies bool) *api {
 		logger:           logger,
 		secureCookies:    secureCookies,
 		photoStoragePath: envOr("PHOTO_STORAGE_PATH", "./data/photos"),
+		photoRetention:   positiveEnvDuration(logger, "PHOTO_RETENTION_HOURS", time.Hour, 24*time.Hour),
+		lobbyEmptyGrace:  positiveEnvDuration(logger, "LOBBY_EMPTY_GRACE_MINUTES", time.Minute, 15*time.Minute),
 	}
 	a.hub = newRealtimeHub(a)
 	return a
@@ -156,6 +161,7 @@ func (a *api) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/v1/lobbies/{code}", a.handleGetLobby)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/players", a.handleJoinLobby)
 	mux.HandleFunc("GET /api/v1/lobbies/{code}/state", a.handleGetLobbyState)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/players/me/leave", a.handleLeaveLobby)
 	mux.HandleFunc("PUT /api/v1/lobbies/{code}/players/me/photos", a.handleUploadPlayerPhotos)
 	mux.HandleFunc("GET /api/v1/lobbies/{code}/photos/{photoID}", a.handleGetPlayerPhoto)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/players/{playerID}/exclude", a.handleExcludePlayer)
@@ -570,7 +576,7 @@ func (a *api) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 		)
 		VALUES ($1, $2, '{}'::jsonb, $3, $4, $5, $6, $7)
 		RETURNING id
-	`, lobbyCode, input.MaxPlayers, time.Now().Add(24*time.Hour), identityID, config.ID, config.Version, snapshot).Scan(&lobbyID); err != nil {
+	`, lobbyCode, input.MaxPlayers, time.Now().Add(a.photoRetention), identityID, config.ID, config.Version, snapshot).Scan(&lobbyID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
@@ -1264,6 +1270,19 @@ func randomToken(byteCount int) (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(buffer), nil
+}
+
+func positiveEnvDuration(logger *slog.Logger, key string, unit, fallback time.Duration) time.Duration {
+	rawValue := strings.TrimSpace(os.Getenv(key))
+	if rawValue == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(rawValue)
+	if err != nil || value <= 0 {
+		logger.Warn("invalid duration configuration; using default", "key", key, "default", fallback.String())
+		return fallback
+	}
+	return time.Duration(value) * unit
 }
 
 func randomLobbyCode() (string, error) {

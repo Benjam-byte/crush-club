@@ -277,11 +277,13 @@ func waitForPlayerConnection(
 	return lobbyStateResponse{}
 }
 
-func validIntegrationSubmission(snapshot questionnaireSnapshot, prediction bool) roundSubmissionInput {
+func validIntegrationSubmission(snapshot questionnaireSnapshot, primaryPhotoID string, prediction bool) roundSubmissionInput {
 	input := roundSubmissionInput{
 		BioAnswers:      make(map[string]string, len(snapshot.ProfileFields)),
-		QuestionAnswers: make(map[string]json.RawMessage, len(snapshot.Questions)),
+		QuestionAnswers: make(map[string]json.RawMessage, len(snapshot.Questions)+1),
 	}
+	encodedPhotoID, _ := json.Marshal(primaryPhotoID)
+	input.QuestionAnswers[primaryPhotoQuestionID] = encodedPhotoID
 	for _, field := range snapshot.ProfileFields {
 		input.BioAnswers[field.ID] = field.Options[0].ID
 	}
@@ -300,6 +302,20 @@ func validIntegrationSubmission(snapshot questionnaireSnapshot, prediction bool)
 		input.Tagline = "Une accroche vraiment irrésistible"
 	}
 	return input
+}
+
+func integrationSubjectPhotoID(t *testing.T, state lobbyStateResponse) string {
+	t.Helper()
+	if state.Game == nil {
+		t.Fatal("game state is required to select the subject photo")
+	}
+	for _, player := range state.Players {
+		if player.ID == state.Game.SubjectPlayerID && len(player.PhotoIDs) > 0 {
+			return player.PhotoIDs[0]
+		}
+	}
+	t.Fatal("subject photo is missing from the lobby state")
+	return ""
 }
 
 func TestMultiplayerHTTPFlow(t *testing.T) {
@@ -392,8 +408,9 @@ func TestMultiplayerHTTPFlow(t *testing.T) {
 	if guestSnapshot.Game == nil || guestSnapshot.Game.RoundNumber != 1 {
 		t.Fatal("the start mutation was not broadcast to the guest websocket")
 	}
-	officialInput := validIntegrationSubmission(state.Questionnaire, false)
-	predictionInput := validIntegrationSubmission(state.Questionnaire, true)
+	primaryPhotoID := integrationSubjectPhotoID(t, state)
+	officialInput := validIntegrationSubmission(state.Questionnaire, primaryPhotoID, false)
+	predictionInput := validIntegrationSubmission(state.Questionnaire, primaryPhotoID, true)
 	state = integrationRequestJSON[lobbyStateResponse](
 		t, hostIdentity, http.MethodPut,
 		baseURL+"/api/v1/lobbies/"+code+"/rounds/current/submission",
@@ -496,6 +513,84 @@ func TestMultiplayerHTTPFlow(t *testing.T) {
 		map[string]string{"displayName": "Late-" + nameSuffix},
 		http.StatusConflict,
 	)
+	integrationRequestJSON[map[string]any](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players/me/leave",
+		guest.ReconnectToken, nil, http.StatusNoContent,
+	)
+	refreshed = integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodGet, baseURL+"/api/v1/lobbies/"+code+"/state",
+		host.ReconnectToken, nil, http.StatusOK,
+	)
+	if len(refreshed.Players) != 2 || refreshed.Game == nil || len(refreshed.Game.Leaderboard) != 2 {
+		t.Fatalf("first departure removed final result data too early: %#v", refreshed)
+	}
+	integrationRequestJSON[map[string]any](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players/me/leave",
+		guest.ReconnectToken, nil, http.StatusNoContent,
+	)
+	integrationRequestJSON[map[string]any](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players/me/leave",
+		host.ReconnectToken, nil, http.StatusNoContent,
+	)
+	integrationRequestJSON[map[string]any](
+		t, hostIdentity, http.MethodGet, baseURL+"/api/v1/lobbies/"+code+"/state",
+		host.ReconnectToken, nil, http.StatusUnauthorized,
+	)
+}
+
+func TestLeavingInProgressGameTransfersHostAndPurgesLastPlayer(t *testing.T) {
+	baseURL := integrationBaseURL(t)
+	suffix := fmt.Sprintf("%06d", time.Now().UnixNano()%1_000_000)
+	hostIdentity, host := createIntegrationLobby(t, baseURL, "LeavingHost-"+suffix, 2)
+	code := host.State.Code
+	guest := integrationRequestJSON[playerSessionResponse](
+		t,
+		hostIdentity,
+		http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players",
+		"",
+		map[string]string{"displayName": "LeavingGuest-" + suffix},
+		http.StatusCreated,
+	)
+	uploadIntegrationPhotos(t, baseURL, code, host.ReconnectToken, hostIdentity.client)
+	uploadIntegrationPhotos(t, baseURL, code, guest.ReconnectToken, hostIdentity.client)
+	integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodPost, baseURL+"/api/v1/lobbies/"+code+"/start",
+		host.ReconnectToken, nil, http.StatusOK,
+	)
+	integrationRequestJSON[map[string]any](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players/me/leave",
+		host.ReconnectToken, nil, http.StatusNoContent,
+	)
+	state := integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodGet, baseURL+"/api/v1/lobbies/"+code+"/state",
+		guest.ReconnectToken, nil, http.StatusOK,
+	)
+	if state.Status != "completed" || state.Game == nil || state.Game.Phase != "completed" {
+		t.Fatalf("game did not complete after dropping below the minimum: %#v", state)
+	}
+	remainingPlayerIsHost := false
+	for _, candidate := range state.Players {
+		if candidate.ID == guest.State.CurrentPlayerID {
+			remainingPlayerIsHost = candidate.IsHost
+		}
+	}
+	if len(state.Players) != 2 || !remainingPlayerIsHost {
+		t.Fatalf("remaining player did not become host: %#v", state.Players)
+	}
+	integrationRequestJSON[map[string]any](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players/me/leave",
+		guest.ReconnectToken, nil, http.StatusNoContent,
+	)
+	integrationRequestJSON[map[string]any](
+		t, hostIdentity, http.MethodGet, baseURL+"/api/v1/lobbies/"+code+"/state",
+		guest.ReconnectToken, nil, http.StatusUnauthorized,
+	)
 }
 
 func TestFourPlayerRoundIntermissions(t *testing.T) {
@@ -541,7 +636,11 @@ func TestFourPlayerRoundIntermissions(t *testing.T) {
 		}
 
 		for playerIndex, playerSession := range sessionList {
-			input := validIntegrationSubmission(state.Questionnaire, playerIndex != roundIndex)
+			input := validIntegrationSubmission(
+				state.Questionnaire,
+				integrationSubjectPhotoID(t, state),
+				playerIndex != roundIndex,
+			)
 			state = integrationRequestJSON[lobbyStateResponse](
 				t, integrationSession{client: hostIdentity.client}, http.MethodPut,
 				baseURL+"/api/v1/lobbies/"+code+"/rounds/current/submission",
@@ -561,6 +660,12 @@ func TestFourPlayerRoundIntermissions(t *testing.T) {
 			if submission.PlayerID != "" || submission.AuthorName != "" {
 				t.Fatalf("round %d exposed a prediction author before the vote", roundNumber)
 			}
+			if len(submission.BioAnswers) != 0 || len(submission.QuestionAnswers) != 0 || submission.LoverQuestionID != "" {
+				t.Fatalf("round %d exposed prediction answers to the subject before the vote", roundNumber)
+			}
+		}
+		if targetState.Game.OfficialSubmission != nil {
+			t.Fatalf("round %d exposed the official answer recap to the subject before the vote", roundNumber)
 		}
 		state = integrationRequestJSON[lobbyStateResponse](
 			t, integrationSession{client: hostIdentity.client}, http.MethodPut,

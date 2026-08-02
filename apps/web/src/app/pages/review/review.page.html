@@ -89,43 +89,6 @@
           </ul>
         </section>
 
-        @if (selectedLoverItem(); as loverItem) {
-        <div class="surface-card border-brand-200 p-5">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="text-xs font-extrabold uppercase tracking-[0.12em] text-brand-600">
-                Mise actuelle
-              </p>
-              <p class="mt-1 text-sm font-extrabold text-ink-900">
-                {{ loverItem.label }}
-              </p>
-            </div>
-            <div class="rounded-2xl bg-brand-500 px-3 py-2 text-center text-white">
-              <p class="text-lg font-extrabold">
-                +{{ loverItem.maximumScore * 2 }}
-              </p>
-              <p class="text-[8px] font-bold uppercase tracking-wide text-white/80">
-                si exact
-              </p>
-            </div>
-          </div>
-          <div class="mt-4 grid grid-cols-2 gap-2 text-center">
-            <div class="rounded-2xl bg-success-50 p-3">
-              <p class="text-xs font-extrabold text-success-500">
-                Cœur parfait
-              </p>
-              <p class="mt-1 text-[10px] text-ink-500">Double le maximum</p>
-            </div>
-            <div class="rounded-2xl bg-lover-50 p-3">
-              <p class="text-xs font-extrabold text-lover-500">Cœur brisé</p>
-              <p class="mt-1 text-[10px] text-ink-500">
-                Score normal − maximum
-              </p>
-            </div>
-          </div>
-        </div>
-        }
-
         @if (gameState.isProfileLocked()) {
           <div class="surface-card p-5 text-center">
             <ion-icon class="text-3xl text-success-500" name="checkmark-circle" aria-hidden="true" />

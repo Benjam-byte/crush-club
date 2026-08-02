@@ -123,3 +123,143 @@ func (a *api) handleJoinLobby(w http.ResponseWriter, r *http.Request) {
 		State:          state,
 	})
 }
+
+func (a *api) handleLeaveLobby(w http.ResponseWriter, r *http.Request) {
+	rawToken := bearerToken(r)
+	if rawToken == "" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	tokenHash := sha256.Sum256([]byte(rawToken))
+	tx, err := a.pool.Begin(r.Context())
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	var playerID, lobbyID, lobbyStatus string
+	var playerIsHost, alreadyExcluded bool
+	err = tx.QueryRow(r.Context(), `
+		SELECT player.id, player.lobby_id, player.is_host, lobby.status,
+		       player.excluded_at IS NOT NULL
+		FROM players AS player
+		JOIN lobbies AS lobby ON lobby.id = player.lobby_id
+		WHERE lobby.code = $1 AND player.reconnect_token_hash = $2
+		FOR UPDATE OF player, lobby
+	`, strings.ToUpper(r.PathValue("code")), hex.EncodeToString(tokenHash[:])).Scan(
+		&playerID,
+		&lobbyID,
+		&playerIsHost,
+		&lobbyStatus,
+		&alreadyExcluded,
+	)
+	if errors.Is(err, pgx.ErrNoRows) || alreadyExcluded {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+
+	if _, err := tx.Exec(r.Context(), `
+		UPDATE players
+		SET excluded_at = now(), disconnected_at = COALESCE(disconnected_at, now()),
+		    is_host = false, updated_at = now()
+		WHERE id = $1
+	`, playerID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+
+	if playerIsHost {
+		var successorID string
+		err = tx.QueryRow(r.Context(), `
+			SELECT id
+			FROM players
+			WHERE lobby_id = $1 AND excluded_at IS NULL
+			ORDER BY (disconnected_at IS NULL) DESC, joined_at, id
+			LIMIT 1
+		`, lobbyID).Scan(&successorID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			a.internalError(w, r, err)
+			return
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			if _, err := tx.Exec(r.Context(), `UPDATE lobbies SET host_player_id = NULL WHERE id = $1`, lobbyID); err != nil {
+				a.internalError(w, r, err)
+				return
+			}
+		} else {
+			if _, err := tx.Exec(r.Context(), `UPDATE players SET is_host = true, updated_at = now() WHERE id = $1`, successorID); err != nil {
+				a.internalError(w, r, err)
+				return
+			}
+			if _, err := tx.Exec(r.Context(), `UPDATE lobbies SET host_player_id = $2 WHERE id = $1`, lobbyID, successorID); err != nil {
+				a.internalError(w, r, err)
+				return
+			}
+		}
+	}
+
+	switch lobbyStatus {
+	case "in_game":
+		if err := excludeGameParticipant(r.Context(), tx, lobbyID, playerID); err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+	case "waiting_for_players", "preparing_photos", "ready_to_start":
+		if _, err := tx.Exec(r.Context(), `
+			UPDATE lobbies
+			SET status = CASE
+			      WHEN (SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL) < $2
+			        THEN 'waiting_for_players'::lobby_status
+			      WHEN NOT (SELECT bool_and(ready_status = 'ready') FROM players WHERE lobby_id = $1 AND excluded_at IS NULL)
+			        THEN 'preparing_photos'::lobby_status
+			      ELSE 'ready_to_start'::lobby_status
+			    END,
+			    revision = revision + 1, updated_at = now()
+			WHERE id = $1
+		`, lobbyID, minimumPlayerCount); err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+	default:
+		if _, err := tx.Exec(r.Context(), `
+			UPDATE lobbies SET revision = revision + 1, updated_at = now() WHERE id = $1
+		`, lobbyID); err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+	}
+
+	var remainingPlayerCount int
+	if err := tx.QueryRow(r.Context(), `
+		SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL
+	`, lobbyID).Scan(&remainingPlayerCount); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	shouldPurge := remainingPlayerCount == 0
+	if shouldPurge {
+		if _, err := tx.Exec(r.Context(), `
+			UPDATE lobbies
+			SET status = 'expired', expires_at = now(), revision = revision + 1, updated_at = now()
+			WHERE id = $1
+		`, lobbyID); err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	a.hub.publish(strings.ToUpper(r.PathValue("code")))
+	if shouldPurge {
+		a.purgeLobby(r.Context(), lobbyID)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

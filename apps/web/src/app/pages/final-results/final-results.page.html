@@ -54,11 +54,11 @@
       </section>
 
       <div class="relative z-10 mt-5 grid gap-3">
-        <ion-button class="action-button w-full" expand="block" (click)="onReplay()">
+        <ion-button class="action-button w-full" expand="block" [disabled]="isLeaving()" (click)="onReplay()">
           <ion-icon name="refresh" slot="start" aria-hidden="true" />
           {{ gameState.isHost() ? 'Créer un nouveau lobby' : 'Rejoindre un nouveau lobby' }}
         </ion-button>
-        <ion-button class="action-button action-button--secondary w-full" expand="block" (click)="onNewLobby()">
+        <ion-button class="action-button action-button--secondary w-full" expand="block" [disabled]="isLeaving()" (click)="onNewLobby()">
           Retour à l’accueil
         </ion-button>
       </div>

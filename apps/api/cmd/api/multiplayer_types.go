@@ -6,12 +6,14 @@ import (
 )
 
 const (
-	minimumPlayerCount    = 2
-	maximumPlayerCount    = 10
-	reconnectGracePeriod  = 90 * time.Second
-	maximumPhotoSizeBytes = 7 << 20
-	maximumPhotoDimension = 4096
-	bestTaglineBonus      = 10
+	minimumPlayerCount       = 2
+	maximumPlayerCount       = 10
+	reconnectGracePeriod     = 90 * time.Second
+	maximumPhotoSizeBytes    = 7 << 20
+	maximumPhotoDimension    = 4096
+	bestTaglineBonus         = 10
+	primaryPhotoQuestionID   = "__primary_photo__"
+	primaryPhotoMaximumScore = 10
 )
 
 type profileField struct {

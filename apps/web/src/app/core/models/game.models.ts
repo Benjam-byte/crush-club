@@ -31,6 +31,8 @@ export type QuestionType =
 
 export type AnswerValue = string | number | readonly string[]
 
+export const primaryPhotoQuestionId = '__primary_photo__';
+
 export interface LobbyPlayer {
   id: string
   displayName: string

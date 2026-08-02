@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
+import { primaryPhotoQuestionId } from '@core/models/game.models';
 import type { AnswerValue, QuestionDefinition } from '@core/models/game.models';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
 import { GameStateService } from '../../core/services/game-state.service';
@@ -26,7 +27,11 @@ export class RevealPage implements OnInit {
   protected readonly selectedSubmissionId = signal<string | null>(null);
   protected readonly isVoting = signal(false);
   protected readonly subjectPhotoUrl = computed(() => {
-    return this.gameState.photoUrl(this.gameState.subjectPlayer().photoIds[0]);
+    const photoAnswer = this.gameState.game()?.officialSubmission?.questionAnswers[primaryPhotoQuestionId];
+    const photoId = typeof photoAnswer === 'string'
+      ? photoAnswer
+      : this.gameState.subjectPlayer().photoIds[0];
+    return this.gameState.photoUrl(photoId);
   });
   protected readonly officialAnswerList = computed<readonly DisplayedAnswer[]>(() => {
     const submission = this.gameState.game()?.officialSubmission;

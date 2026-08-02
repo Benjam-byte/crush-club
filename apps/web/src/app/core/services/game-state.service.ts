@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { activeNavigationUrl } from '@core/guards/lobby-route';
+import { primaryPhotoQuestionId } from '@core/models/game.models';
 import type {
   AnswerValue,
   LobbyPlayer,
@@ -15,6 +16,7 @@ import { LobbyApiService } from './lobby-api.service';
 import { RealtimeLobbyService } from './realtime-lobby.service';
 
 interface StoredDraft {
+  primaryPhotoId: string | null
   tagline: string
   answerByQuestionId: Record<string, AnswerValue>
   bioAnswerByCategoryId: Record<string, string>
@@ -49,6 +51,7 @@ export class GameStateService {
   private readonly realtime = inject(RealtimeLobbyService);
   private readonly router = inject(Router);
   private readonly storedSessionState = signal<StoredPlayerSession | null>(this.readStoredSession());
+  private readonly primaryPhotoIdState = signal<string | null>(null);
   private readonly taglineState = signal('');
   private readonly answerByQuestionIdState = signal<Record<string, AnswerValue>>({});
   private readonly bioAnswerByCategoryIdState = signal<Record<string, string>>({});
@@ -95,6 +98,7 @@ export class GameStateService {
     const subjectID = this.game()?.nextSubjectPlayerId;
     return this.playerList().find((player) => player.id === subjectID) ?? emptyPlayer;
   });
+  readonly primaryPhotoId = this.primaryPhotoIdState.asReadonly();
   readonly tagline = this.taglineState.asReadonly();
   readonly answerByQuestionId = this.answerByQuestionIdState.asReadonly();
   readonly bioAnswerByCategoryId = this.bioAnswerByCategoryIdState.asReadonly();
@@ -214,6 +218,14 @@ export class GameStateService {
     this.persistDraft();
   }
 
+  savePrimaryPhoto(photoId: string): void {
+    if (!this.subjectPlayer().photoIds.includes(photoId)) {
+      return;
+    }
+    this.primaryPhotoIdState.set(photoId);
+    this.persistDraft();
+  }
+
   saveBioAnswer(categoryId: string, optionId: string): void {
     this.bioAnswerByCategoryIdState.update((answerByCategoryId) => ({
       ...answerByCategoryId,
@@ -249,7 +261,10 @@ export class GameStateService {
     }
     const input: RoundSubmissionInput = {
       bioAnswers: this.bioAnswerByCategoryId(),
-      questionAnswers: this.answerByQuestionId(),
+      questionAnswers: {
+        ...this.answerByQuestionId(),
+        [primaryPhotoQuestionId]: this.primaryPhotoId() ?? '',
+      },
     };
     if (game.role === 'cupid') {
       input.tagline = this.tagline().trim();
@@ -306,12 +321,26 @@ export class GameStateService {
       URL.revokeObjectURL(url);
     }
     this.photoUrlByIdState.set({});
+    this.primaryPhotoIdState.set(null);
     this.taglineState.set('');
     this.answerByQuestionIdState.set({});
     this.bioAnswerByCategoryIdState.set({});
     this.loverQuestionIdState.set(null);
     this.errorMessageState.set(null);
     this.restoredDraftKey = '';
+  }
+
+  async leaveGame(): Promise<void> {
+    const session = this.storedSessionState();
+    try {
+      if (session) {
+        await this.lobbyApi.leave(session.lobbyCode, session.reconnectToken);
+      }
+    } catch {
+      // Closing the realtime connection lets the automatic inactivity cleanup take over.
+    } finally {
+      this.resetGame();
+    }
   }
 
   private establishSession(state: LobbyStateResponse, reconnectToken: string): void {
@@ -354,6 +383,7 @@ export class GameStateService {
     this.restoredDraftKey = draftKey;
     const storedValue = localStorage.getItem(draftKey);
     let draft: StoredDraft = {
+      primaryPhotoId: null,
       tagline: '',
       answerByQuestionId: {},
       bioAnswerByCategoryId: {},
@@ -367,6 +397,11 @@ export class GameStateService {
       }
     }
     const validQuestionIDs = new Set(this.activeQuestionList().map((question) => question.id));
+    this.primaryPhotoIdState.set(
+      draft.primaryPhotoId && this.subjectPlayer().photoIds.includes(draft.primaryPhotoId)
+        ? draft.primaryPhotoId
+        : null,
+    );
     this.taglineState.set(draft.tagline);
     this.answerByQuestionIdState.set(Object.fromEntries(
       Object.entries(draft.answerByQuestionId).filter(([questionId]) => validQuestionIDs.has(questionId)),
@@ -383,6 +418,7 @@ export class GameStateService {
       return;
     }
     const draft: StoredDraft = {
+      primaryPhotoId: this.primaryPhotoId(),
       tagline: this.tagline(),
       answerByQuestionId: this.answerByQuestionId(),
       bioAnswerByCategoryId: this.bioAnswerByCategoryId(),

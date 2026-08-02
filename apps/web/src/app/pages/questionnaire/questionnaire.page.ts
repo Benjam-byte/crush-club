@@ -31,7 +31,7 @@ export class QuestionnairePage implements OnInit {
   protected readonly hasTaglineStep = computed(() => this.gameState.role() !== 'lover');
   protected readonly taglineMaximumLength = taglineMaximumLength;
   protected readonly requiredAnswerCount = computed(() => {
-    return (this.hasTaglineStep() ? 1 : 0) + this.bioCategoryList().length + this.gameState.activeQuestionList().length;
+    return 1 + (this.hasTaglineStep() ? 1 : 0) + this.bioCategoryList().length + this.gameState.activeQuestionList().length;
   });
   protected readonly stepNumberList = computed(() => {
     return Array.from({ length: this.requiredAnswerCount() }, (_, index) => index + 1);
@@ -39,14 +39,14 @@ export class QuestionnairePage implements OnInit {
   protected readonly currentStepIndex = signal(0);
   protected readonly currentStepNumber = computed(() => this.currentStepIndex() + 1);
   protected readonly currentBioCategory = computed(() => {
-    const categoryIndex = this.currentStepIndex() - (this.hasTaglineStep() ? 1 : 0);
+    const categoryIndex = this.currentStepIndex() - 1 - (this.hasTaglineStep() ? 1 : 0);
     const categoryList = this.bioCategoryList();
     return categoryIndex >= 0 && categoryIndex < categoryList.length
       ? categoryList[categoryIndex]
       : undefined;
   });
   protected readonly currentQuestion = computed(() => {
-    const questionIndex = this.currentStepIndex() - this.bioCategoryList().length - (this.hasTaglineStep() ? 1 : 0);
+    const questionIndex = this.currentStepIndex() - 1 - this.bioCategoryList().length - (this.hasTaglineStep() ? 1 : 0);
     const questionList = this.gameState.activeQuestionList();
     return questionIndex >= 0 && questionIndex < questionList.length
       ? questionList[questionIndex]
@@ -56,6 +56,7 @@ export class QuestionnairePage implements OnInit {
     return this.currentStepIndex() === this.requiredAnswerCount() - 1;
   });
   protected readonly completedAnswerCount = computed(() => {
+    const hasPrimaryPhoto = this.gameState.primaryPhotoId() !== null;
     const hasTagline = !this.hasTaglineStep() || this.gameState.tagline().trim().length > 0;
     const bioAnswerByCategoryId = this.gameState.bioAnswerByCategoryId();
     const answerByQuestionId = this.gameState.answerByQuestionId();
@@ -65,13 +66,17 @@ export class QuestionnairePage implements OnInit {
     const questionAnswerCount = this.gameState.activeQuestionList().filter(
       (question) => answerByQuestionId[question.id] !== undefined,
     ).length;
-    return (this.hasTaglineStep() && hasTagline ? 1 : 0) + bioAnswerCount + questionAnswerCount;
+    return (hasPrimaryPhoto ? 1 : 0) + (this.hasTaglineStep() && hasTagline ? 1 : 0) + bioAnswerCount + questionAnswerCount;
   });
   protected readonly canContinue = computed(() => {
     return this.completedAnswerCount() === this.requiredAnswerCount();
   });
   protected readonly currentStepAnswered = computed(() => {
-    if (this.hasTaglineStep() && this.currentStepIndex() === 0) {
+    if (this.currentStepIndex() === 0) {
+      return this.gameState.primaryPhotoId() !== null;
+    }
+
+    if (this.hasTaglineStep() && this.currentStepIndex() === 1) {
       return this.gameState.tagline().trim().length > 0;
     }
 
@@ -100,6 +105,10 @@ export class QuestionnairePage implements OnInit {
   protected onTaglineInput(event: Event): void {
     const textareaElement = event.target as HTMLTextAreaElement;
     this.gameState.saveTagline(textareaElement.value);
+  }
+
+  protected onPrimaryPhotoSelect(photoId: string): void {
+    this.gameState.savePrimaryPhoto(photoId);
   }
 
   protected onBioOptionSelect(categoryId: string, optionId: string): void {

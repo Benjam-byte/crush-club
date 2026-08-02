@@ -33,8 +33,9 @@ func TestValidateRoundSubmissionSeparatesSubjectAndCupid(t *testing.T) {
 	valid := roundSubmissionInput{
 		BioAnswers: map[string]string{"quality": "funny"},
 		QuestionAnswers: map[string]json.RawMessage{
-			"choice": json.RawMessage(`"yes"`),
-			"range":  json.RawMessage(`7`),
+			primaryPhotoQuestionID: json.RawMessage(`"photo-1"`),
+			"choice":               json.RawMessage(`"yes"`),
+			"range":                json.RawMessage(`7`),
 		},
 	}
 	if err := validateRoundSubmission(snapshot, valid, "official"); err != nil {
@@ -68,15 +69,17 @@ func TestScorePredictionAppliesLoverAndTaglineBonusDeterministically(t *testing.
 	official := storedSubmission{
 		BioAnswers: map[string]string{"quality": "funny"},
 		QuestionAnswers: map[string]json.RawMessage{
-			"choice": json.RawMessage(`"yes"`),
-			"range":  json.RawMessage(`10`),
+			primaryPhotoQuestionID: json.RawMessage(`"photo-1"`),
+			"choice":               json.RawMessage(`"yes"`),
+			"range":                json.RawMessage(`10`),
 		},
 	}
 	prediction := storedSubmission{
 		BioAnswers: map[string]string{"quality": "funny"},
 		QuestionAnswers: map[string]json.RawMessage{
-			"choice": json.RawMessage(`"yes"`),
-			"range":  json.RawMessage(`8`),
+			primaryPhotoQuestionID: json.RawMessage(`"photo-1"`),
+			"choice":               json.RawMessage(`"yes"`),
+			"range":                json.RawMessage(`8`),
 		},
 		LoverQuestionID: "choice",
 	}
@@ -85,10 +88,10 @@ func TestScorePredictionAppliesLoverAndTaglineBonusDeterministically(t *testing.
 	if err != nil {
 		t.Fatalf("scorePrediction() error = %v", err)
 	}
-	if base != 28 || lover != 10 || tagline != 10 || total != 48 || exact != 2 {
-		t.Fatalf("score breakdown = (%d, %d, %d, %d, %d), want (28, 10, 10, 48, 2)", base, lover, tagline, total, exact)
+	if base != 38 || lover != 10 || tagline != 10 || total != 58 || exact != 3 {
+		t.Fatalf("score breakdown = (%d, %d, %d, %d, %d), want (38, 10, 10, 58, 3)", base, lover, tagline, total, exact)
 	}
-	if len(lines) != 3 || !lines[1].IsLoverApplied || lines[1].FinalScore != 20 {
+	if len(lines) != 4 || !lines[2].IsLoverApplied || lines[2].FinalScore != 20 {
 		t.Fatalf("unexpected score lines: %#v", lines)
 	}
 
@@ -97,8 +100,8 @@ func TestScorePredictionAppliesLoverAndTaglineBonusDeterministically(t *testing.
 	if err != nil {
 		t.Fatalf("scorePrediction() error = %v", err)
 	}
-	if base != 18 || lover != -10 || tagline != 0 || total != 8 {
-		t.Fatalf("failed LOVER breakdown = (%d, %d, %d, %d), want (18, -10, 0, 8)", base, lover, tagline, total)
+	if base != 28 || lover != -10 || tagline != 0 || total != 18 {
+		t.Fatalf("failed LOVER breakdown = (%d, %d, %d, %d), want (28, -10, 0, 18)", base, lover, tagline, total)
 	}
 }
 
@@ -134,8 +137,9 @@ func TestPredictionTaglineLimitUsesRunes(t *testing.T) {
 		Tagline:    strings.Repeat("é", 101),
 		BioAnswers: map[string]string{"quality": "funny"},
 		QuestionAnswers: map[string]json.RawMessage{
-			"choice": json.RawMessage(`"yes"`),
-			"range":  json.RawMessage(`7`),
+			primaryPhotoQuestionID: json.RawMessage(`"photo-1"`),
+			"choice":               json.RawMessage(`"yes"`),
+			"range":                json.RawMessage(`7`),
 		},
 		LoverQuestionID: "choice",
 	}

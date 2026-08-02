@@ -119,9 +119,10 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 		         FROM player_photos AS photo WHERE photo.player_id = player.id
 		       ), ARRAY[]::text[])
 		FROM players AS player
-		WHERE player.lobby_id = $1 AND player.excluded_at IS NULL
+		WHERE player.lobby_id = $1
+		  AND (player.excluded_at IS NULL OR $2::text = 'completed')
 		ORDER BY player.joined_at, player.id
-	`, currentPlayer.LobbyID)
+	`, currentPlayer.LobbyID, state.Status)
 	if err != nil {
 		return lobbyStateResponse{}, err
 	}
@@ -227,6 +228,7 @@ func (a *api) loadGameState(ctx context.Context, currentPlayer authenticatedPlay
 	}
 
 	if game.Phase == "reveal_and_vote" || game.Phase == "round_results" || game.Phase == "completed" {
+		subjectIsVoting := game.Phase == "reveal_and_vote" && currentPlayer.ID == game.SubjectPlayerID
 		revealAuthors := game.Phase == "round_results" || game.Phase == "completed" ||
 			(game.Phase == "reveal_and_vote" && currentPlayer.ID != game.SubjectPlayerID)
 		submissionList, err := a.loadRoundSubmissionViews(ctx, roundID, revealAuthors)
@@ -236,8 +238,15 @@ func (a *api) loadGameState(ctx context.Context, currentPlayer authenticatedPlay
 		for index := range submissionList {
 			submission := submissionList[index]
 			if submission.PlayerID == game.SubjectPlayerID {
-				game.OfficialSubmission = &submission
+				if !subjectIsVoting {
+					game.OfficialSubmission = &submission
+				}
 				continue
+			}
+			if subjectIsVoting {
+				submission.BioAnswers = map[string]any{}
+				submission.QuestionAnswers = map[string]any{}
+				submission.LoverQuestionID = ""
 			}
 			if !revealAuthors {
 				submission.PlayerID = ""

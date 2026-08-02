@@ -1,47 +1,64 @@
 <div class="ion-page">
   <ion-content>
     <main class="app-shell min-h-full pb-8">
-      <app-page-header title="Révélation" [centerTitle]="true" [showDecoration]="false" />
+      <app-page-header
+        [title]="gameState.role() === 'lover' ? 'Choix de l’accroche' : 'Révélation'"
+        [centerTitle]="true"
+        [showDecoration]="false"
+      />
 
       <section class="space-y-5 px-5 pt-2">
         <header class="text-center">
           <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
             Manche {{ gameState.game()?.roundNumber }}/{{ gameState.game()?.totalRounds }}
           </p>
-          <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-ink-900">
-            Le vrai profil de {{ gameState.subjectPlayer().displayName }}
-          </h1>
+          @if (gameState.role() === 'lover') {
+            <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-ink-900">
+              Choisis ta phrase préférée
+            </h1>
+            <p class="mt-2 text-sm leading-6 text-ink-500">
+              Les propositions sont anonymes. Choisis seulement celle qui te plaît le plus.
+            </p>
+          } @else {
+            <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-ink-900">
+              Le vrai profil de {{ gameState.subjectPlayer().displayName }}
+            </h1>
+          }
         </header>
 
-        <article class="surface-card overflow-hidden">
-          <div class="grid grid-cols-[7rem_minmax(0,1fr)]">
-            @if (subjectPhotoUrl()) {
-              <img class="h-full min-h-36 w-full object-cover" [src]="subjectPhotoUrl()" [alt]="'Photo de ' + gameState.subjectPlayer().displayName" />
-            } @else {
-              <span class="grid min-h-36 place-items-center bg-brand-100 text-2xl font-extrabold text-brand-600">
-                {{ initials(gameState.subjectPlayer().displayName) }}
-              </span>
-            }
-            <div class="flex flex-col justify-center p-4">
-              <span class="w-fit rounded-full bg-brand-100 px-3 py-1 text-[10px] font-extrabold text-brand-600">Profil officiel</span>
-              <h2 class="mt-2 text-lg font-extrabold text-ink-900">{{ gameState.subjectPlayer().displayName }}</h2>
-              <p class="mt-1 text-xs leading-5 text-ink-500">Les réponses ci-dessous servent de référence au score.</p>
+        @if (gameState.role() !== 'lover') {
+          <article class="surface-card overflow-hidden">
+            <div class="grid grid-cols-[7rem_minmax(0,1fr)]">
+              @if (subjectPhotoUrl()) {
+                <img class="h-full min-h-36 w-full object-cover" [src]="subjectPhotoUrl()" [alt]="'Photo de ' + gameState.subjectPlayer().displayName" />
+              } @else {
+                <span class="grid min-h-36 place-items-center bg-brand-100 text-2xl font-extrabold text-brand-600">
+                  {{ initials(gameState.subjectPlayer().displayName) }}
+                </span>
+              }
+              <div class="flex flex-col justify-center p-4">
+                <span class="w-fit rounded-full bg-brand-100 px-3 py-1 text-[10px] font-extrabold text-brand-600">Profil officiel</span>
+                <h2 class="mt-2 text-lg font-extrabold text-ink-900">{{ gameState.subjectPlayer().displayName }}</h2>
+                <p class="mt-1 text-xs leading-5 text-ink-500">Les réponses ci-dessous servent de référence au score.</p>
+              </div>
             </div>
-          </div>
-        </article>
+          </article>
 
-        <section class="grid grid-cols-2 gap-3">
-          @for (answer of officialAnswerList(); track answer.id) {
-            <article class="surface-card p-4">
-              <p class="text-[10px] font-extrabold uppercase tracking-wide text-brand-600">{{ answer.label }}</p>
-              <p class="mt-2 text-sm font-extrabold leading-5 text-ink-900">{{ answer.value }}</p>
-            </article>
-          }
-        </section>
+          <section class="grid grid-cols-2 gap-3">
+            @for (answer of officialAnswerList(); track answer.id) {
+              <article class="surface-card p-4">
+                <p class="text-[10px] font-extrabold uppercase tracking-wide text-brand-600">{{ answer.label }}</p>
+                <p class="mt-2 text-sm font-extrabold leading-5 text-ink-900">{{ answer.value }}</p>
+              </article>
+            }
+          </section>
+        }
 
         <section>
           <div class="mb-3 text-center">
-            <h2 class="text-xl font-extrabold text-ink-900">Les profils proposés</h2>
+            <h2 class="text-xl font-extrabold text-ink-900">
+              {{ gameState.role() === 'lover' ? 'Les phrases proposées' : 'Les profils proposés' }}
+            </h2>
             <p class="mt-1 text-xs leading-5 text-ink-500">
               @if (gameState.role() === 'lover') {
                 Choisis anonymement la phrase d’accroche que tu préfères.
@@ -65,7 +82,9 @@
                 </span>
                 <span class="min-w-0">
                   <span class="block text-sm font-extrabold leading-5 text-ink-900">“{{ submission.tagline }}”</span>
-                  <span class="mt-1 block text-[11px] leading-4 text-ink-500">{{ submissionBio(submission.id) }}</span>
+                  @if (gameState.role() !== 'lover') {
+                    <span class="mt-1 block text-[11px] leading-4 text-ink-500">{{ submissionBio(submission.id) }}</span>
+                  }
                 </span>
               </button>
             }

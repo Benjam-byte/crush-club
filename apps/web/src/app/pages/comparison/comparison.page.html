@@ -77,9 +77,11 @@
           <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
         }
 
-        <ion-button class="action-button action-button--secondary w-full" expand="block" (click)="onQuitGame()">
-          Quitter la partie
-        </ion-button>
+        <div>
+          <ion-button class="action-button action-button--secondary w-full" expand="block" [disabled]="isLeaving()" (click)="onQuitGame()">
+            Quitter la partie
+          </ion-button>
+        </div>
       </section>
     </main>
   </ion-content>

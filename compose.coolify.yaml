@@ -25,6 +25,7 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?}
       PHOTO_STORAGE_PATH: ${PHOTO_STORAGE_PATH:-/data/photos}
       PHOTO_RETENTION_HOURS: ${PHOTO_RETENTION_HOURS:-24}
+      LOBBY_EMPTY_GRACE_MINUTES: ${LOBBY_EMPTY_GRACE_MINUTES:-15}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - photo-data:/data/photos
