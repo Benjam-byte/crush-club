@@ -56,7 +56,7 @@ func TestValidateLobbyConfigChange(t *testing.T) {
 
 func TestSnapshotDoesNotTrackLaterConfigChanges(t *testing.T) {
 	config := gameConfig{
-		ID: "config", Name: "Original", Version: 2,
+		ID: "config", Name: "Original", Kind: "personal", Version: 2,
 		Questions: []question{{ID: "romance", Label: "Original question"}},
 	}
 	snapshot := snapshotFromConfig(config)
@@ -65,6 +65,38 @@ func TestSnapshotDoesNotTrackLaterConfigChanges(t *testing.T) {
 
 	if snapshot.Name != "Original" || snapshot.Questions[0].Label != "Original question" {
 		t.Fatalf("snapshot changed with source config: %#v", snapshot)
+	}
+}
+
+func TestSnapshotProfileFieldsFollowConfigKind(t *testing.T) {
+	systemSnapshot := snapshotFromConfig(gameConfig{ID: "classic", Name: "Classique", Kind: "system"})
+	if systemSnapshot.Kind != "system" || len(systemSnapshot.ProfileFields) != len(defaultProfileFields()) {
+		t.Fatalf("system snapshot = %#v", systemSnapshot)
+	}
+
+	personalSnapshot := snapshotFromConfig(gameConfig{ID: "custom", Name: "Maison", Kind: "personal"})
+	if personalSnapshot.Kind != "personal" || personalSnapshot.ProfileFields == nil || len(personalSnapshot.ProfileFields) != 0 {
+		t.Fatalf("personal snapshot = %#v", personalSnapshot)
+	}
+}
+
+func TestHydrateQuestionnaireSnapshotKeepsLegacyBehavior(t *testing.T) {
+	personalSnapshot := questionnaireSnapshot{Kind: "personal"}
+	hydrateQuestionnaireSnapshot(&personalSnapshot)
+	if personalSnapshot.ProfileFields == nil || len(personalSnapshot.ProfileFields) != 0 {
+		t.Fatalf("personal profile fields = %#v, want an empty list", personalSnapshot.ProfileFields)
+	}
+
+	legacySnapshot := questionnaireSnapshot{}
+	hydrateQuestionnaireSnapshot(&legacySnapshot)
+	if len(legacySnapshot.ProfileFields) != len(defaultProfileFields()) {
+		t.Fatalf("legacy profile fields = %#v", legacySnapshot.ProfileFields)
+	}
+
+	systemSnapshot := questionnaireSnapshot{Kind: "system"}
+	hydrateQuestionnaireSnapshot(&systemSnapshot)
+	if len(systemSnapshot.ProfileFields) != len(defaultProfileFields()) {
+		t.Fatalf("system profile fields = %#v", systemSnapshot.ProfileFields)
 	}
 }
 

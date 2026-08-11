@@ -100,6 +100,7 @@ type questionnaireSnapshot struct {
 	SourceConfigID string         `json:"sourceConfigId"`
 	SourceVersion  int            `json:"sourceVersion"`
 	Name           string         `json:"name"`
+	Kind           string         `json:"kind,omitempty"`
 	Questions      []question     `json:"questions"`
 	ProfileFields  []profileField `json:"profileFields"`
 }
@@ -163,6 +164,10 @@ func (a *api) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/v1/lobbies/{code}/state", a.handleGetLobbyState)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/players/me/leave", a.handleLeaveLobby)
 	mux.HandleFunc("PUT /api/v1/lobbies/{code}/players/me/photos", a.handleUploadPlayerPhotos)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/players/me/photos", a.handleAddPlayerPhoto)
+	mux.HandleFunc("PUT /api/v1/lobbies/{code}/players/me/photos/{position}", a.handleReplacePlayerPhoto)
+	mux.HandleFunc("DELETE /api/v1/lobbies/{code}/players/me/photos/{position}", a.handleDeletePlayerPhoto)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/players/me/photos/complete", a.handleCompletePlayerPhotos)
 	mux.HandleFunc("GET /api/v1/lobbies/{code}/photos/{photoID}", a.handleGetPlayerPhoto)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/players/{playerID}/exclude", a.handleExcludePlayer)
 	mux.HandleFunc("PUT /api/v1/lobbies/{code}/game-config", a.handleChangeLobbyConfig)
@@ -743,9 +748,7 @@ func (a *api) handleGetQuestionnaire(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	if len(snapshot.ProfileFields) == 0 {
-		snapshot.ProfileFields = defaultProfileFields()
-	}
+	hydrateQuestionnaireSnapshot(&snapshot)
 	writeJSON(w, http.StatusOK, snapshot)
 }
 
@@ -1094,20 +1097,14 @@ func persistConfigQuestions(
 	for _, questionInput := range questionInputs {
 		questionID := questionInput.QuestionID
 		if questionID != "" {
-			var ownerID *string
-			var isSystem, isActive, loverEligible bool
-			err := tx.QueryRow(ctx, `
-				SELECT owner_identity_id, is_system, is_active, lover_eligible
-				FROM questions WHERE id = $1
-			`, questionID).Scan(&ownerID, &isSystem, &isActive, &loverEligible)
+			referencedQuestionID := questionID
+			var loverEligible bool
+			questionID, loverEligible, err = cloneQuestionReference(ctx, tx, questionID, identityID)
 			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, validationError{fmt.Sprintf("unknown or inaccessible question: %s", questionID)}
+				return nil, validationError{fmt.Sprintf("unknown or inaccessible question: %s", referencedQuestionID)}
 			}
 			if err != nil {
 				return nil, err
-			}
-			if !isActive || (!isSystem && (ownerID == nil || *ownerID != identityID)) {
-				return nil, validationError{fmt.Sprintf("unknown or inaccessible question: %s", questionID)}
 			}
 			hasLoverEligible = hasLoverEligible || loverEligible
 		} else {
@@ -1200,6 +1197,32 @@ func persistConfigQuestions(
 	return questionIDList, nil
 }
 
+func cloneQuestionReference(
+	ctx context.Context,
+	tx pgx.Tx,
+	questionID string,
+	identityID string,
+) (string, bool, error) {
+	var clonedID string
+	var loverEligible bool
+	err := tx.QueryRow(ctx, `
+		INSERT INTO questions (
+			id, type, label, description, maximum_score, lover_eligible, options,
+			minimum, maximum, minimum_label, maximum_label, is_active,
+			owner_identity_id, is_system
+		)
+		SELECT
+			gen_random_uuid()::text, type, label, description, maximum_score, lover_eligible, options,
+			minimum, maximum, minimum_label, maximum_label, is_active,
+			$2, false
+		FROM questions
+		WHERE id = $1 AND is_active
+		  AND (is_system OR owner_identity_id = $2)
+		RETURNING id, lover_eligible
+	`, questionID, identityID).Scan(&clonedID, &loverEligible)
+	return clonedID, loverEligible, err
+}
+
 func marshalQuestionOptions(options []questionOption) (any, error) {
 	if len(options) == 0 {
 		return nil, nil
@@ -1224,12 +1247,29 @@ func questionIDs(questionList []question) []string {
 
 func snapshotFromConfig(config gameConfig) questionnaireSnapshot {
 	questions := append([]question(nil), config.Questions...)
+	profileFields := make([]profileField, 0)
+	if config.Kind == "system" {
+		profileFields = defaultProfileFields()
+	}
 	return questionnaireSnapshot{
 		SourceConfigID: config.ID,
 		SourceVersion:  config.Version,
 		Name:           config.Name,
+		Kind:           config.Kind,
 		Questions:      questions,
-		ProfileFields:  defaultProfileFields(),
+		ProfileFields:  profileFields,
+	}
+}
+
+func hydrateQuestionnaireSnapshot(snapshot *questionnaireSnapshot) {
+	if snapshot.Kind == "personal" {
+		if snapshot.ProfileFields == nil {
+			snapshot.ProfileFields = make([]profileField, 0)
+		}
+		return
+	}
+	if len(snapshot.ProfileFields) == 0 {
+		snapshot.ProfileFields = defaultProfileFields()
 	}
 }
 

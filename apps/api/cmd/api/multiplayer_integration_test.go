@@ -125,6 +125,90 @@ func createIntegrationLobby(t *testing.T, baseURL, displayName string, maxPlayer
 	return host, created
 }
 
+func TestIntegrationLegacyCatalogReferencesBecomeIndependentPersonalCopies(t *testing.T) {
+	baseURL := integrationBaseURL(t)
+	host := newIntegrationHost(t, baseURL)
+	configList := integrationRequestJSON[[]gameConfig](
+		t, host, http.MethodGet, baseURL+"/api/v1/game-configs", "", nil, http.StatusOK,
+	)
+	sourceQuestions := make([]question, 0, 2)
+	for _, config := range configList {
+		if config.Kind != "system" {
+			continue
+		}
+		for _, candidate := range config.Questions {
+			if candidate.LoverEligible {
+				sourceQuestions = append(sourceQuestions, candidate)
+				if len(sourceQuestions) == 2 {
+					break
+				}
+			}
+		}
+		if len(sourceQuestions) == 2 {
+			break
+		}
+	}
+	if len(sourceQuestions) != 2 {
+		t.Fatal("fewer than two LOVER-eligible system questions")
+	}
+	orderedSources := []question{sourceQuestions[1], sourceQuestions[0]}
+	legacyQuestionIDs := []string{orderedSources[0].ID, orderedSources[1].ID}
+
+	createCopy := func(name string) gameConfig {
+		return integrationRequestJSON[gameConfig](
+			t,
+			host,
+			http.MethodPost,
+			baseURL+"/api/v1/game-configs",
+			"",
+			map[string]any{"name": name, "questionIds": legacyQuestionIDs},
+			http.StatusCreated,
+		)
+	}
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	first := createCopy("Legacy copy A " + suffix)
+	second := createCopy("Legacy copy B " + suffix)
+	if first.Kind != "personal" || len(first.Questions) != len(orderedSources) {
+		t.Fatalf("first legacy copy = %#v", first)
+	}
+	if second.Kind != "personal" || len(second.Questions) != len(orderedSources) {
+		t.Fatalf("second legacy copy = %#v", second)
+	}
+	for index, sourceQuestion := range orderedSources {
+		firstQuestion := first.Questions[index]
+		secondQuestion := second.Questions[index]
+		if firstQuestion.Kind != "personal" || secondQuestion.Kind != "personal" {
+			t.Fatalf("copied question kinds = %q and %q", firstQuestion.Kind, secondQuestion.Kind)
+		}
+		if firstQuestion.ID == sourceQuestion.ID || secondQuestion.ID == sourceQuestion.ID || firstQuestion.ID == secondQuestion.ID {
+			t.Fatalf("question IDs were not copied independently: source=%q first=%q second=%q", sourceQuestion.ID, firstQuestion.ID, secondQuestion.ID)
+		}
+		if firstQuestion.Label != sourceQuestion.Label || firstQuestion.MaximumScore != sourceQuestion.MaximumScore || firstQuestion.LoverEligible != sourceQuestion.LoverEligible {
+			t.Fatalf("copied question changed content or order: source=%#v copy=%#v", sourceQuestion, firstQuestion)
+		}
+	}
+
+	lobby := integrationRequestJSON[playerSessionResponse](
+		t,
+		host,
+		http.MethodPost,
+		baseURL+"/api/v1/lobbies",
+		"",
+		map[string]any{
+			"displayName":  "PersonalSnapshot-" + suffix,
+			"maxPlayers":   4,
+			"gameConfigId": first.ID,
+		},
+		http.StatusCreated,
+	)
+	if lobby.State.Questionnaire.Kind != "personal" || lobby.State.Questionnaire.ProfileFields == nil || len(lobby.State.Questionnaire.ProfileFields) != 0 {
+		t.Fatalf("personal lobby snapshot = %#v", lobby.State.Questionnaire)
+	}
+	if len(lobby.State.Questionnaire.Questions) != 2 || lobby.State.Questionnaire.Questions[0].Label != orderedSources[0].Label {
+		t.Fatalf("personal snapshot question order = %#v", lobby.State.Questionnaire.Questions)
+	}
+}
+
 func uploadIntegrationPhotos(
 	t *testing.T,
 	baseURL, code, token string,
@@ -175,6 +259,62 @@ func uploadIntegrationPhotos(
 	return state
 }
 
+func mutateIntegrationPhoto(
+	t *testing.T,
+	method, url, token string,
+	client *http.Client,
+	wantStatus int,
+) lobbyStateResponse {
+	t.Helper()
+	var requestBody bytes.Buffer
+	var body io.Reader
+	contentType := ""
+	if method == http.MethodPost || method == http.MethodPut {
+		pngData, err := base64.StdEncoding.DecodeString(onePixelPNG)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writer := multipart.NewWriter(&requestBody)
+		part, err := writer.CreateFormFile("photo", "photo.png")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := part.Write(pngData); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		body = &requestBody
+		contentType = writer.FormDataContentType()
+	}
+	request, err := http.NewRequest(method, url, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer "+token)
+	if contentType != "" {
+		request.Header.Set("Content-Type", contentType)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != wantStatus {
+		responseBody, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		t.Fatalf("photo mutation status = %d, want %d: %s", response.StatusCode, wantStatus, responseBody)
+	}
+	if wantStatus >= 400 {
+		return lobbyStateResponse{}
+	}
+	var state lobbyStateResponse
+	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
+		t.Fatal(err)
+	}
+	return state
+}
+
 func integrationGetBytes(t *testing.T, url, token string, wantStatus int) []byte {
 	t.Helper()
 	request, err := http.NewRequest(http.MethodGet, url, nil)
@@ -197,6 +337,63 @@ func integrationGetBytes(t *testing.T, url, token string, wantStatus int) []byte
 		t.Fatalf("GET %s status = %d, want %d: %s", url, response.StatusCode, wantStatus, responseBody)
 	}
 	return responseBody
+}
+
+func TestIncrementalPhotoPreparation(t *testing.T) {
+	baseURL := integrationBaseURL(t)
+	host, session := createIntegrationLobby(t, baseURL, "Photos", 4)
+	photoURL := baseURL + "/api/v1/lobbies/" + session.State.Code + "/players/me/photos"
+	incomplete := integrationRequestJSON[map[string]map[string]string](
+		t, host, http.MethodPost, photoURL+"/complete", session.ReconnectToken, nil, http.StatusUnprocessableEntity,
+	)
+	if incomplete["error"]["code"] != "incomplete_photos" {
+		t.Fatalf("incomplete photo error = %#v", incomplete)
+	}
+
+	for photoCount := 1; photoCount <= 4; photoCount++ {
+		state := mutateIntegrationPhoto(
+			t, http.MethodPost, photoURL, session.ReconnectToken, host.client, http.StatusCreated,
+		)
+		currentPlayer := state.Players[0]
+		if len(currentPlayer.PhotoIDs) != photoCount || currentPlayer.ReadyStatus != "preparing_photos" {
+			t.Fatalf("photo %d state = %#v", photoCount, currentPlayer)
+		}
+	}
+	mutateIntegrationPhoto(
+		t, http.MethodPost, photoURL, session.ReconnectToken, host.client, http.StatusConflict,
+	)
+
+	beforeReplace := integrationRequestJSON[lobbyStateResponse](
+		t, host, http.MethodGet,
+		baseURL+"/api/v1/lobbies/"+session.State.Code+"/state",
+		session.ReconnectToken, nil, http.StatusOK,
+	)
+	replaced := mutateIntegrationPhoto(
+		t, http.MethodPut, photoURL+"/2", session.ReconnectToken, host.client, http.StatusOK,
+	)
+	if replaced.Players[0].PhotoIDs[1] == beforeReplace.Players[0].PhotoIDs[1] {
+		t.Fatal("replacing a photo should create a fresh photo identifier")
+	}
+	photoThreeID := replaced.Players[0].PhotoIDs[2]
+	deleted := mutateIntegrationPhoto(
+		t, http.MethodDelete, photoURL+"/2", session.ReconnectToken, host.client, http.StatusOK,
+	)
+	if len(deleted.Players[0].PhotoIDs) != 3 || deleted.Players[0].PhotoIDs[1] != photoThreeID {
+		t.Fatalf("deletion did not compact photo positions: %#v", deleted.Players[0].PhotoIDs)
+	}
+	mutateIntegrationPhoto(
+		t, http.MethodPost, photoURL, session.ReconnectToken, host.client, http.StatusCreated,
+	)
+
+	completed := integrationRequestJSON[lobbyStateResponse](
+		t, host, http.MethodPost, photoURL+"/complete", session.ReconnectToken, nil, http.StatusOK,
+	)
+	if completed.Players[0].ReadyStatus != "ready" || len(completed.Players[0].PhotoIDs) != 4 {
+		t.Fatalf("completed photo state = %#v", completed.Players[0])
+	}
+	mutateIntegrationPhoto(
+		t, http.MethodDelete, photoURL+"/1", session.ReconnectToken, host.client, http.StatusConflict,
+	)
 }
 
 func openIntegrationWebSocket(
@@ -316,6 +513,183 @@ func integrationSubjectPhotoID(t *testing.T, state lobbyStateResponse) string {
 	}
 	t.Fatal("subject photo is missing from the lobby state")
 	return ""
+}
+
+func TestImmediateDisconnectedPlayerExclusion(t *testing.T) {
+	baseURL := integrationBaseURL(t)
+	suffix := fmt.Sprintf("%06d", time.Now().UnixNano()%1_000_000)
+	hostIdentity, host := createIntegrationLobby(t, baseURL, "ExcludeHost-"+suffix, 2)
+	code := host.State.Code
+	guest := integrationRequestJSON[playerSessionResponse](
+		t,
+		hostIdentity,
+		http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players",
+		"",
+		map[string]string{"displayName": "ExcludeGuest-" + suffix},
+		http.StatusCreated,
+	)
+	exclusionURL := baseURL + "/api/v1/lobbies/" + code + "/players/" + guest.State.CurrentPlayerID + "/exclude"
+
+	guestSocket := openIntegrationWebSocket(t, baseURL, code, guest.ReconnectToken)
+	waitForPlayerConnection(t, baseURL, code, host.ReconnectToken, guest.State.CurrentPlayerID, true)
+	onlineError := integrationRequestJSON[map[string]map[string]string](
+		t, hostIdentity, http.MethodPost, exclusionURL, host.ReconnectToken, nil, http.StatusConflict,
+	)
+	if onlineError["error"]["code"] != "player_online" {
+		t.Fatalf("connected player exclusion error = %#v", onlineError)
+	}
+
+	nonHostError := integrationRequestJSON[map[string]map[string]string](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players/"+host.State.CurrentPlayerID+"/exclude",
+		guest.ReconnectToken, nil, http.StatusForbidden,
+	)
+	if nonHostError["error"]["code"] != "host_required" {
+		t.Fatalf("non-host exclusion error = %#v", nonHostError)
+	}
+	selfError := integrationRequestJSON[map[string]map[string]string](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players/"+host.State.CurrentPlayerID+"/exclude",
+		host.ReconnectToken, nil, http.StatusUnprocessableEntity,
+	)
+	if selfError["error"]["code"] != "cannot_exclude_self" {
+		t.Fatalf("self exclusion error = %#v", selfError)
+	}
+
+	guestSocket.CloseNow()
+	disconnectedState := waitForPlayerConnection(
+		t, baseURL, code, host.ReconnectToken, guest.State.CurrentPlayerID, false,
+	)
+	guestCanBeExcluded := false
+	for _, candidate := range disconnectedState.Players {
+		if candidate.ID == guest.State.CurrentPlayerID {
+			guestCanBeExcluded = candidate.CanExclude
+		}
+	}
+	if !guestCanBeExcluded {
+		t.Fatal("a freshly disconnected player was not immediately excludable")
+	}
+
+	reconnectedSocket := openIntegrationWebSocket(t, baseURL, code, guest.ReconnectToken)
+	waitForPlayerConnection(t, baseURL, code, host.ReconnectToken, guest.State.CurrentPlayerID, true)
+	reconnectedError := integrationRequestJSON[map[string]map[string]string](
+		t, hostIdentity, http.MethodPost, exclusionURL, host.ReconnectToken, nil, http.StatusConflict,
+	)
+	if reconnectedError["error"]["code"] != "player_online" {
+		t.Fatalf("reconnected player exclusion error = %#v", reconnectedError)
+	}
+	reconnectedSocket.CloseNow()
+	waitForPlayerConnection(t, baseURL, code, host.ReconnectToken, guest.State.CurrentPlayerID, false)
+
+	state := integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodPost, exclusionURL, host.ReconnectToken, nil, http.StatusOK,
+	)
+	if len(state.Players) != 1 || state.Players[0].ID != host.State.CurrentPlayerID {
+		t.Fatalf("excluded player remains in lobby state: %#v", state.Players)
+	}
+	notFoundError := integrationRequestJSON[map[string]map[string]string](
+		t, hostIdentity, http.MethodPost, exclusionURL, host.ReconnectToken, nil, http.StatusNotFound,
+	)
+	if notFoundError["error"]["code"] != "player_not_found" {
+		t.Fatalf("repeated exclusion error = %#v", notFoundError)
+	}
+}
+
+func TestDisconnectedPlayersCanBeExcludedDuringAndBetweenRounds(t *testing.T) {
+	baseURL := integrationBaseURL(t)
+	suffix := fmt.Sprintf("%06d", time.Now().UnixNano()%1_000_000)
+	hostIdentity, host := createIntegrationLobby(t, baseURL, "RoundExcludeHost-"+suffix, 4)
+	code := host.State.Code
+	guestList := make([]playerSessionResponse, 0, 3)
+	for index := 1; index <= 3; index++ {
+		guestList = append(guestList, integrationRequestJSON[playerSessionResponse](
+			t,
+			hostIdentity,
+			http.MethodPost,
+			baseURL+"/api/v1/lobbies/"+code+"/players",
+			"",
+			map[string]string{"displayName": fmt.Sprintf("RoundExcludeGuest%d-%s", index, suffix)},
+			http.StatusCreated,
+		))
+	}
+	uploadIntegrationPhotos(t, baseURL, code, host.ReconnectToken, hostIdentity.client)
+	for _, guest := range guestList {
+		uploadIntegrationPhotos(t, baseURL, code, guest.ReconnectToken, hostIdentity.client)
+	}
+
+	hostSocket := openIntegrationWebSocket(t, baseURL, code, host.ReconnectToken)
+	defer hostSocket.CloseNow()
+	guestSockets := make([]*websocket.Conn, 0, len(guestList))
+	for _, guest := range guestList {
+		connection := openIntegrationWebSocket(t, baseURL, code, guest.ReconnectToken)
+		guestSockets = append(guestSockets, connection)
+		defer connection.CloseNow()
+		waitForPlayerConnection(t, baseURL, code, host.ReconnectToken, guest.State.CurrentPlayerID, true)
+	}
+
+	state := integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodPost, baseURL+"/api/v1/lobbies/"+code+"/start",
+		host.ReconnectToken, nil, http.StatusOK,
+	)
+	activeTarget := guestList[2]
+	guestSockets[2].CloseNow()
+	waitForPlayerConnection(t, baseURL, code, host.ReconnectToken, activeTarget.State.CurrentPlayerID, false)
+	state = integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players/"+activeTarget.State.CurrentPlayerID+"/exclude",
+		host.ReconnectToken, nil, http.StatusOK,
+	)
+	if state.Game == nil || state.Game.Phase != "collecting_submissions" || len(state.Players) != 3 {
+		t.Fatalf("active-round exclusion produced an unexpected state: %#v", state)
+	}
+
+	primaryPhotoID := integrationSubjectPhotoID(t, state)
+	officialInput := validIntegrationSubmission(state.Questionnaire, primaryPhotoID, false)
+	predictionInput := validIntegrationSubmission(state.Questionnaire, primaryPhotoID, true)
+	integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodPut,
+		baseURL+"/api/v1/lobbies/"+code+"/rounds/current/submission",
+		host.ReconnectToken, officialInput, http.StatusOK,
+	)
+	integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodPut,
+		baseURL+"/api/v1/lobbies/"+code+"/rounds/current/submission",
+		guestList[0].ReconnectToken, predictionInput, http.StatusOK,
+	)
+	state = integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodPut,
+		baseURL+"/api/v1/lobbies/"+code+"/rounds/current/submission",
+		guestList[1].ReconnectToken, predictionInput, http.StatusOK,
+	)
+	if state.Game == nil || state.Game.Phase != "reveal_and_vote" || len(state.Game.Submissions) == 0 {
+		t.Fatalf("round did not reach reveal after active exclusion: %#v", state.Game)
+	}
+	state = integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodPut,
+		baseURL+"/api/v1/lobbies/"+code+"/rounds/current/vote",
+		host.ReconnectToken, roundVoteInput{SubmissionID: state.Game.Submissions[0].ID}, http.StatusOK,
+	)
+	state = integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/rounds/current/next",
+		host.ReconnectToken, nil, http.StatusOK,
+	)
+	if state.Game == nil || state.Game.Phase != "between_rounds" {
+		t.Fatalf("round did not reach intermission: %#v", state.Game)
+	}
+
+	intermissionTarget := guestList[1]
+	guestSockets[1].CloseNow()
+	waitForPlayerConnection(t, baseURL, code, host.ReconnectToken, intermissionTarget.State.CurrentPlayerID, false)
+	state = integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players/"+intermissionTarget.State.CurrentPlayerID+"/exclude",
+		host.ReconnectToken, nil, http.StatusOK,
+	)
+	if state.Game == nil || state.Game.Phase != "between_rounds" || len(state.Players) != 2 {
+		t.Fatalf("intermission exclusion produced an unexpected state: %#v", state)
+	}
 }
 
 func TestMultiplayerHTTPFlow(t *testing.T) {

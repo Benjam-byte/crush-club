@@ -69,13 +69,14 @@
                   <span class="text-[10px] font-bold" [class.text-success-500]="player.connected" [class.text-warning-500]="!player.connected">
                     {{ player.connected ? 'En ligne' : 'Reconnexion…' }}
                   </span>
-                  @if (gameState.isHost() && !player.isCurrentPlayer && player.canExclude) {
+                  @if (gameState.canExcludePlayer(player)) {
                     <button
                       class="rounded-xl bg-danger-50 px-2 py-1 text-[10px] font-extrabold text-danger-500"
                       type="button"
-                      [disabled]="!gameState.isRealtimeConnected()"
+                      [attr.aria-label]="'Exclure ' + player.displayName"
+                      [disabled]="!gameState.isRealtimeConnected() || gameState.isExcludingPlayer(player.id)"
                       (click)="onExcludePlayer(player.id)"
-                    >Exclure</button>
+                    >{{ gameState.isExcludingPlayer(player.id) ? 'Exclusion…' : 'Exclure' }}</button>
                   }
                 </li>
               }
@@ -226,13 +227,14 @@
                   />
                   {{ !player.connected ? 'Absent' : (player.readyStatus === 'ready' ? 'Prêt' : 'Photos') }}
                 </span>
-                @if (gameState.isHost() && !player.isCurrentPlayer && player.canExclude) {
+                @if (gameState.canExcludePlayer(player)) {
                   <button
                     class="rounded-xl bg-danger-50 px-2 py-1 text-[10px] font-extrabold text-danger-500"
                     type="button"
-                    [disabled]="!gameState.isRealtimeConnected()"
+                    [attr.aria-label]="'Exclure ' + player.displayName"
+                    [disabled]="!gameState.isRealtimeConnected() || gameState.isExcludingPlayer(player.id)"
                     (click)="onExcludePlayer(player.id)"
-                  >Exclure</button>
+                  >{{ gameState.isExcludingPlayer(player.id) ? 'Exclusion…' : 'Exclure' }}</button>
                 }
               </li>
             }

@@ -58,12 +58,6 @@ export class GameConfigFormPage implements OnInit {
   protected readonly pageTitle = computed(() => {
     return this.editingConfig() ? 'Modifier le formulaire' : 'Nouveau formulaire';
   });
-  protected readonly availableSystemQuestionList = computed(() => {
-    const selectedIds = new Set(
-      this.editorQuestions().flatMap((question) => question.questionId ? [question.questionId] : []),
-    );
-    return this.gameConfigs.questionList().filter((question) => !selectedIds.has(question.id));
-  });
   protected readonly canSave = computed(() => {
     return this.isReady()
       && this.editorName().trim().length > 0
@@ -89,17 +83,6 @@ export class GameConfigFormPage implements OnInit {
     this.editorQuestions.update((questions) => [
       ...questions,
       createBlankEditorQuestion(this.createQuestionKey()),
-    ]);
-  }
-
-  protected addSystemQuestion(questionId: string): void {
-    const question = this.gameConfigs.questionList().find((candidate) => candidate.id === questionId);
-    if (!question) {
-      return;
-    }
-    this.editorQuestions.update((questions) => [
-      ...questions,
-      createEditorQuestion(question, this.createQuestionKey()),
     ]);
   }
 
@@ -168,14 +151,6 @@ export class GameConfigFormPage implements OnInit {
         ? { ...question, options: question.options.filter((_, index) => index !== optionIndex) }
         : question;
     }));
-  }
-
-  protected questionTypeLabel(type: EditorQuestionType): string {
-    switch (type) {
-      case 'integer_range': return 'Number';
-      case 'single_choice': return 'Liste';
-      case 'binary_choice': return 'Oui / Non';
-    }
   }
 
   protected async save(): Promise<void> {

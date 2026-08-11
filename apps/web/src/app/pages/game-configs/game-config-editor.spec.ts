@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createBlankEditorQuestion,
+  createEditorQuestion,
   isEditorQuestionValid,
   moveEditorQuestion,
   toGameConfigQuestionInput,
@@ -41,17 +42,27 @@ describe('game config editor', () => {
     expect(isEditorQuestionValid({ ...rangeQuestion, minimum: 0, maximum: 10 })).toBe(true);
   });
 
-  it('envoie une question catalogue comme référence', () => {
-    expect(toGameConfigQuestionInput({
-      key: 'system-romance',
-      source: 'system',
-      questionId: 'romance',
+  it('transforme une question système en copie personnalisée complète', () => {
+    const question = createEditorQuestion({
+      id: 'romance',
+      kind: 'system',
       label: 'Romantisme',
       type: 'integer_range',
-      options: [],
+      maximumScore: 10,
+      loverEligible: true,
       minimum: 0,
       maximum: 10,
-    })).toEqual({ questionId: 'romance' });
+    });
+
+    expect(question.id).toBeUndefined();
+    expect(toGameConfigQuestionInput(question)).toEqual({
+      id: undefined,
+      label: 'Romantisme',
+      type: 'integer_range',
+      options: undefined,
+      minimum: 0,
+      maximum: 10,
+    });
   });
 
   it('réordonne les cartes et protège les limites', () => {

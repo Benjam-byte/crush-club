@@ -1,0 +1,41 @@
+@if (isActiveGamePhase() && (offlinePlayers().length > 0 || exclusionError())) {
+  <aside class="overflow-hidden rounded-[24px] border border-danger-100 bg-white shadow-xl" aria-live="polite">
+    @if (offlinePlayers().length > 0) {
+      <header class="flex items-center gap-3 border-b border-danger-100 bg-danger-50 px-4 py-3">
+        <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-danger-500">
+          <ion-icon name="cloud-offline-outline" aria-hidden="true" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="text-xs font-extrabold text-ink-900">
+            {{ offlinePlayers().length === 1 ? 'Joueur hors ligne' : 'Joueurs hors ligne' }}
+          </p>
+          <p class="mt-0.5 text-[10px] font-semibold text-ink-500">L’exclusion est disponible immédiatement.</p>
+        </div>
+      </header>
+
+      <ul class="divide-y divide-peach-100">
+        @for (player of offlinePlayers(); track player.id) {
+          <li class="flex min-h-14 items-center gap-3 px-4 py-3">
+            <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{ player.displayName }}</span>
+            <button
+              class="min-h-9 rounded-xl bg-danger-50 px-3 text-xs font-extrabold text-danger-500 disabled:opacity-50"
+              type="button"
+              [attr.aria-label]="'Exclure ' + player.displayName"
+              [disabled]="!gameState.isRealtimeConnected() || gameState.isExcludingPlayer(player.id)"
+              (click)="onExcludePlayer(player.id)"
+            >
+              {{ gameState.isExcludingPlayer(player.id) ? 'Exclusion…' : 'Exclure' }}
+            </button>
+          </li>
+        }
+      </ul>
+    }
+
+    @if (exclusionError(); as message) {
+      <div class="flex items-start gap-3 bg-danger-50 px-4 py-3 text-xs font-semibold text-danger-500" role="alert">
+        <p class="min-w-0 flex-1">{{ message }}</p>
+        <button class="shrink-0 font-extrabold underline" type="button" (click)="dismissError()">Fermer</button>
+      </div>
+    }
+  </aside>
+}

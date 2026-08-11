@@ -81,8 +81,7 @@
                     {{ questionIndex + 1 }}
                   </span>
                   <span class="min-w-0 flex-1 text-xs font-extrabold text-ink-900">
-                    {{ question.source === 'system' ? 'Question du catalogue' :
-                    'Question personnalisée' }}
+                    Question personnalisée
                   </span>
                   <button class="icon-action" type="button" aria-label="Monter la question" [disabled]="first"
                     (click)="moveQuestion(question.key, -1)">
@@ -97,23 +96,6 @@
                     <ion-icon name="trash-outline" aria-hidden="true" />
                   </button>
                 </header>
-
-                @if (question.source === 'system') {
-                <div class="p-4">
-                  <div class="flex items-start justify-between gap-3">
-                    <p class="text-sm font-extrabold leading-5 text-ink-900">
-                      {{ question.label }}
-                    </p>
-                    <span
-                      class="shrink-0 rounded-full bg-purple-50 px-2.5 py-1 text-[10px] font-extrabold text-purple-600">
-                      {{ questionTypeLabel(question.type) }}
-                    </span>
-                  </div>
-                  <p class="mt-2 text-xs leading-5 text-ink-500">
-                    Cette question validée par Crush Club est en lecture seule.
-                  </p>
-                </div>
-                } @else {
                 <div class="space-y-4 p-4">
                   <ion-input class="form-input" label="Label de la question" labelPlacement="stacked" maxlength="160"
                     placeholder="Ex. Quel est son niveau de patience ?" [value]="question.label"
@@ -189,7 +171,6 @@
                   </div>
                   } }
                 </div>
-                }
               </li>
               }
             </ol>
@@ -204,22 +185,7 @@
               </span>
             </button>
 
-            @if (availableSystemQuestionList().length > 0) {
-            <div>
-              <h2 class="text-xs font-extrabold uppercase tracking-wide text-ink-500">
-                Ou ajouter depuis le catalogue
-              </h2>
-              <div class="mt-3 grid gap-2">
-                @for (question of availableSystemQuestionList(); track
-                question.id) {
-                <button class="add-question-button" type="button" (click)="addSystemQuestion(question.id)">
-                  <span>{{ question.label }}</span>
-                  <ion-icon name="add-circle-outline" aria-hidden="true" />
-                </button>
-                }
-              </div>
-            </div>
-            } @if (!canSave() && editorQuestions().length > 0) {
+            @if (!canSave() && editorQuestions().length > 0) {
             <p class="rounded-2xl bg-warning-50 p-3 text-xs leading-5 text-ink-600">
               Complète le nom, les labels et les paramètres de chaque question
               pour enregistrer.

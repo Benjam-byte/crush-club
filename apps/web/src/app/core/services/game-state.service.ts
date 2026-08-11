@@ -14,7 +14,8 @@ import type {
   RoundSubmissionInput,
 } from '@core/models/game.models';
 import { LobbyApiService } from './lobby-api.service';
-import { restoredPrimaryPhotoId } from './game-state-draft';
+import { filterBioAnswers, restoredPrimaryPhotoId } from './game-state-draft';
+import { canHostExcludePlayer, PlayerExclusionController } from './player-exclusion';
 import { RealtimeLobbyService } from './realtime-lobby.service';
 
 interface StoredDraft {
@@ -73,6 +74,7 @@ export class GameStateService {
   private readonly errorMessageState = signal<string | null>(null);
   private readonly photoUrlByIdState = signal<Readonly<Record<string, string>>>({});
   private readonly loadingPhotoIdSet = new Set<string>();
+  private readonly playerExclusion = new PlayerExclusionController();
   private restoredDraftKey = '';
 
   readonly state = this.realtime.state;
@@ -172,6 +174,7 @@ export class GameStateService {
     effect(() => {
       const state = this.state();
       if (state) {
+        this.pruneRemovedPhotoUrls(state);
         void this.loadMissingPhotos(state);
         void this.synchronizeRoute(state);
       }
@@ -239,6 +242,34 @@ export class GameStateService {
     );
   }
 
+  async addPhoto(photo: File): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.addPhoto(code, token, photo),
+      'Cette photo n’a pas pu être envoyée.',
+    );
+  }
+
+  async replacePhoto(position: number, photo: File): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.replacePhoto(code, token, position, photo),
+      'Cette photo n’a pas pu être remplacée.',
+    );
+  }
+
+  async deletePhoto(position: number): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.deletePhoto(code, token, position),
+      'Cette photo n’a pas pu être supprimée.',
+    );
+  }
+
+  async completePhotos(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.completePhotos(code, token),
+      'Tes photos n’ont pas pu être validées.',
+    );
+  }
+
   async loadQuestionnaire(): Promise<void> {
     if (!this.state()) {
       await this.refreshLobby();
@@ -303,7 +334,7 @@ export class GameStateService {
       return;
     }
     const input: RoundSubmissionInput = {
-      bioAnswers: this.bioAnswerByCategoryId(),
+      bioAnswers: filterBioAnswers(this.profileFieldList(), this.bioAnswerByCategoryId()),
       questionAnswers: {
         ...this.answerByQuestionId(),
         [primaryPhotoQuestionId]: this.primaryPhotoId() ?? '',
@@ -345,10 +376,24 @@ export class GameStateService {
   }
 
   async excludePlayer(playerId: string): Promise<void> {
-    await this.runStateCommand(
-      (code, token) => this.lobbyApi.excludePlayer(code, token, playerId),
-      'Ce joueur ne peut pas encore être exclu.',
-    );
+    const target = this.playerList().find((player) => player.id === playerId);
+    if (!target || !canHostExcludePlayer(this.isHost(), target) || !this.isRealtimeConnected()) {
+      return;
+    }
+    await this.playerExclusion.run(playerId, async () => {
+      await this.runStateCommand(
+        (code, token) => this.lobbyApi.excludePlayer(code, token, playerId),
+        'Impossible d’exclure ce joueur. Vérifie ta connexion puis réessaie.',
+      );
+    });
+  }
+
+  canExcludePlayer(player: LobbyPlayer): boolean {
+    return canHostExcludePlayer(this.isHost(), player);
+  }
+
+  isExcludingPlayer(playerId: string): boolean {
+    return this.playerExclusion.isPending(playerId);
   }
 
   photoUrl(photoId: string | undefined): string | null {
@@ -370,6 +415,7 @@ export class GameStateService {
     this.bioAnswerByCategoryIdState.set({});
     this.loverQuestionIdState.set(null);
     this.errorMessageState.set(null);
+    this.playerExclusion.clear();
     this.restoredDraftKey = '';
   }
 
@@ -451,7 +497,7 @@ export class GameStateService {
     this.answerByQuestionIdState.set(Object.fromEntries(
       Object.entries(storedQuestionAnswers).filter(([questionId]) => validQuestionIDs.has(questionId)),
     ));
-    this.bioAnswerByCategoryIdState.set(storedBioAnswers);
+    this.bioAnswerByCategoryIdState.set(filterBioAnswers(this.profileFieldList(), storedBioAnswers));
     const loverQuestion = this.activeQuestionList().find((question) => {
       return question.id === draft.loverQuestionId && question.loverEligible;
     });
@@ -517,6 +563,24 @@ export class GameStateService {
     }
   }
 
+  private pruneRemovedPhotoUrls(state: LobbyStateResponse): void {
+    const activePhotoIdSet = new Set(state.players.flatMap((player) => player.photoIds));
+    const currentUrlById = this.photoUrlByIdState();
+    const nextUrlById: Record<string, string> = {};
+    let hasRemovedPhoto = false;
+    for (const [photoId, url] of Object.entries(currentUrlById)) {
+      if (activePhotoIdSet.has(photoId)) {
+        nextUrlById[photoId] = url;
+        continue;
+      }
+      URL.revokeObjectURL(url);
+      hasRemovedPhoto = true;
+    }
+    if (hasRemovedPhoto) {
+      this.photoUrlByIdState.set(nextUrlById);
+    }
+  }
+
   private async synchronizeRoute(state: LobbyStateResponse): Promise<void> {
     const pendingNavigation = this.router.currentNavigation();
     const pendingURL = (pendingNavigation?.finalUrl ?? pendingNavigation?.extractedUrl)?.toString();
@@ -560,8 +624,30 @@ export class GameStateService {
 
   private captureError(error: unknown, fallbackMessage: string): void {
     if (error instanceof HttpErrorResponse) {
-      const serverMessage = (error.error as { error?: { message?: string } } | null)?.error?.message;
-      this.errorMessageState.set(serverMessage ?? fallbackMessage);
+      const serverError = (error.error as {
+        error?: { code?: string; message?: string }
+      } | null)?.error;
+      const errorMessageByCode: Readonly<Record<string, string>> = {
+        photo_too_large: 'Cette photo est trop volumineuse, même après compression.',
+        photos_too_large: 'Les photos sont trop volumineuses pour être envoyées.',
+        unsupported_photo: 'Le format reçu n’est pas pris en charge.',
+        invalid_photo: 'Cette image est illisible ou ses dimensions ne sont pas valides.',
+        invalid_photo_count: 'Sélectionne une seule photo à la fois.',
+        invalid_photo_position: 'Cet emplacement photo n’est pas valide.',
+        photo_limit_reached: 'Les quatre emplacements sont déjà remplis.',
+        photo_not_found: 'Cette photo n’existe plus. La liste va être actualisée.',
+        incomplete_photos: 'Ajoute quatre photos avant de valider.',
+        photos_locked: 'Tes photos ont déjà été validées et ne peuvent plus être modifiées.',
+        player_online: 'Ce joueur vient de se reconnecter et ne peut plus être exclu.',
+        host_required: 'Seul l’hôte du lobby peut exclure un joueur.',
+        player_not_found: 'Ce joueur ne fait plus partie du lobby.',
+        cannot_exclude_self: 'Tu ne peux pas t’exclure toi-même du lobby.',
+        cannot_exclude_host: 'L’hôte du lobby ne peut pas être exclu.',
+      };
+      this.errorMessageState.set(
+        serverError?.code ? errorMessageByCode[serverError.code] ?? serverError.message ?? fallbackMessage :
+          serverError?.message ?? fallbackMessage,
+      );
       return;
     }
     this.errorMessageState.set(fallbackMessage);

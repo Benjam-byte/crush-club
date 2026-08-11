@@ -1,12 +1,3 @@
-export interface LocalPhotoCandidate {
-  id: string
-  kind: 'local'
-  source: string
-  isObjectUrl: true
-}
-
-export type PhotoCandidate = LocalPhotoCandidate
-
 export type LobbyStatus =
   | 'waiting_for_players'
   | 'preparing_photos'
@@ -97,6 +88,7 @@ export interface QuestionnaireSnapshot {
   sourceConfigId: string
   sourceVersion: number
   name: string
+  kind?: GameConfigKind
   questions: readonly QuestionDefinition[]
   profileFields: readonly ProfileFieldDefinition[]
 }

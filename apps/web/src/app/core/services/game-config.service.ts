@@ -4,8 +4,8 @@ import { firstValueFrom } from 'rxjs';
 import type {
   GameConfig,
   GameConfigQuestionInput,
-  QuestionDefinition,
 } from '@core/models/game.models';
+import { duplicateConfigQuestionInputs } from './game-config-duplication';
 
 interface SaveGameConfigInput {
   name: string
@@ -20,12 +20,10 @@ interface SaveGameConfigInput {
 export class GameConfigService {
   private readonly http = inject(HttpClient);
   private initializationPromise: Promise<void> | null = null;
-  private readonly questionListState = signal<readonly QuestionDefinition[]>([]);
   private readonly configListState = signal<readonly GameConfig[]>([]);
   private readonly isLoadingState = signal(false);
   private readonly errorMessageState = signal<string | null>(null);
 
-  readonly questionList = this.questionListState.asReadonly();
   readonly configList = this.configListState.asReadonly();
   readonly isLoading = this.isLoadingState.asReadonly();
   readonly errorMessage = this.errorMessageState.asReadonly();
@@ -84,18 +82,7 @@ export class GameConfigService {
   }
 
   async duplicate(config: GameConfig): Promise<GameConfig> {
-    const questions = config.questions.map<GameConfigQuestionInput>((question) => {
-      if (question.kind !== 'personal') {
-        return { questionId: question.id };
-      }
-      return {
-        label: question.label,
-        type: question.type as GameConfigQuestionInput['type'],
-        options: question.options?.map((option) => option.label),
-        minimum: question.minimum,
-        maximum: question.maximum,
-      };
-    });
+    const questions = duplicateConfigQuestionInputs(config);
     return this.create(`${config.name} (copie)`, questions, false);
   }
 
@@ -117,11 +104,9 @@ export class GameConfigService {
     this.errorMessageState.set(null);
     try {
       await firstValueFrom(this.http.post<void>('/api/v1/host-session', null));
-      const [questionList, configList] = await Promise.all([
-        firstValueFrom(this.http.get<readonly QuestionDefinition[]>('/api/v1/questions')),
-        firstValueFrom(this.http.get<readonly GameConfig[]>('/api/v1/game-configs')),
-      ]);
-      this.questionListState.set(questionList);
+      const configList = await firstValueFrom(
+        this.http.get<readonly GameConfig[]>('/api/v1/game-configs'),
+      );
       this.configListState.set(configList);
     } catch (error: unknown) {
       this.initializationPromise = null;

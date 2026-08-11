@@ -7,9 +7,7 @@ export type EditorQuestionType = 'integer_range' | 'single_choice' | 'binary_cho
 
 export interface EditorQuestion {
   key: string
-  source: 'system' | 'custom'
   id?: string
-  questionId?: string
   label: string
   type: EditorQuestionType
   options: readonly string[]
@@ -20,7 +18,6 @@ export interface EditorQuestion {
 export function createBlankEditorQuestion(key: string): EditorQuestion {
   return {
     key,
-    source: 'custom',
     label: '',
     type: 'single_choice',
     options: ['', ''],
@@ -37,9 +34,7 @@ export function createEditorQuestion(
   const isPersonal = definition.kind === 'personal';
   return {
     key,
-    source: isPersonal ? 'custom' : 'system',
     id: isPersonal ? definition.id : undefined,
-    questionId: isPersonal ? undefined : definition.id,
     label: definition.label,
     type,
     options: definition.options?.map((option) => option.label) ?? [],
@@ -67,9 +62,6 @@ export function moveEditorQuestion(
 }
 
 export function isEditorQuestionValid(question: EditorQuestion): boolean {
-  if (question.source === 'system') {
-    return Boolean(question.questionId);
-  }
   if (question.label.trim().length === 0) {
     return false;
   }
@@ -90,9 +82,6 @@ export function isEditorQuestionValid(question: EditorQuestion): boolean {
 export function toGameConfigQuestionInput(
   question: EditorQuestion,
 ): GameConfigQuestionInput {
-  if (question.source === 'system') {
-    return { questionId: question.questionId };
-  }
   return {
     id: question.id,
     label: question.label.trim(),

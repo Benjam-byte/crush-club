@@ -82,8 +82,8 @@
                 </span>
                 <span class="min-w-0">
                   <span class="block text-sm font-extrabold leading-5 text-ink-900">“{{ submission.tagline }}”</span>
-                  @if (gameState.role() !== 'lover') {
-                    <span class="mt-1 block text-[11px] leading-4 text-ink-500">{{ submissionBio(submission.id) }}</span>
+                  @if (gameState.role() !== 'lover' && submissionBio(submission.id); as bio) {
+                    <span class="mt-1 block text-[11px] leading-4 text-ink-500">{{ bio }}</span>
                   }
                 </span>
               </button>

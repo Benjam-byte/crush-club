@@ -73,6 +73,9 @@ Le navigateur ne garde que sa session de reconnexion et ses brouillons non envoy
 Une partie accepte 2 à 10 joueurs et démarre quand tous les joueurs connectés ont envoyé exactement quatre
 photos. Chaque participant devient la cible d'une manche dans l'ordre d'arrivée. La cible fournit les
 réponses officielles et choisit anonymement une accroche; les autres envoient une prédiction et leur LOVER.
+Les photos sont ajoutées et persistées une par une, puis validées ensemble. Le client web convertit les
+formats HEIC/HEIF et normalise les images en JPEG avant leur envoi afin de prendre en charge les photothèques
+iPhone et les clichés haute résolution.
 Après chaque résultat, l'hôte ramène tout le groupe au lobby d'entracte, puis lance manuellement la manche
 suivante. La dernière manche ouvre le classement final. Une revanche crée toujours un nouveau lobby, de
 nouvelles sessions et exige quatre nouvelles photos par joueur.
@@ -95,8 +98,10 @@ Les questions sont stockées dans PostgreSQL et le preset `Classique` est créé
 `000002_game_configs.sql`. Depuis `/game-configs`, l’hôte dispose d’un éditeur de formulaire : il peut
 ajouter, supprimer et réordonner des questions personnalisées de type plage numérique, liste ou oui/non.
 La migration `000003_custom_questions.sql` ajoute leur propriété à la session hôte anonyme. Le preset
-système reste disponible et peut être dupliqué avant personnalisation. La configuration est ensuite
-choisie lors de la création du lobby.
+système reste disponible et peut être dupliqué : ses questions deviennent alors des copies personnelles
+entièrement modifiables. Les questionnaires personnels et partagés ne contiennent que la photo principale,
+la phrase d’accroche et leurs questions personnalisées ; les cinq champs de bio restent propres au preset
+`Classique`. La configuration est ensuite choisie lors de la création du lobby.
 
 Un questionnaire personnel est privé par défaut. Son propriétaire peut activer « Partager avec tout le
 monde » : il reste propriétaire du modèle, tandis que les autres hôtes peuvent le sélectionner pour un

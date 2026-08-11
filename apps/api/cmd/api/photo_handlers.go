@@ -6,12 +6,16 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 const photoOrphanGracePeriod = time.Hour
@@ -28,117 +32,41 @@ type validatedPhoto struct {
 	id            string
 }
 
+type photoHTTPError struct {
+	status  int
+	code    string
+	message string
+}
+
+func (e photoHTTPError) Error() string {
+	return e.message
+}
+
 func (a *api) handleUploadPlayerPhotos(w http.ResponseWriter, r *http.Request) {
 	player, ok := a.requirePlayer(w, r)
 	if !ok {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maximumPhotoSizeBytes*4+(1<<20))
-	if err := r.ParseMultipartForm(maximumPhotoSizeBytes * 4); err != nil {
-		writeError(w, http.StatusRequestEntityTooLarge, "photos_too_large", "The four photos must each be at most 7 MB")
+	photoList, err := a.stagePhotosFromRequest(r, "photos", 4)
+	if err != nil {
+		a.writePhotoFailure(w, r, err)
 		return
 	}
-	fileHeaders := r.MultipartForm.File["photos"]
-	if len(fileHeaders) != 4 {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_photo_count", "Exactly four photos are required")
-		return
-	}
-	if err := os.MkdirAll(a.photoStoragePath, 0o750); err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-
-	photoList := make([]validatedPhoto, 0, 4)
-	cleanupTemporary := func() {
-		for _, photo := range photoList {
-			_ = os.Remove(photo.temporaryPath)
-		}
-	}
-	for _, fileHeader := range fileHeaders {
-		file, err := fileHeader.Open()
-		if err != nil {
-			cleanupTemporary()
-			a.internalError(w, r, err)
-			return
-		}
-		data, readErr := io.ReadAll(io.LimitReader(file, maximumPhotoSizeBytes+1))
-		file.Close()
-		if readErr != nil {
-			cleanupTemporary()
-			a.internalError(w, r, readErr)
-			return
-		}
-		if len(data) == 0 || len(data) > maximumPhotoSizeBytes {
-			cleanupTemporary()
-			writeError(w, http.StatusRequestEntityTooLarge, "photo_too_large", "Each photo must be at most 7 MB")
-			return
-		}
-		contentType := http.DetectContentType(data)
-		extension := ""
-		switch contentType {
-		case "image/jpeg":
-			extension = ".jpg"
-		case "image/png":
-			extension = ".png"
-		case "image/webp":
-			extension = ".webp"
-		default:
-			cleanupTemporary()
-			writeError(w, http.StatusUnsupportedMediaType, "unsupported_photo", "Photos must be JPEG, PNG or WebP images")
-			return
-		}
-		width, height, err := decodeImageDimensions(data, contentType)
-		if err != nil || width <= 0 || height <= 0 ||
-			width > maximumPhotoDimension || height > maximumPhotoDimension {
-			cleanupTemporary()
-			writeError(w, http.StatusUnprocessableEntity, "invalid_photo", "Photos must be valid images no larger than 4096 by 4096 pixels")
-			return
-		}
-		storageToken, err := randomToken(24)
-		if err != nil {
-			cleanupTemporary()
-			a.internalError(w, r, err)
-			return
-		}
-		temporaryFile, err := os.CreateTemp(a.photoStoragePath, ".photo-upload-*")
-		if err != nil {
-			cleanupTemporary()
-			a.internalError(w, r, err)
-			return
-		}
-		if _, err := temporaryFile.Write(data); err != nil {
-			temporaryFile.Close()
-			_ = os.Remove(temporaryFile.Name())
-			cleanupTemporary()
-			a.internalError(w, r, err)
-			return
-		}
-		if err := temporaryFile.Close(); err != nil {
-			_ = os.Remove(temporaryFile.Name())
-			cleanupTemporary()
-			a.internalError(w, r, err)
-			return
-		}
-		photoList = append(photoList, validatedPhoto{
-			temporaryPath: temporaryFile.Name(),
-			storageKey:    storageToken + extension,
-			contentType:   contentType,
-			width:         width,
-			height:        height,
-			size:          int64(len(data)),
-		})
-	}
+	defer removeTemporaryPhotos(photoList)
 
 	tx, err := a.pool.Begin(r.Context())
 	if err != nil {
-		cleanupTemporary()
 		a.internalError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
+	if _, _, err := lockPhotoPreparation(r.Context(), tx, player, true); err != nil {
+		a.writePhotoFailure(w, r, err)
+		return
+	}
 	rows, err := tx.Query(r.Context(), `SELECT storage_key FROM player_photos WHERE player_id = $1`, player.ID)
 	if err != nil {
-		cleanupTemporary()
 		a.internalError(w, r, err)
 		return
 	}
@@ -147,7 +75,6 @@ func (a *api) handleUploadPlayerPhotos(w http.ResponseWriter, r *http.Request) {
 		var storageKey string
 		if err := rows.Scan(&storageKey); err != nil {
 			rows.Close()
-			cleanupTemporary()
 			a.internalError(w, r, err)
 			return
 		}
@@ -155,7 +82,6 @@ func (a *api) handleUploadPlayerPhotos(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 	if _, err := tx.Exec(r.Context(), `DELETE FROM player_photos WHERE player_id = $1`, player.ID); err != nil {
-		cleanupTemporary()
 		a.internalError(w, r, err)
 		return
 	}
@@ -169,19 +95,373 @@ func (a *api) handleUploadPlayerPhotos(w http.ResponseWriter, r *http.Request) {
 			RETURNING id
 		`, player.ID, photo.storageKey, index+1, photo.width, photo.height, photo.contentType, photo.size).Scan(&photo.id)
 		if err != nil {
-			cleanupTemporary()
 			a.internalError(w, r, err)
 			return
 		}
 	}
-	if _, err := tx.Exec(r.Context(), `
-		UPDATE players SET ready_status = 'ready', updated_at = now() WHERE id = $1
-	`, player.ID); err != nil {
-		cleanupTemporary()
+	if err := updatePhotoReadiness(r.Context(), tx, player, "ready"); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
-	if _, err := tx.Exec(r.Context(), `
+
+	movedPaths, err := a.moveStagedPhotos(photoList)
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		removePhotoPaths(movedPaths)
+		a.internalError(w, r, err)
+		return
+	}
+	for _, storageKey := range oldStorageKeys {
+		_ = os.Remove(filepath.Join(a.photoStoragePath, filepath.Base(storageKey)))
+	}
+	a.writePhotoState(w, r, player, http.StatusOK)
+}
+
+func (a *api) handleAddPlayerPhoto(w http.ResponseWriter, r *http.Request) {
+	player, ok := a.requirePlayer(w, r)
+	if !ok {
+		return
+	}
+	photo, ok := a.stageSinglePhoto(w, r)
+	if !ok {
+		return
+	}
+	defer removeTemporaryPhotos([]validatedPhoto{photo})
+
+	tx, err := a.pool.Begin(r.Context())
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+	if _, _, err := lockPhotoPreparation(r.Context(), tx, player, true); err != nil {
+		a.writePhotoFailure(w, r, err)
+		return
+	}
+	var photoCount int
+	if err := tx.QueryRow(r.Context(), `SELECT count(*) FROM player_photos WHERE player_id = $1`, player.ID).Scan(&photoCount); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if photoCount >= 4 {
+		a.writePhotoFailure(w, r, photoHTTPError{http.StatusConflict, "photo_limit_reached", "Four photos have already been added"})
+		return
+	}
+	position := photoCount + 1
+	if err := tx.QueryRow(r.Context(), `
+		INSERT INTO player_photos (player_id, storage_key, position, width, height, content_type, size_bytes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id
+	`, player.ID, photo.storageKey, position, photo.width, photo.height, photo.contentType, photo.size).Scan(&photo.id); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := updatePhotoReadiness(r.Context(), tx, player, "preparing_photos"); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	movedPaths, err := a.moveStagedPhotos([]validatedPhoto{photo})
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		removePhotoPaths(movedPaths)
+		a.internalError(w, r, err)
+		return
+	}
+	a.writePhotoState(w, r, player, http.StatusCreated)
+}
+
+func (a *api) handleReplacePlayerPhoto(w http.ResponseWriter, r *http.Request) {
+	player, ok := a.requirePlayer(w, r)
+	if !ok {
+		return
+	}
+	position, err := playerPhotoPosition(r)
+	if err != nil {
+		a.writePhotoFailure(w, r, err)
+		return
+	}
+	photo, ok := a.stageSinglePhoto(w, r)
+	if !ok {
+		return
+	}
+	defer removeTemporaryPhotos([]validatedPhoto{photo})
+
+	tx, err := a.pool.Begin(r.Context())
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+	if _, _, err := lockPhotoPreparation(r.Context(), tx, player, true); err != nil {
+		a.writePhotoFailure(w, r, err)
+		return
+	}
+	var oldStorageKey string
+	if err := tx.QueryRow(r.Context(), `
+		SELECT storage_key FROM player_photos WHERE player_id = $1 AND position = $2 FOR UPDATE
+	`, player.ID, position).Scan(&oldStorageKey); errors.Is(err, pgx.ErrNoRows) {
+		a.writePhotoFailure(w, r, photoHTTPError{http.StatusNotFound, "photo_not_found", "Photo not found"})
+		return
+	} else if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if _, err := tx.Exec(r.Context(), `DELETE FROM player_photos WHERE player_id = $1 AND position = $2`, player.ID, position); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := tx.QueryRow(r.Context(), `
+		INSERT INTO player_photos (player_id, storage_key, position, width, height, content_type, size_bytes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id
+	`, player.ID, photo.storageKey, position, photo.width, photo.height, photo.contentType, photo.size).Scan(&photo.id); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := updatePhotoReadiness(r.Context(), tx, player, "preparing_photos"); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	movedPaths, err := a.moveStagedPhotos([]validatedPhoto{photo})
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		removePhotoPaths(movedPaths)
+		a.internalError(w, r, err)
+		return
+	}
+	_ = os.Remove(filepath.Join(a.photoStoragePath, filepath.Base(oldStorageKey)))
+	a.writePhotoState(w, r, player, http.StatusOK)
+}
+
+func (a *api) handleDeletePlayerPhoto(w http.ResponseWriter, r *http.Request) {
+	player, ok := a.requirePlayer(w, r)
+	if !ok {
+		return
+	}
+	position, err := playerPhotoPosition(r)
+	if err != nil {
+		a.writePhotoFailure(w, r, err)
+		return
+	}
+	tx, err := a.pool.Begin(r.Context())
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+	if _, _, err := lockPhotoPreparation(r.Context(), tx, player, true); err != nil {
+		a.writePhotoFailure(w, r, err)
+		return
+	}
+	var storageKey string
+	if err := tx.QueryRow(r.Context(), `
+		DELETE FROM player_photos WHERE player_id = $1 AND position = $2 RETURNING storage_key
+	`, player.ID, position).Scan(&storageKey); errors.Is(err, pgx.ErrNoRows) {
+		a.writePhotoFailure(w, r, photoHTTPError{http.StatusNotFound, "photo_not_found", "Photo not found"})
+		return
+	} else if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	for sourcePosition := position + 1; sourcePosition <= 4; sourcePosition++ {
+		if _, err := tx.Exec(r.Context(), `
+			UPDATE player_photos SET position = $1 WHERE player_id = $2 AND position = $3
+		`, sourcePosition-1, player.ID, sourcePosition); err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+	}
+	if err := updatePhotoReadiness(r.Context(), tx, player, "preparing_photos"); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	_ = os.Remove(filepath.Join(a.photoStoragePath, filepath.Base(storageKey)))
+	a.writePhotoState(w, r, player, http.StatusOK)
+}
+
+func (a *api) handleCompletePlayerPhotos(w http.ResponseWriter, r *http.Request) {
+	player, ok := a.requirePlayer(w, r)
+	if !ok {
+		return
+	}
+	tx, err := a.pool.Begin(r.Context())
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+	readyStatus, _, err := lockPhotoPreparation(r.Context(), tx, player, false)
+	if err != nil {
+		a.writePhotoFailure(w, r, err)
+		return
+	}
+	if readyStatus != "ready" {
+		var photoCount int
+		if err := tx.QueryRow(r.Context(), `SELECT count(*) FROM player_photos WHERE player_id = $1`, player.ID).Scan(&photoCount); err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+		if photoCount != 4 {
+			a.writePhotoFailure(w, r, photoHTTPError{http.StatusUnprocessableEntity, "incomplete_photos", "Four photos are required before validation"})
+			return
+		}
+		if err := updatePhotoReadiness(r.Context(), tx, player, "ready"); err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	a.writePhotoState(w, r, player, http.StatusOK)
+}
+
+func (a *api) stageSinglePhoto(w http.ResponseWriter, r *http.Request) (validatedPhoto, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, maximumPhotoSizeBytes+(1<<20))
+	photoList, err := a.stagePhotosFromRequest(r, "photo", 1)
+	if err != nil {
+		a.writePhotoFailure(w, r, err)
+		return validatedPhoto{}, false
+	}
+	return photoList[0], true
+}
+
+func (a *api) stagePhotosFromRequest(r *http.Request, fieldName string, expectedCount int) ([]validatedPhoto, error) {
+	if err := r.ParseMultipartForm(maximumPhotoSizeBytes * int64(expectedCount)); err != nil {
+		return nil, photoHTTPError{http.StatusRequestEntityTooLarge, "photo_too_large", "Each photo must be at most 7 MB"}
+	}
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
+	fileHeaders := r.MultipartForm.File[fieldName]
+	if len(fileHeaders) != expectedCount {
+		return nil, photoHTTPError{http.StatusUnprocessableEntity, "invalid_photo_count", "The expected number of photos is required"}
+	}
+	if err := os.MkdirAll(a.photoStoragePath, 0o750); err != nil {
+		return nil, err
+	}
+	photoList := make([]validatedPhoto, 0, expectedCount)
+	for _, fileHeader := range fileHeaders {
+		photo, err := a.stagePhoto(fileHeader)
+		if err != nil {
+			removeTemporaryPhotos(photoList)
+			return nil, err
+		}
+		photoList = append(photoList, photo)
+	}
+	return photoList, nil
+}
+
+func (a *api) stagePhoto(fileHeader *multipart.FileHeader) (validatedPhoto, error) {
+	file, err := fileHeader.Open()
+	if err != nil {
+		return validatedPhoto{}, err
+	}
+	data, readErr := io.ReadAll(io.LimitReader(file, maximumPhotoSizeBytes+1))
+	closeErr := file.Close()
+	if readErr != nil {
+		return validatedPhoto{}, readErr
+	}
+	if closeErr != nil {
+		return validatedPhoto{}, closeErr
+	}
+	if len(data) == 0 {
+		return validatedPhoto{}, photoHTTPError{http.StatusUnprocessableEntity, "invalid_photo", "The photo is empty or invalid"}
+	}
+	if len(data) > maximumPhotoSizeBytes {
+		return validatedPhoto{}, photoHTTPError{http.StatusRequestEntityTooLarge, "photo_too_large", "Each photo must be at most 7 MB"}
+	}
+	contentType := http.DetectContentType(data)
+	extension := ""
+	switch contentType {
+	case "image/jpeg":
+		extension = ".jpg"
+	case "image/png":
+		extension = ".png"
+	case "image/webp":
+		extension = ".webp"
+	default:
+		return validatedPhoto{}, photoHTTPError{http.StatusUnsupportedMediaType, "unsupported_photo", "Photos must be JPEG, PNG or WebP images"}
+	}
+	width, height, err := decodeImageDimensions(data, contentType)
+	if err != nil || width <= 0 || height <= 0 || width > maximumPhotoDimension || height > maximumPhotoDimension {
+		return validatedPhoto{}, photoHTTPError{http.StatusUnprocessableEntity, "invalid_photo", "Photos must be valid images no larger than 4096 by 4096 pixels"}
+	}
+	storageToken, err := randomToken(24)
+	if err != nil {
+		return validatedPhoto{}, err
+	}
+	temporaryFile, err := os.CreateTemp(a.photoStoragePath, ".photo-upload-*")
+	if err != nil {
+		return validatedPhoto{}, err
+	}
+	temporaryPath := temporaryFile.Name()
+	if _, err := temporaryFile.Write(data); err != nil {
+		temporaryFile.Close()
+		_ = os.Remove(temporaryPath)
+		return validatedPhoto{}, err
+	}
+	if err := temporaryFile.Close(); err != nil {
+		_ = os.Remove(temporaryPath)
+		return validatedPhoto{}, err
+	}
+	return validatedPhoto{
+		temporaryPath: temporaryPath,
+		storageKey:    storageToken + extension,
+		contentType:   contentType,
+		width:         width,
+		height:        height,
+		size:          int64(len(data)),
+	}, nil
+}
+
+func lockPhotoPreparation(
+	ctx context.Context,
+	tx pgx.Tx,
+	player authenticatedPlayer,
+	requireEditable bool,
+) (string, string, error) {
+	var readyStatus, lobbyStatus string
+	err := tx.QueryRow(ctx, `
+		SELECT player.ready_status, lobby.status
+		FROM players AS player
+		JOIN lobbies AS lobby ON lobby.id = player.lobby_id
+		WHERE player.id = $1 AND lobby.id = $2
+		FOR UPDATE OF player, lobby
+	`, player.ID, player.LobbyID).Scan(&readyStatus, &lobbyStatus)
+	if err != nil {
+		return "", "", err
+	}
+	if lobbyStatus != "waiting_for_players" && lobbyStatus != "preparing_photos" && lobbyStatus != "ready_to_start" {
+		return "", "", photoHTTPError{http.StatusConflict, "photos_locked", "Photos can no longer be changed"}
+	}
+	if requireEditable && readyStatus == "ready" {
+		return "", "", photoHTTPError{http.StatusConflict, "photos_locked", "Photos have already been validated"}
+	}
+	return readyStatus, lobbyStatus, nil
+}
+
+func updatePhotoReadiness(ctx context.Context, tx pgx.Tx, player authenticatedPlayer, readyStatus string) error {
+	if _, err := tx.Exec(ctx, `
+		UPDATE players SET ready_status = $1, updated_at = now() WHERE id = $2
+	`, readyStatus, player.ID); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `
 		UPDATE lobbies
 		SET status = CASE
 		      WHEN (SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL) < $2
@@ -192,43 +472,61 @@ func (a *api) handleUploadPlayerPhotos(w http.ResponseWriter, r *http.Request) {
 		    END,
 		    revision = revision + 1,
 		    updated_at = now()
-		WHERE id = $1 AND status IN ('waiting_for_players', 'preparing_photos', 'ready_to_start')
-	`, player.LobbyID, minimumPlayerCount); err != nil {
-		cleanupTemporary()
-		a.internalError(w, r, err)
-		return
-	}
+		WHERE id = $1
+	`, player.LobbyID, minimumPlayerCount)
+	return err
+}
 
-	movedPaths := make([]string, 0, 4)
+func playerPhotoPosition(r *http.Request) (int, error) {
+	position, err := strconv.Atoi(r.PathValue("position"))
+	if err != nil || position < 1 || position > 4 {
+		return 0, photoHTTPError{http.StatusUnprocessableEntity, "invalid_photo_position", "Photo position must be between 1 and 4"}
+	}
+	return position, nil
+}
+
+func removeTemporaryPhotos(photoList []validatedPhoto) {
+	for _, photo := range photoList {
+		_ = os.Remove(photo.temporaryPath)
+	}
+}
+
+func removePhotoPaths(pathList []string) {
+	for _, path := range pathList {
+		_ = os.Remove(path)
+	}
+}
+
+func (a *api) moveStagedPhotos(photoList []validatedPhoto) ([]string, error) {
+	movedPaths := make([]string, 0, len(photoList))
 	for _, photo := range photoList {
 		finalPath := filepath.Join(a.photoStoragePath, photo.storageKey)
 		if err := os.Rename(photo.temporaryPath, finalPath); err != nil {
-			for _, movedPath := range movedPaths {
-				_ = os.Remove(movedPath)
-			}
-			cleanupTemporary()
-			a.internalError(w, r, err)
-			return
+			removePhotoPaths(movedPaths)
+			return nil, err
 		}
 		movedPaths = append(movedPaths, finalPath)
 	}
-	if err := tx.Commit(r.Context()); err != nil {
-		for _, movedPath := range movedPaths {
-			_ = os.Remove(movedPath)
-		}
-		a.internalError(w, r, err)
+	return movedPaths, nil
+}
+
+func (a *api) writePhotoFailure(w http.ResponseWriter, r *http.Request, err error) {
+	var requestError photoHTTPError
+	if errors.As(err, &requestError) {
+		writeError(w, requestError.status, requestError.code, requestError.message)
 		return
 	}
-	for _, storageKey := range oldStorageKeys {
-		_ = os.Remove(filepath.Join(a.photoStoragePath, filepath.Base(storageKey)))
-	}
+	a.internalError(w, r, err)
+}
+
+func (a *api) writePhotoState(w http.ResponseWriter, r *http.Request, player authenticatedPlayer, status int) {
 	state, err := a.loadLobbyState(r.Context(), player)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
 	}
 	a.hub.publish(player.Code)
-	writeJSON(w, http.StatusOK, state)
+	writeJSON(w, status, state)
 }
 
 func decodeImageDimensions(data []byte, contentType string) (int, int, error) {

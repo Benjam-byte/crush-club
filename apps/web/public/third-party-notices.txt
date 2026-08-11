@@ -1,0 +1,10 @@
+Third-party notices
+===================
+
+heic-to 1.5.2
+Project and source: https://github.com/hoppergee/heic-to
+License: GNU Lesser General Public License v3.0 (LGPL-3.0)
+License text: https://www.gnu.org/licenses/lgpl-3.0.txt
+
+This dependency is distributed without modification as a separately lazy-loaded
+web bundle and is used to decode HEIC/HEIF images in the browser.

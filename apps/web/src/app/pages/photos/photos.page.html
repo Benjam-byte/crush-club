@@ -1,143 +1,144 @@
 <div class="ion-page">
   <ion-content>
     <main class="app-shell min-h-full pb-8">
-      <app-page-header
-        [title]="selectionPhase() === 'pending' ? 'Choisis tes photos' : 'Ordonne tes photos'"
-        [backLink]="'/lobby/' + gameState.lobbyCode()"
-      />
+      <app-page-header title="Tes photos" [backLink]="'/lobby/' + gameState.lobbyCode()" />
 
-      <section class="px-5 pt-2">
-        @if (selectionPhase() === 'pending') {
-          <section class="space-y-5" aria-labelledby="photo-selection-title">
-            <div
-              class="selection-timer"
-              [class.selection-timer--warning]="isCountdownWarning()"
-            >
-              <div>
-                <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
-                  Étape 1
-                </p>
-                <h2 id="photo-selection-title" class="mt-1 text-xl font-extrabold text-ink-900">
-                  Choisis 4 photos en 2 min
-                </h2>
-              </div>
-              <div
-                class="selection-timer__value"
-                [class.selection-timer__value--warning]="isCountdownWarning()"
-                aria-live="polite"
-                aria-label="Temps restant"
-              >
-                {{ countdownLabel() }}
-              </div>
-            </div>
+      <section class="space-y-5 px-5 pt-2" aria-labelledby="photo-selection-title">
+        <div
+          class="selection-timer"
+          [class.selection-timer--warning]="isCountdownWarning()"
+        >
+          <div>
+            <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
+              {{ photoCount() }} / 4 envoyées
+            </p>
+            <h2 id="photo-selection-title" class="mt-1 text-xl font-extrabold text-ink-900">
+              Ajoute une photo à la fois
+            </h2>
+          </div>
+          <div
+            class="selection-timer__value"
+            [class.selection-timer__value--warning]="isCountdownWarning()"
+            aria-live="polite"
+            [attr.aria-label]="photoCount() === 4 ? 'Quatre photos envoyées' : 'Temps restant indicatif'"
+          >
+            {{ photoCount() === 4 ? 'Prêt' : countdownLabel() }}
+          </div>
+        </div>
 
-            <label
-              class="photo-picker-button cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-500"
-            >
-              <ion-icon name="images-outline" aria-hidden="true" />
-              Choisir 4 photos
-              <input
-                class="sr-only"
-                type="file"
-                accept="image/*"
-                multiple
-                (change)="onPhotoInputChange($event)"
-              />
-            </label>
+        <p class="text-sm leading-6 text-ink-600">
+          Les photos sont optimisées puis enregistrées immédiatement. Tu peux les remplacer ou les supprimer avant la validation finale.
+        </p>
 
-            @if (errorMessage()) {
-              <p class="rounded-2xl bg-danger-50 px-4 py-3 text-sm font-semibold text-danger-500">
-                {{ errorMessage() }}
-              </p>
-            }
-          </section>
-        } @else {
-          <section class="space-y-5" aria-labelledby="photo-order-title">
-            <header>
-              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
-                Étape 2
-              </p>
-              <h2 id="photo-order-title" class="mt-1 text-xl font-extrabold tracking-tight text-ink-900">
-                Ordonne et valide quand tu es prêt
-              </h2>
-            </header>
+        <input
+          #photoInput
+          class="sr-only"
+          type="file"
+          accept=".jpg,.jpeg,.png,.webp,.heic,.heif,image/jpeg,image/png,image/webp,image/heic,image/heif"
+          (change)="onPhotoInputChange($event)"
+        />
 
-            <section class="surface-card p-4">
-              <div class="mb-4 flex items-end justify-between gap-3">
-                <div>
-                  <h3 class="text-base font-extrabold text-ink-900">Tes quatre finales</h3>
-                  <p class="mt-1 text-xs leading-5 text-ink-600">
-                    Tu choisiras ta photo principale au début de chaque manche.
-                  </p>
-                </div>
-              </div>
+        <div class="photo-slot-grid" aria-label="Tes quatre emplacements photo">
+          @for (slotIndex of slotIndexList; track slotIndex) {
+            @let position = slotIndex + 1;
+            @let photoId = currentPhotoIdList()[slotIndex];
+            @let source = photoSource(photoId);
+            @let statusLabel = operationLabel(position);
 
-              <div class="grid grid-cols-4 gap-2">
-                @for (slotIndex of slotIndexList; track slotIndex) {
-                  @let photoIndex = selectedPhotoIndexList()[slotIndex];
-                  @let photo = photoIndex === undefined ? undefined : photoService.photoPreviewList()[photoIndex];
-
-                  @if (photo) {
-                    <button
-                      class="selected-photo relative aspect-[3/4] overflow-hidden rounded-[18px] border-2 bg-peach-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
-                      [class.selected-photo--active]="selectedSlotIndex() === slotIndex"
-                      type="button"
-                      [attr.aria-label]="'Sélectionner la photo ' + (slotIndex + 1) + ' pour la déplacer'"
-                      [attr.aria-pressed]="selectedSlotIndex() === slotIndex"
-                      (click)="onSlotSelect(slotIndex)"
-                    >
-                      <img
-                        class="h-full w-full object-cover"
-                        [src]="photo.source"
-                        [alt]="'Photo sélectionnée ' + (slotIndex + 1)"
-                      />
-
-                      @if (selectedSlotIndex() === slotIndex) {
-                        <span class="selected-photo__active-indicator" aria-hidden="true">
-                          <ion-icon name="checkmark" />
-                        </span>
-                      }
-
-                      <span class="absolute left-2 top-2 grid size-5 place-items-center rounded-full bg-white/90 text-[9px] font-extrabold text-ink-900">
-                        {{ slotIndex + 1 }}
-                      </span>
-                    </button>
+            <article class="photo-slot" [class.photo-slot--filled]="photoId">
+              <div class="photo-slot__preview">
+                @if (photoId) {
+                  @if (source) {
+                    <img
+                      class="h-full w-full object-cover"
+                      [src]="source"
+                      [alt]="'Photo ' + position"
+                    />
+                  } @else {
+                    <div class="photo-slot__loading" aria-label="Chargement de la photo">
+                      <span class="photo-slot__spinner" aria-hidden="true"></span>
+                    </div>
                   }
+                } @else {
+                  <button
+                    class="photo-slot__empty"
+                    type="button"
+                    [disabled]="isBusy() || position !== photoCount() + 1"
+                    [attr.aria-label]="position === photoCount() + 1 ? 'Ajouter la photo ' + position : 'Emplacement photo ' + position"
+                    (click)="onPickPhoto(position, photoInput)"
+                  >
+                    <ion-icon name="camera" aria-hidden="true" />
+                    <span>Photo {{ position }}</span>
+                    <small>{{ position === photoCount() + 1 ? 'Ajouter' : 'En attente' }}</small>
+                  </button>
+                }
+
+                <span class="photo-slot__number" aria-hidden="true">{{ position }}</span>
+
+                @if (statusLabel) {
+                  <div class="photo-slot__operation" aria-live="polite">
+                    <span class="photo-slot__spinner" aria-hidden="true"></span>
+                    {{ statusLabel }}
+                  </div>
                 }
               </div>
 
-              <div class="mt-4 grid grid-cols-2 gap-3">
-                <button
-                  class="photo-tool-button"
-                  type="button"
-                  [disabled]="selectedSlotIndex() === 0"
-                  (click)="onMoveSelectedPhoto(-1)"
-                >
-                  <ion-icon name="arrow-back" aria-hidden="true" />
-                  Déplacer à gauche
-                </button>
-                <button
-                  class="photo-tool-button"
-                  type="button"
-                  [disabled]="selectedSlotIndex() === 3"
-                  (click)="onMoveSelectedPhoto(1)"
-                >
-                  Déplacer à droite
-                  <ion-icon name="arrow-forward" aria-hidden="true" />
-                </button>
-              </div>
-            </section>
+              @if (photoId) {
+                <div class="photo-slot__actions">
+                  <button
+                    type="button"
+                    [disabled]="isBusy()"
+                    (click)="onPickPhoto(position, photoInput)"
+                  >
+                    <ion-icon name="refresh" aria-hidden="true" />
+                    Remplacer
+                  </button>
+                  <button
+                    class="photo-slot__delete"
+                    type="button"
+                    [disabled]="isBusy()"
+                    [attr.aria-label]="'Supprimer la photo ' + position"
+                    (click)="onDeletePhoto(position)"
+                  >
+                    <ion-icon name="trash-outline" aria-hidden="true" />
+                    Supprimer
+                  </button>
+                </div>
+              }
+            </article>
+          }
+        </div>
 
-            <ion-button
-              class="action-button w-full"
-              expand="block"
-              [disabled]="isUploading() || !gameState.isRealtimeConnected()"
-              (click)="onValidate()"
-            >
-              {{ isUploading() ? 'Envoi en cours…' : 'Valider l’ordre des photos' }}
-              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-            </ion-button>
-          </section>
+        @if (errorMessage()) {
+          <p
+            class="rounded-2xl bg-danger-50 px-4 py-3 text-sm font-semibold text-danger-500"
+            role="alert"
+            aria-live="assertive"
+          >
+            {{ errorMessage() }}
+          </p>
+        }
+
+        @if (selectionExpired()) {
+          <p class="rounded-2xl bg-gold-50 px-4 py-3 text-sm font-semibold text-warning-500">
+            Le délai indicatif est écoulé, mais tu peux continuer à préparer tes photos.
+          </p>
+        }
+
+        <ion-button
+          class="action-button w-full"
+          expand="block"
+          [disabled]="!canComplete()"
+          (click)="onComplete()"
+        >
+          {{ isFinalizing() ? 'Validation en cours…' : 'Valider mes 4 photos' }}
+          <ion-icon name="checkmark" slot="end" aria-hidden="true" />
+        </ion-button>
+
+        @if (photoCount() < 4) {
+          <p class="text-center text-xs font-semibold text-ink-500">
+            Ajoute encore {{ 4 - photoCount() }} {{ 4 - photoCount() === 1 ? 'photo' : 'photos' }} pour valider.
+          </p>
         }
       </section>
     </main>

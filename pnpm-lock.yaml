@@ -53,6 +53,9 @@ importers:
       '@ionic/angular':
         specifier: ^8.0.0
         version: 8.8.16(869a489af5c82d73a61353fc8606e6cd)
+      heic-to:
+        specifier: 1.5.2
+        version: 1.5.2
       ionicons:
         specifier: ^8.0.0
         version: 8.1.0
@@ -2076,6 +2079,9 @@ packages:
   hasown@2.0.4:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
+
+  heic-to@1.5.2:
+    resolution: {integrity: sha512-8Fns+lZHAWmz5U5IUxDeXKwIf3foBoKNPLxxFY4B0MkLjNuomEIHCoDbDE+x/llFK3NCEO1cu4+n3iUKY+Svmw==}
 
   hono@4.12.32:
     resolution: {integrity: sha512-XcuyW9qE2kJn07PkecMOBd5Vq/hMy7mmGw+idz1yblbg9N17ijJODrvPkn7/dwL3Kulj8LcRJ69DLOWf91dRUg==}
@@ -5031,6 +5037,8 @@ snapshots:
   hasown@2.0.4:
     dependencies:
       function-bind: 1.1.2
+
+  heic-to@1.5.2: {}
 
   hono@4.12.32: {}
 

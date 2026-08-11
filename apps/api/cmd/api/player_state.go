@@ -101,9 +101,7 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 	if err := json.Unmarshal(snapshotJSON, &state.Questionnaire); err != nil {
 		return lobbyStateResponse{}, err
 	}
-	if len(state.Questionnaire.ProfileFields) == 0 {
-		state.Questionnaire.ProfileFields = defaultProfileFields()
-	}
+	hydrateQuestionnaireSnapshot(&state.Questionnaire)
 	state.GameConfig = lobbyGameConfigSummary{
 		ID:            state.Questionnaire.SourceConfigID,
 		Name:          state.Questionnaire.Name,
@@ -143,11 +141,11 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 		player.Connected = a.hub != nil && a.hub.isOnline(state.Code, player.ID)
 		if player.Connected {
 			player.DisconnectedAt = nil
-		} else if player.DisconnectedAt != nil {
+		} else if player.DisconnectedAt != nil && player.IsHost {
 			deadline := player.DisconnectedAt.Add(reconnectGracePeriod)
 			player.ReconnectDeadline = &deadline
-			player.CanExclude = !state.ServerTime.Before(deadline)
 		}
+		player.CanExclude = canExcludeLobbyPlayer(player.IsHost, player.Connected, player.DisconnectedAt)
 		state.Players = append(state.Players, player)
 	}
 	if err := rows.Err(); err != nil {
@@ -163,6 +161,10 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 	}
 	state.Game = &game
 	return state, nil
+}
+
+func canExcludeLobbyPlayer(isHost, connected bool, disconnectedAt *time.Time) bool {
+	return !isHost && !connected && disconnectedAt != nil
 }
 
 func (a *api) loadGameState(ctx context.Context, currentPlayer authenticatedPlayer) (gameStateView, error) {

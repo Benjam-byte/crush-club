@@ -710,8 +710,12 @@ func (a *api) handleExcludePlayer(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	if targetIsHost || disconnectedAt == nil || time.Since(*disconnectedAt) < reconnectGracePeriod || a.hub.isOnline(player.Code, targetPlayerID) {
-		writeError(w, http.StatusConflict, "reconnect_grace_active", "This player can only be excluded after 90 seconds offline")
+	if targetIsHost {
+		writeError(w, http.StatusConflict, "cannot_exclude_host", "The lobby host cannot be excluded")
+		return
+	}
+	if disconnectedAt == nil || a.hub.isOnline(player.Code, targetPlayerID) {
+		writeError(w, http.StatusConflict, "player_online", "This player is currently online")
 		return
 	}
 	if _, err := tx.Exec(r.Context(), `
@@ -770,9 +774,7 @@ func loadQuestionnaireSnapshot(ctx context.Context, tx pgx.Tx, lobbyID string) (
 	if err := json.Unmarshal(snapshotJSON, &snapshot); err != nil {
 		return questionnaireSnapshot{}, err
 	}
-	if len(snapshot.ProfileFields) == 0 {
-		snapshot.ProfileFields = defaultProfileFields()
-	}
+	hydrateQuestionnaireSnapshot(&snapshot)
 	return snapshot, nil
 }
 

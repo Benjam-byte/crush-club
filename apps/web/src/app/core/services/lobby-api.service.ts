@@ -68,6 +68,50 @@ export class LobbyApiService {
     );
   }
 
+  addPhoto(code: string, reconnectToken: string, photo: File): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/players/me/photos`,
+        this.singlePhotoFormData(photo),
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  replacePhoto(
+    code: string,
+    reconnectToken: string,
+    position: number,
+    photo: File,
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.put<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/players/me/photos/${position}`,
+        this.singlePhotoFormData(photo),
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  deletePhoto(code: string, reconnectToken: string, position: number): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.delete<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/players/me/photos/${position}`,
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  completePhotos(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/players/me/photos/complete`,
+        null,
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
   getPhoto(code: string, reconnectToken: string, photoId: string): Promise<Blob> {
     return firstValueFrom(
       this.http.get(`/api/v1/lobbies/${code}/photos/${photoId}`, {
@@ -143,5 +187,11 @@ export class LobbyApiService {
 
   private authorizationHeaders(reconnectToken: string): HttpHeaders {
     return new HttpHeaders({ Authorization: `Bearer ${reconnectToken}` });
+  }
+
+  private singlePhotoFormData(photo: File): FormData {
+    const formData = new FormData();
+    formData.append('photo', photo, photo.name);
+    return formData;
   }
 }

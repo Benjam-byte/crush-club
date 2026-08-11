@@ -7,6 +7,7 @@ import type { BioCategory } from '@core/models/game.models';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
 import { QuestionCardComponent } from '../../core/components/question-card/question-card.component';
 import { GameStateService } from '../../core/services/game-state.service';
+import { questionnaireStepCount } from './questionnaire-flow';
 
 const taglineMaximumLength = 100;
 
@@ -31,7 +32,11 @@ export class QuestionnairePage implements OnInit {
   protected readonly hasTaglineStep = computed(() => this.gameState.role() !== 'lover');
   protected readonly taglineMaximumLength = taglineMaximumLength;
   protected readonly requiredAnswerCount = computed(() => {
-    return 1 + (this.hasTaglineStep() ? 1 : 0) + this.bioCategoryList().length + this.gameState.activeQuestionList().length;
+    return questionnaireStepCount(
+      this.gameState.role(),
+      this.bioCategoryList().length,
+      this.gameState.activeQuestionList().length,
+    );
   });
   protected readonly stepNumberList = computed(() => {
     return Array.from({ length: this.requiredAnswerCount() }, (_, index) => index + 1);

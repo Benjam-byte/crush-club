@@ -1,0 +1,17 @@
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+aside {
+  position: absolute;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: max(1rem, env(safe-area-inset-left));
+  width: auto;
+  max-width: 30rem;
+  margin-inline: auto;
+  pointer-events: auto;
+}

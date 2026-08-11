@@ -64,6 +64,49 @@ func TestValidateRoundSubmissionSeparatesSubjectAndCupid(t *testing.T) {
 	}
 }
 
+func TestPersonalQuestionnaireRoundHasNoAutomaticBioAnswers(t *testing.T) {
+	snapshot := questionnaireSnapshot{
+		Kind:          "personal",
+		ProfileFields: []profileField{},
+		Questions: []question{{
+			ID: "custom", Type: "binary_choice", MaximumScore: 10, LoverEligible: true,
+			Options: []questionOption{{ID: "yes"}, {ID: "no"}},
+		}},
+	}
+	officialInput := roundSubmissionInput{
+		BioAnswers: map[string]string{},
+		QuestionAnswers: map[string]json.RawMessage{
+			primaryPhotoQuestionID: json.RawMessage(`"photo-1"`),
+			"custom":               json.RawMessage(`"yes"`),
+		},
+	}
+	if err := validateRoundSubmission(snapshot, officialInput, "official"); err != nil {
+		t.Fatalf("personal official submission rejected: %v", err)
+	}
+
+	predictionInput := officialInput
+	predictionInput.Tagline = "Partant pour rire"
+	predictionInput.LoverQuestionID = "custom"
+	if err := validateRoundSubmission(snapshot, predictionInput, "prediction"); err != nil {
+		t.Fatalf("personal prediction rejected: %v", err)
+	}
+
+	official := storedSubmission{
+		BioAnswers: officialInput.BioAnswers, QuestionAnswers: officialInput.QuestionAnswers,
+	}
+	prediction := storedSubmission{
+		BioAnswers: predictionInput.BioAnswers, QuestionAnswers: predictionInput.QuestionAnswers,
+		LoverQuestionID: predictionInput.LoverQuestionID,
+	}
+	_, _, _, _, _, lines, err := scorePrediction(snapshot, official, prediction, true)
+	if err != nil {
+		t.Fatalf("personal score rejected: %v", err)
+	}
+	if len(lines) != 2 {
+		t.Fatalf("personal score lines = %#v, want photo plus one custom question", lines)
+	}
+}
+
 func TestLegacySubmissionGetsPrimaryPhotoFallback(t *testing.T) {
 	snapshot := multiplayerTestSnapshot()
 	answers := map[string]json.RawMessage{
