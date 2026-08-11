@@ -1,4 +1,12 @@
 <ion-app>
   <ion-router-outlet />
   <app-host-disconnected-players />
+
+  <ion-toast
+    [isOpen]="appUpdate.updateAvailable()"
+    message="Une nouvelle version de Crush Club est disponible."
+    position="bottom"
+    [buttons]="updateToastButtons"
+    (didDismiss)="appUpdate.dismissUpdateToast()"
+  />
 </ion-app>
