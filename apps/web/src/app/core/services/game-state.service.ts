@@ -5,6 +5,8 @@ import { activeNavigationUrl } from '@core/guards/lobby-route';
 import { primaryPhotoQuestionId } from '@core/models/game.models';
 import type {
   AnswerValue,
+  FastBioStateView,
+  LobbyMode,
   LobbyPlayer,
   LobbyStateResponse,
   LobbyStatus,
@@ -74,6 +76,8 @@ export class GameStateService {
   private readonly errorMessageState = signal<string | null>(null);
   private readonly photoUrlByIdState = signal<Readonly<Record<string, string>>>({});
   private readonly loadingPhotoIdSet = new Set<string>();
+  private readonly fastBioPhotoUrlByIdState = signal<Readonly<Record<string, string>>>({});
+  private readonly loadingFastBioPhotoIdSet = new Set<string>();
   private readonly playerExclusion = new PlayerExclusionController();
   private restoredDraftKey = '';
 
@@ -82,6 +86,9 @@ export class GameStateService {
   readonly isRealtimeConnected = computed(() => this.connectionStatus() === 'connected');
   readonly lobbyCode = computed(() => this.state()?.code ?? this.storedSessionState()?.lobbyCode ?? '');
   readonly lobbyStatus = computed<LobbyStatus>(() => this.state()?.status ?? 'waiting_for_players');
+  readonly mode = computed<LobbyMode>(() => this.state()?.mode ?? 'classic');
+  readonly isFastBioMode = computed(() => this.mode() === 'fast_bio');
+  readonly fastBioGame = computed<FastBioStateView | null>(() => this.state()?.fastBioGame ?? null);
   readonly displayName = computed(() => this.currentPlayer().displayName);
   readonly isHost = computed(() => this.currentPlayer().isHost);
   readonly playerList = computed<readonly LobbyPlayer[]>(() => {
@@ -169,24 +176,41 @@ export class GameStateService {
       players.length >= 2 &&
       players.every((player) => player.connected);
   });
+  readonly canStartFastBioGame = computed(() => {
+    const players = this.playerList();
+    return this.isFastBioMode() &&
+      this.fastBioGame() === null &&
+      this.isHost() &&
+      this.isRealtimeConnected() &&
+      players.length >= 5 &&
+      players.every((player) => player.connected);
+  });
 
   constructor() {
     effect(() => {
       const state = this.state();
       if (state) {
         this.pruneRemovedPhotoUrls(state);
+        this.pruneRemovedFastBioPhotoUrls(state);
         void this.loadMissingPhotos(state);
+        void this.loadMissingFastBioPhoto(state);
         void this.synchronizeRoute(state);
       }
     });
   }
 
-  async createLobby(displayName: string, gameConfigId: string): Promise<string> {
+  async createLobby(
+    displayName: string,
+    mode: LobbyMode,
+    gameConfigId: string,
+    maxPlayers?: number,
+  ): Promise<string> {
     this.errorMessageState.set(null);
     try {
       const session = await this.lobbyApi.create({
         displayName,
-        maxPlayers: 10,
+        mode,
+        maxPlayers: mode === 'classic' ? (maxPlayers ?? 5) : undefined,
         gameConfigId,
       });
       this.establishSession(session.state, session.reconnectToken);
@@ -285,6 +309,67 @@ export class GameStateService {
       (code, token) => this.lobbyApi.start(code, token),
       'La partie n’a pas pu démarrer.',
     );
+  }
+
+  async startFastBioGame(): Promise<void> {
+    if (!this.canStartFastBioGame()) {
+      return;
+    }
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.startFastBio(code, token),
+      'La partie n’a pas pu démarrer.',
+    );
+  }
+
+  async submitFastBioTheme(theme: string): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.submitFastBioTheme(code, token, theme),
+      'Ta proposition de thème n’a pas pu être envoyée.',
+    );
+  }
+
+  async rankFastBioThemes(ranking: readonly string[]): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.rankFastBioThemes(code, token, ranking),
+      'Ton classement n’a pas pu être envoyé.',
+    );
+  }
+
+  async submitFastBioProposal(photo: File, bio: string): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.submitFastBioProposal(code, token, photo, bio),
+      'Ta proposition n’a pas pu être envoyée.',
+    );
+  }
+
+  async advanceFastBioReview(direction: 'next' | 'previous'): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.advanceFastBioReview(code, token, direction),
+      'Impossible de changer de proposition.',
+    );
+  }
+
+  async reactToFastBioProposal(proposalId: string, emoji: string): Promise<void> {
+    const session = this.storedSessionState();
+    if (!session) {
+      return;
+    }
+    try {
+      await this.lobbyApi.reactToFastBioProposal(session.lobbyCode, session.reconnectToken, proposalId, emoji);
+    } catch (error: unknown) {
+      this.captureError(error, 'Ta réaction n’a pas pu être envoyée.');
+    }
+  }
+
+  async replayFastBio(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.replayFastBio(code, token),
+      'Impossible de relancer une nouvelle manche.',
+    );
+  }
+
+  fastBioPhotoUrl(photoId: string | undefined): string | null {
+    return photoId ? this.fastBioPhotoUrlByIdState()[photoId] ?? null : null;
   }
 
   saveTagline(tagline: string): void {
@@ -409,6 +494,10 @@ export class GameStateService {
       URL.revokeObjectURL(url);
     }
     this.photoUrlByIdState.set({});
+    for (const url of Object.values(this.fastBioPhotoUrlByIdState())) {
+      URL.revokeObjectURL(url);
+    }
+    this.fastBioPhotoUrlByIdState.set({});
     this.primaryPhotoIdState.set(null);
     this.taglineState.set('');
     this.answerByQuestionIdState.set({});
@@ -563,6 +652,45 @@ export class GameStateService {
     }
   }
 
+  private async loadMissingFastBioPhoto(state: LobbyStateResponse): Promise<void> {
+    const session = this.storedSessionState();
+    const photoId = state.fastBioGame?.currentProposal?.photoId;
+    if (!session || session.lobbyCode !== state.code || !photoId) {
+      return;
+    }
+    if (this.fastBioPhotoUrlByIdState()[photoId] || this.loadingFastBioPhotoIdSet.has(photoId)) {
+      return;
+    }
+    this.loadingFastBioPhotoIdSet.add(photoId);
+    try {
+      const blob = await this.lobbyApi.getFastBioProposalPhoto(state.code, session.reconnectToken, photoId);
+      const url = URL.createObjectURL(blob);
+      this.fastBioPhotoUrlByIdState.update((current) => ({ ...current, [photoId]: url }));
+    } catch (error: unknown) {
+      console.error('Unable to load a Fast Bio proposal photo', error);
+    } finally {
+      this.loadingFastBioPhotoIdSet.delete(photoId);
+    }
+  }
+
+  private pruneRemovedFastBioPhotoUrls(state: LobbyStateResponse): void {
+    const activePhotoId = state.fastBioGame?.currentProposal?.photoId;
+    const currentUrlById = this.fastBioPhotoUrlByIdState();
+    const nextUrlById: Record<string, string> = {};
+    let hasRemovedPhoto = false;
+    for (const [photoId, url] of Object.entries(currentUrlById)) {
+      if (photoId === activePhotoId) {
+        nextUrlById[photoId] = url;
+        continue;
+      }
+      URL.revokeObjectURL(url);
+      hasRemovedPhoto = true;
+    }
+    if (hasRemovedPhoto) {
+      this.fastBioPhotoUrlByIdState.set(nextUrlById);
+    }
+  }
+
   private pruneRemovedPhotoUrls(state: LobbyStateResponse): void {
     const activePhotoIdSet = new Set(state.players.flatMap((player) => player.photoIds));
     const currentUrlById = this.photoUrlByIdState();
@@ -588,7 +716,14 @@ export class GameStateService {
     if (!currentURL.startsWith('/lobby/') && !currentURL.startsWith('/game/')) {
       return;
     }
-    if (!state.game || !state.status || state.status !== 'in_game' && state.status !== 'completed') {
+    if (state.mode === 'fast_bio') {
+      await this.synchronizeFastBioRoute(state, currentURL);
+      return;
+    }
+    if (
+      !state.game || !state.status || state.status !== 'in_game' && state.status !== 'completed' ||
+      !state.game.isParticipant
+    ) {
       const lobbyURL = `/lobby/${state.code}`;
       if (currentURL !== lobbyURL && currentURL.startsWith('/game/')) {
         await this.router.navigateByUrl(lobbyURL);
@@ -622,6 +757,29 @@ export class GameStateService {
     }
   }
 
+  private async synchronizeFastBioRoute(state: LobbyStateResponse, currentURL: string): Promise<void> {
+    const lobbyURL = `/lobby/${state.code}`;
+    const fastBio = state.fastBioGame;
+    if (!fastBio || state.status !== 'in_game') {
+      if (currentURL !== lobbyURL && currentURL.startsWith('/game/')) {
+        await this.router.navigateByUrl(lobbyURL);
+      }
+      return;
+    }
+    let destination = lobbyURL;
+    if (fastBio.phase === 'collecting_themes' || fastBio.phase === 'ranking_themes') {
+      destination = `/game/${state.code}/fast-bio/themes`;
+    } else if (fastBio.phase === 'playing' && fastBio.roundNumber) {
+      const roundBase = `/game/${state.code}/fast-bio/${fastBio.roundNumber}`;
+      destination = fastBio.roundPhase === 'submitting' ? `${roundBase}/assignment` : `${roundBase}/review`;
+    } else if (fastBio.phase === 'completed') {
+      destination = `/game/${state.code}/fast-bio/final`;
+    }
+    if (currentURL !== destination) {
+      await this.router.navigateByUrl(destination);
+    }
+  }
+
   private captureError(error: unknown, fallbackMessage: string): void {
     if (error instanceof HttpErrorResponse) {
       const serverError = (error.error as {
@@ -638,11 +796,32 @@ export class GameStateService {
         photo_not_found: 'Cette photo n’existe plus. La liste va être actualisée.',
         incomplete_photos: 'Ajoute quatre photos avant de valider.',
         photos_locked: 'Tes photos ont déjà été validées et ne peuvent plus être modifiées.',
+        lobby_already_started: 'Cette partie est terminée.',
+        display_name_taken: 'Ce pseudo est déjà utilisé par un joueur actuellement en ligne.',
         player_online: 'Ce joueur vient de se reconnecter et ne peut plus être exclu.',
         host_required: 'Seul l’hôte du lobby peut exclure un joueur.',
         player_not_found: 'Ce joueur ne fait plus partie du lobby.',
         cannot_exclude_self: 'Tu ne peux pas t’exclure toi-même du lobby.',
         cannot_exclude_host: 'L’hôte du lobby ne peut pas être exclu.',
+        invalid_player_count: 'Il faut au moins cinq joueurs pour lancer une partie Fast Bio.',
+        players_offline: 'Tout le monde doit être connecté avant de lancer la partie.',
+        wrong_mode: 'Ce lobby n’est pas configuré en mode Fast Bio.',
+        invalid_theme: 'Ce thème est trop long.',
+        themes_locked: 'La collecte des thèmes est terminée.',
+        ranking_locked: 'Le classement des thèmes n’est pas ouvert.',
+        invalid_ranking: 'Ton classement doit contenir chaque thème proposé une seule fois.',
+        fast_bio_not_started: 'La partie Fast Bio n’a pas encore démarré.',
+        fast_bio_not_playing: 'Aucune manche Fast Bio n’est ouverte pour le moment.',
+        fast_bio_round_locked: 'Cette manche n’accepte plus de propositions.',
+        not_assigned: 'Tu n’as pas de cible pour cette manche.',
+        already_submitted: 'Tu as déjà envoyé ta proposition pour cette manche.',
+        invalid_bio: 'La bio doit contenir entre 1 et 280 caractères.',
+        invalid_direction: 'Navigation invalide dans la revue des propositions.',
+        invalid_emoji: 'Choisis un des quatre emojis proposés.',
+        cannot_react_to_own_proposal: 'Tu ne peux pas réagir à ta propre proposition.',
+        proposal_not_active: 'Cette proposition n’est plus celle affichée par l’hôte.',
+        proposal_not_found: 'Cette proposition n’existe plus.',
+        fast_bio_in_progress: 'Le cycle Fast Bio en cours n’est pas encore terminé.',
       };
       this.errorMessageState.set(
         serverError?.code ? errorMessageByCode[serverError.code] ?? serverError.message ?? fallbackMessage :

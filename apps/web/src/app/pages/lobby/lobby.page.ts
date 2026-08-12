@@ -46,7 +46,7 @@ export class LobbyPage implements OnInit {
   async ngOnInit(): Promise<void> {
     try {
       await this.gameState.refreshLobby(this.route.snapshot.paramMap.get('code') ?? undefined);
-      if (this.gameState.isHost()) {
+      if (this.gameState.isHost() && !this.gameState.isFastBioMode()) {
         await this.gameConfigs.initialize();
       }
     } catch {
@@ -98,6 +98,17 @@ export class LobbyPage implements OnInit {
 
     try {
       await this.gameState.startGame();
+    } catch {
+      // GameState exposes the API error.
+    }
+  }
+
+  protected async onStartFastBioGame(): Promise<void> {
+    if (!this.gameState.canStartFastBioGame()) {
+      return;
+    }
+    try {
+      await this.gameState.startFastBioGame();
     } catch {
       // GameState exposes the API error.
     }

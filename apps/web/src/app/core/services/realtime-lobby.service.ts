@@ -9,10 +9,20 @@ interface SnapshotMessage {
   state: LobbyStateResponse
 }
 
+export interface ReactionBroadcastMessage {
+  type: 'reaction.broadcast'
+  proposalId: string
+  emoji: string
+  authorPlayerId: string
+}
+
+type RealtimeMessage = Partial<SnapshotMessage> | Partial<ReactionBroadcastMessage>;
+
 @Injectable({ providedIn: 'root' })
 export class RealtimeLobbyService {
   private readonly stateValue = signal<LobbyStateResponse | null>(null);
   private readonly connectionStatusValue = signal<ConnectionStatus>('idle');
+  private readonly reactionEventsValue = signal<readonly ReactionBroadcastMessage[]>([]);
   private socket: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempt = 0;
@@ -22,6 +32,12 @@ export class RealtimeLobbyService {
 
   readonly state = this.stateValue.asReadonly();
   readonly connectionStatus = this.connectionStatusValue.asReadonly();
+  /** Ephemeral Fast Bio emoji reactions pushed live, most recent last. Drain with `clearReactionEvents()`. */
+  readonly reactionEvents = this.reactionEventsValue.asReadonly();
+
+  clearReactionEvents(): void {
+    this.reactionEventsValue.set([]);
+  }
 
   setState(state: LobbyStateResponse): void {
     const currentState = this.stateValue();
@@ -61,6 +77,7 @@ export class RealtimeLobbyService {
     this.activeCode = '';
     this.activeToken = '';
     this.connectionStatusValue.set('idle');
+    this.reactionEventsValue.set([]);
     if (clearState) {
       this.stateValue.set(null);
     }
@@ -89,7 +106,14 @@ export class RealtimeLobbyService {
         return;
       }
       try {
-        const message = JSON.parse(event.data) as Partial<SnapshotMessage>;
+        const message = JSON.parse(event.data) as RealtimeMessage;
+        if (message.type === 'reaction.broadcast') {
+          if (message.proposalId === undefined || message.emoji === undefined || message.authorPlayerId === undefined) {
+            return;
+          }
+          this.reactionEventsValue.update((events) => [...events, message as ReactionBroadcastMessage]);
+          return;
+        }
         if (message.type !== 'state.snapshot' || message.state === undefined) {
           return;
         }

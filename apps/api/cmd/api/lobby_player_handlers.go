@@ -39,7 +39,7 @@ func (a *api) handleJoinLobby(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(r.Context())
 
 	var lobbyID, status string
-	var maxPlayers int
+	var maxPlayers *int
 	err = tx.QueryRow(r.Context(), `
 		SELECT id, status, max_players
 		FROM lobbies
@@ -54,10 +54,62 @@ func (a *api) handleJoinLobby(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	if status == "in_game" || status == "completed" {
+	if status == "completed" {
 		writeError(w, http.StatusConflict, "lobby_already_started", "This lobby no longer accepts players")
 		return
 	}
+
+	// A pseudo already in use by a player who was connected before and has
+	// since gone offline is reclaimed instead of rejected, regardless of
+	// lobby status. A currently online match, or a match that never
+	// connected even once (disconnected_at IS NULL from the start), is still
+	// a hard conflict — reclaim is for resuming an established presence, not
+	// for hijacking a session that is mid-handshake.
+	var existingPlayerID, existingDisplayName string
+	err = tx.QueryRow(r.Context(), `
+		SELECT id, display_name FROM players
+		WHERE lobby_id = $1 AND lower(display_name) = lower($2)
+		  AND excluded_at IS NULL AND disconnected_at IS NOT NULL
+		FOR UPDATE
+	`, lobbyID, input.DisplayName).Scan(&existingPlayerID, &existingDisplayName)
+	switch {
+	case err == nil:
+		if a.hub != nil && a.hub.isOnline(code, existingPlayerID) {
+			writeError(w, http.StatusConflict, "display_name_taken", "This display name is already used in the lobby")
+			return
+		}
+		if _, err := tx.Exec(r.Context(), `
+			UPDATE players
+			SET reconnect_token_hash = $1, disconnected_at = NULL, last_seen_at = now(), updated_at = now()
+			WHERE id = $2
+		`, hex.EncodeToString(reconnectHash[:]), existingPlayerID); err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+		if _, err := tx.Exec(r.Context(), `
+			UPDATE lobbies SET revision = revision + 1, updated_at = now() WHERE id = $1
+		`, lobbyID); err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+		a.finishJoinLobby(w, r, authenticatedPlayer{
+			ID:          existingPlayerID,
+			LobbyID:     lobbyID,
+			Code:        code,
+			DisplayName: existingDisplayName,
+		}, reconnectToken)
+		return
+	case errors.Is(err, pgx.ErrNoRows):
+		// No existing player with this name: fall through to normal creation.
+	default:
+		a.internalError(w, r, err)
+		return
+	}
+
 	var playerCount int
 	if err := tx.QueryRow(r.Context(), `
 		SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL
@@ -65,7 +117,7 @@ func (a *api) handleJoinLobby(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	if playerCount >= maxPlayers {
+	if maxPlayers != nil && playerCount >= *maxPlayers {
 		writeError(w, http.StatusConflict, "lobby_full", "This lobby is full")
 		return
 	}
@@ -90,6 +142,7 @@ func (a *api) handleJoinLobby(w http.ResponseWriter, r *http.Request) {
 	if _, err := tx.Exec(r.Context(), `
 		UPDATE lobbies
 		SET status = CASE
+		      WHEN status = 'in_game' THEN status
 		      WHEN (SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL) < $2
 		        THEN 'waiting_for_players'::lobby_status
 		      ELSE 'preparing_photos'::lobby_status
@@ -106,18 +159,21 @@ func (a *api) handleJoinLobby(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	player := authenticatedPlayer{
+	a.finishJoinLobby(w, r, authenticatedPlayer{
 		ID:          playerID,
 		LobbyID:     lobbyID,
 		Code:        code,
 		DisplayName: input.DisplayName,
-	}
+	}, reconnectToken)
+}
+
+func (a *api) finishJoinLobby(w http.ResponseWriter, r *http.Request, player authenticatedPlayer, reconnectToken string) {
 	state, err := a.loadLobbyState(r.Context(), player)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
 	}
-	a.hub.publish(code)
+	a.hub.publish(player.Code)
 	writeJSON(w, http.StatusCreated, playerSessionResponse{
 		ReconnectToken: reconnectToken,
 		State:          state,

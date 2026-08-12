@@ -14,7 +14,43 @@ const (
 	bestTaglineBonus         = 10
 	primaryPhotoQuestionID   = "__primary_photo__"
 	primaryPhotoMaximumScore = 10
+
+	lobbyModeClassic = "classic"
+	lobbyModeFastBio = "fast_bio"
+
+	// classicLobbyMinPlayers matches the system-wide floor (minimumPlayerCount)
+	// rather than a stricter 3: the create-lobby UI only ever offers 3-5, this
+	// is just a permissive backend safety net consistent with the rest of the
+	// classic engine (which already treats 2 as a valid game size).
+	classicLobbyMinPlayers  = minimumPlayerCount
+	classicLobbyMaxPlayers  = 5
+	fastBioLobbyMinPlayers  = 5
+	fastBioRoundCount       = 3
+	fastBioSubmissionWindow = 2 * time.Minute
+
+	fastBioReactionHeart   = "❤️"
+	fastBioReactionLaugh   = "😂"
+	fastBioReactionNeutral = "😐"
+	fastBioReactionSick    = "🤮"
 )
+
+var fastBioReactionPoints = map[string]int{
+	fastBioReactionHeart:   3,
+	fastBioReactionLaugh:   2,
+	fastBioReactionNeutral: 1,
+	fastBioReactionSick:    0,
+}
+
+func defaultFastBioThemes() []string {
+	return []string{
+		"Mode mystérieux",
+		"Mode aventurier",
+		"Mode intello",
+		"Mode glamour",
+		"Mode sportif",
+		"Mode artiste",
+	}
+}
 
 type profileField struct {
 	ID      string           `json:"id"`
@@ -88,12 +124,14 @@ type lobbyStateResponse struct {
 	ServerTime      time.Time              `json:"serverTime"`
 	Code            string                 `json:"code"`
 	Status          string                 `json:"status"`
-	MaxPlayers      int                    `json:"maxPlayers"`
+	Mode            string                 `json:"mode"`
+	MaxPlayers      *int                   `json:"maxPlayers"`
 	CurrentPlayerID string                 `json:"currentPlayerId"`
 	Players         []lobbyPlayerView      `json:"players"`
 	GameConfig      lobbyGameConfigSummary `json:"gameConfig"`
 	Questionnaire   questionnaireSnapshot  `json:"questionnaire"`
 	Game            *gameStateView         `json:"game,omitempty"`
+	FastBioGame     *fastBioStateView      `json:"fastBioGame,omitempty"`
 }
 
 type lobbyGameConfigSummary struct {
@@ -109,6 +147,7 @@ type gameStateView struct {
 	RoundNumber         int                    `json:"roundNumber"`
 	TotalRounds         int                    `json:"totalRounds"`
 	Role                string                 `json:"role"`
+	IsParticipant       bool                   `json:"isParticipant"`
 	SubjectPlayerID     string                 `json:"subjectPlayerId"`
 	NextSubjectPlayerID string                 `json:"nextSubjectPlayerId,omitempty"`
 	Submitted           bool                   `json:"submitted"`
@@ -149,6 +188,53 @@ type leaderboardEntryView struct {
 	RoundScore        int    `json:"roundScore"`
 	ExactCount        int    `json:"exactCount"`
 	TaglineBonusCount int    `json:"taglineBonusCount"`
+}
+
+type fastBioStateView struct {
+	ID                 string                         `json:"id"`
+	Phase              string                         `json:"phase"`
+	ThemeSubmitted     bool                           `json:"themeSubmitted"`
+	ThemeCandidates    []string                       `json:"themeCandidates,omitempty"`
+	ThemeRanked        bool                           `json:"themeRanked"`
+	SelectedThemes     []string                       `json:"selectedThemes,omitempty"`
+	RoundNumber        int                            `json:"roundNumber,omitempty"`
+	TotalRounds        int                            `json:"totalRounds,omitempty"`
+	RoundPhase         string                         `json:"roundPhase,omitempty"`
+	ThemeLabel         string                         `json:"themeLabel,omitempty"`
+	SubmissionDeadline *time.Time                     `json:"submissionDeadline,omitempty"`
+	TargetPlayerID     string                         `json:"targetPlayerId,omitempty"`
+	TargetDisplayName  string                         `json:"targetDisplayName,omitempty"`
+	Submitted          bool                           `json:"submitted"`
+	ProposalCount      int                            `json:"proposalCount,omitempty"`
+	ReviewIndex        int                            `json:"reviewIndex,omitempty"`
+	IsHostReview       bool                           `json:"isHostReview,omitempty"`
+	CurrentProposal    *fastBioProposalView           `json:"currentProposal,omitempty"`
+	MyReactionEmoji    string                         `json:"myReactionEmoji,omitempty"`
+	Leaderboard        []fastBioLeaderboardEntryView  `json:"leaderboard,omitempty"`
+}
+
+type fastBioProposalView struct {
+	ID                string                      `json:"id"`
+	AuthorPlayerID    string                      `json:"authorPlayerId"`
+	AuthorDisplayName string                      `json:"authorDisplayName"`
+	TargetPlayerID    string                      `json:"targetPlayerId"`
+	TargetDisplayName string                      `json:"targetDisplayName"`
+	PhotoID           string                      `json:"photoId"`
+	Bio               string                      `json:"bio"`
+	Reactions         []fastBioReactionCountView  `json:"reactions"`
+	TotalPoints       int                         `json:"totalPoints"`
+}
+
+type fastBioReactionCountView struct {
+	Emoji string `json:"emoji"`
+	Count int    `json:"count"`
+}
+
+type fastBioLeaderboardEntryView struct {
+	PlayerID    string `json:"playerId"`
+	DisplayName string `json:"displayName"`
+	Score       int    `json:"score"`
+	RoundScore  int    `json:"roundScore"`
 }
 
 type roundSubmissionInput struct {

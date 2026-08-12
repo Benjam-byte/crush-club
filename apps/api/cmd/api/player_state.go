@@ -85,12 +85,13 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 	}
 	var snapshotJSON []byte
 	err := a.pool.QueryRow(ctx, `
-		SELECT code, status, max_players, revision, game_config_snapshot
+		SELECT code, status, mode, max_players, revision, game_config_snapshot
 		FROM lobbies
 		WHERE id = $1 AND status <> 'expired' AND expires_at > now()
 	`, currentPlayer.LobbyID).Scan(
 		&state.Code,
 		&state.Status,
+		&state.Mode,
 		&state.MaxPlayers,
 		&state.Revision,
 		&snapshotJSON,
@@ -152,6 +153,18 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 		return lobbyStateResponse{}, err
 	}
 
+	if state.Mode == lobbyModeFastBio {
+		fastBioGame, err := a.loadFastBioState(ctx, currentPlayer)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return state, nil
+		}
+		if err != nil {
+			return lobbyStateResponse{}, err
+		}
+		state.FastBioGame = &fastBioGame
+		return state, nil
+	}
+
 	game, err := a.loadGameState(ctx, currentPlayer)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return state, nil
@@ -192,6 +205,14 @@ func (a *api) loadGameState(ctx context.Context, currentPlayer authenticatedPlay
 		game.Role = "subject"
 	} else {
 		game.Role = "cupid"
+	}
+	if err := a.pool.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM game_participants
+			WHERE game_id = $1 AND player_id = $2 AND is_active
+		)
+	`, game.ID, currentPlayer.ID).Scan(&game.IsParticipant); err != nil {
+		return gameStateView{}, err
 	}
 	if game.Phase == "round_results" || game.Phase == "between_rounds" {
 		err = a.pool.QueryRow(ctx, `

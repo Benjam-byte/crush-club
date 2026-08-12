@@ -579,6 +579,10 @@ func (a *api) handleStartNextRound(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "intermission_required", "Return to the lobby before starting the next round")
 		return
 	}
+	if err := enrollReadyLateJoiners(r.Context(), tx, player.LobbyID, gameID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
 
 	rows, err := tx.Query(r.Context(), `
 		SELECT player_id
@@ -1090,7 +1094,66 @@ func updateGameRoundCount(ctx context.Context, tx pgx.Tx, gameID string) error {
 	return err
 }
 
+// enrollReadyLateJoiners folds any lobby player who finished their photo
+// profile (ready_status = 'ready') while a game was already in progress into
+// game_participants, so they enter the subject rotation from here on. It is
+// only ever called at the boundary between rounds (entering or leaving
+// between_rounds), never while a round is actively collecting submissions,
+// so an in-flight round's required/submitted counts are never disturbed.
+func enrollReadyLateJoiners(ctx context.Context, tx pgx.Tx, lobbyID, gameID string) error {
+	rows, err := tx.Query(ctx, `
+		SELECT player.id
+		FROM players AS player
+		WHERE player.lobby_id = $1
+		  AND player.excluded_at IS NULL
+		  AND player.ready_status = 'ready'
+		  AND NOT EXISTS (
+		    SELECT 1 FROM game_participants AS participant
+		    WHERE participant.game_id = $2 AND participant.player_id = player.id
+		  )
+		ORDER BY player.joined_at, player.id
+	`, lobbyID, gameID)
+	if err != nil {
+		return err
+	}
+	newcomerIDs := make([]string, 0)
+	for rows.Next() {
+		var playerID string
+		if err := rows.Scan(&playerID); err != nil {
+			rows.Close()
+			return err
+		}
+		newcomerIDs = append(newcomerIDs, playerID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	if len(newcomerIDs) == 0 {
+		return nil
+	}
+	var nextSeat int
+	if err := tx.QueryRow(ctx, `
+		SELECT COALESCE(MAX(seat), -1) + 1 FROM game_participants WHERE game_id = $1
+	`, gameID).Scan(&nextSeat); err != nil {
+		return err
+	}
+	for _, playerID := range newcomerIDs {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO game_participants (game_id, player_id, seat) VALUES ($1, $2, $3)
+		`, gameID, playerID, nextSeat); err != nil {
+			return err
+		}
+		nextSeat++
+	}
+	return nil
+}
+
 func moveToIntermissionOrComplete(ctx context.Context, tx pgx.Tx, lobbyID, gameID string) error {
+	if err := enrollReadyLateJoiners(ctx, tx, lobbyID, gameID); err != nil {
+		return err
+	}
 	var activeCount int
 	if err := tx.QueryRow(ctx, `SELECT count(*) FROM game_participants WHERE game_id = $1 AND is_active`, gameID).Scan(&activeCount); err != nil {
 		return err

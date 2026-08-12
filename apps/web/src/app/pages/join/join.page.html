@@ -66,26 +66,62 @@
               <div>
                 <ion-select
                   class="form-input"
-                  formControlName="gameConfigId"
-                  label="Questionnaire du lobby"
+                  formControlName="mode"
+                  label="Mode de jeu"
                   labelPlacement="stacked"
                   interface="action-sheet"
-                  placeholder="Choisir une configuration"
+                  (ionChange)="onModeChange($event)"
                 >
-                  @for (config of gameConfigs.configList(); track config.id) {
-                    <ion-select-option [value]="config.id">
-                    {{ config.name }} · {{ config.questionIds.length }} questions{{ config.isPublic && !config.isOwner ? ' · partagé' : '' }}
-                    </ion-select-option>
-                  }
+                  <ion-select-option value="classic">Classique · 3 à 5 joueurs</ion-select-option>
+                  <ion-select-option value="fast_bio">Fast Bio · 5 joueurs minimum</ion-select-option>
                 </ion-select>
-                <a class="mt-2 inline-flex text-xs font-bold text-brand-600 underline" routerLink="/game-configs">
-                  Gérer mes configurations
-                </a>
-                @if (hasSubmitted() && !joinForm.controls.gameConfigId.value) {
-                  <p class="mt-2 text-xs font-semibold text-danger-500">Choisis un questionnaire.</p>
-                }
+                <p class="mt-2 text-xs leading-5 text-ink-500">
+                  @if (selectedMode() === 'fast_bio') {
+                    Chacun invente une bio + une photo pour un autre joueur sur un thème choisi par le groupe, puis tout le monde note les propositions.
+                  } @else {
+                    Chacun uploade 4 photos, puis devine les réponses de l’Amoureux à chaque manche.
+                  }
+                </p>
               </div>
 
+              @if (selectedMode() === 'classic') {
+                <div>
+                  <ion-select
+                    class="form-input"
+                    formControlName="maxPlayers"
+                    label="Nombre de joueurs"
+                    labelPlacement="stacked"
+                    interface="action-sheet"
+                  >
+                    @for (count of [3, 4, 5]; track count) {
+                      <ion-select-option [value]="count">{{ count }} joueurs</ion-select-option>
+                    }
+                  </ion-select>
+                </div>
+
+                <div>
+                  <ion-select
+                    class="form-input"
+                    formControlName="gameConfigId"
+                    label="Questionnaire du lobby"
+                    labelPlacement="stacked"
+                    interface="action-sheet"
+                    placeholder="Choisir une configuration"
+                  >
+                    @for (config of gameConfigs.configList(); track config.id) {
+                      <ion-select-option [value]="config.id">
+                      {{ config.name }} · {{ config.questionIds.length }} questions{{ config.isPublic && !config.isOwner ? ' · partagé' : '' }}
+                      </ion-select-option>
+                    }
+                  </ion-select>
+                  <a class="mt-2 inline-flex text-xs font-bold text-brand-600 underline" routerLink="/game-configs">
+                    Gérer mes configurations
+                  </a>
+                  @if (hasSubmitted() && !joinForm.controls.gameConfigId.value) {
+                    <p class="mt-2 text-xs font-semibold text-danger-500">Choisis un questionnaire.</p>
+                  }
+                </div>
+              }
             }
 
             @if (gameConfigs.errorMessage() || gameState.errorMessage(); as errorMessage) {

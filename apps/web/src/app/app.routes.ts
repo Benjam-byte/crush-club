@@ -110,6 +110,42 @@ export const routes: Routes = [
     title: "Fin de partie Crush Club",
   },
   {
+    path: "game/:code/fast-bio/themes",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/fast-bio-themes/fast-bio-themes.page").then(
+        (module) => module.FastBioThemesPage,
+      ),
+    title: "Thèmes Fast Bio Crush Club",
+  },
+  {
+    path: "game/:code/fast-bio/:roundNumber/assignment",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/fast-bio-assignment/fast-bio-assignment.page").then(
+        (module) => module.FastBioAssignmentPage,
+      ),
+    title: "Ta proposition Fast Bio Crush Club",
+  },
+  {
+    path: "game/:code/fast-bio/:roundNumber/review",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/fast-bio-review/fast-bio-review.page").then(
+        (module) => module.FastBioReviewPage,
+      ),
+    title: "Revue Fast Bio Crush Club",
+  },
+  {
+    path: "game/:code/fast-bio/final",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/fast-bio-final/fast-bio-final.page").then(
+        (module) => module.FastBioFinalPage,
+      ),
+    title: "Classement Fast Bio Crush Club",
+  },
+  {
     path: "**",
     redirectTo: "",
   },

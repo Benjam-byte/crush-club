@@ -446,7 +446,8 @@ func lockPhotoPreparation(
 	if err != nil {
 		return "", "", err
 	}
-	if lobbyStatus != "waiting_for_players" && lobbyStatus != "preparing_photos" && lobbyStatus != "ready_to_start" {
+	if lobbyStatus != "waiting_for_players" && lobbyStatus != "preparing_photos" &&
+		lobbyStatus != "ready_to_start" && lobbyStatus != "in_game" {
 		return "", "", photoHTTPError{http.StatusConflict, "photos_locked", "Photos can no longer be changed"}
 	}
 	if requireEditable && readyStatus == "ready" {
@@ -464,6 +465,7 @@ func updatePhotoReadiness(ctx context.Context, tx pgx.Tx, player authenticatedPl
 	_, err := tx.Exec(ctx, `
 		UPDATE lobbies
 		SET status = CASE
+		      WHEN status = 'in_game' THEN status
 		      WHEN (SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL) < $2
 		        THEN 'waiting_for_players'::lobby_status
 		      WHEN NOT (SELECT bool_and(ready_status = 'ready') FROM players WHERE lobby_id = $1 AND excluded_at IS NULL)
@@ -520,6 +522,14 @@ func (a *api) writePhotoFailure(w http.ResponseWriter, r *http.Request, err erro
 }
 
 func (a *api) writePhotoState(w http.ResponseWriter, r *http.Request, player authenticatedPlayer, status int) {
+	a.writeLobbyStateResponse(w, r, player, status)
+}
+
+// writeLobbyStateResponse reloads the full lobby state, publishes the update
+// to every connected client, and writes the state as the HTTP response. It is
+// the common tail of any handler that mutates lobby/game state, regardless of
+// game mode.
+func (a *api) writeLobbyStateResponse(w http.ResponseWriter, r *http.Request, player authenticatedPlayer, status int) {
 	state, err := a.loadLobbyState(r.Context(), player)
 	if err != nil {
 		a.internalError(w, r, err)

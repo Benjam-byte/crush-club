@@ -126,7 +126,8 @@ type configQuestionInput struct {
 type lobbyResponse struct {
 	Code       string `json:"code"`
 	Status     string `json:"status"`
-	MaxPlayers int    `json:"maxPlayers"`
+	Mode       string `json:"mode"`
+	MaxPlayers *int   `json:"maxPlayers"`
 	GameConfig struct {
 		ID            string `json:"id"`
 		Name          string `json:"name"`
@@ -177,6 +178,14 @@ func (a *api) routes() *http.ServeMux {
 	mux.HandleFunc("PUT /api/v1/lobbies/{code}/rounds/current/vote", a.handleVoteCurrentRound)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/rounds/current/next", a.handleNextRound)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/rounds/next/start", a.handleStartNextRound)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/fast-bio/start", a.handleStartFastBioGame)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/fast-bio/themes", a.handleSubmitFastBioTheme)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/fast-bio/themes/rank", a.handleRankFastBioThemes)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/fast-bio/proposal", a.handleSubmitFastBioProposal)
+	mux.HandleFunc("GET /api/v1/lobbies/{code}/fast-bio/photos/{proposalID}", a.handleGetFastBioProposalPhoto)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/fast-bio/review/advance", a.handleAdvanceFastBioReview)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/fast-bio/proposals/{proposalID}/react", a.handleReactToFastBioProposal)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/fast-bio/replay", a.handleReplayFastBio)
 	mux.HandleFunc("GET /ws/lobbies/{code}", a.handleLobbyWebSocket)
 	return mux
 }
@@ -520,6 +529,7 @@ func (a *api) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 	}
 	var input struct {
 		DisplayName  string `json:"displayName"`
+		Mode         string `json:"mode"`
 		MaxPlayers   int    `json:"maxPlayers"`
 		GameConfigID string `json:"gameConfigId"`
 	}
@@ -531,13 +541,25 @@ func (a *api) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "A valid display name is required")
 		return
 	}
-	if input.MaxPlayers == 0 {
-		input.MaxPlayers = maximumPlayerCount
+	if input.Mode == "" {
+		input.Mode = lobbyModeClassic
 	}
-	if input.MaxPlayers < minimumPlayerCount || input.MaxPlayers > maximumPlayerCount {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "maxPlayers must be between 2 and 10")
+	if input.Mode != lobbyModeClassic && input.Mode != lobbyModeFastBio {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "mode must be classic or fast_bio")
 		return
 	}
+	var maxPlayers *int
+	if input.Mode == lobbyModeClassic {
+		if input.MaxPlayers == 0 {
+			input.MaxPlayers = classicLobbyMaxPlayers
+		}
+		if input.MaxPlayers < classicLobbyMinPlayers || input.MaxPlayers > classicLobbyMaxPlayers {
+			writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "maxPlayers must be between 2 and 5 for the classic mode")
+			return
+		}
+		maxPlayers = &input.MaxPlayers
+	}
+	// fast_bio has no player cap: maxPlayers stays nil (NULL in the database).
 	if input.GameConfigID == "" {
 		input.GameConfigID = defaultConfigID
 	}
@@ -576,12 +598,12 @@ func (a *api) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 	var lobbyID string
 	if err := tx.QueryRow(r.Context(), `
 		INSERT INTO lobbies (
-			code, max_players, settings, expires_at, owner_identity_id,
+			code, mode, max_players, settings, expires_at, owner_identity_id,
 			game_config_id, game_config_version, game_config_snapshot
 		)
-		VALUES ($1, $2, '{}'::jsonb, $3, $4, $5, $6, $7)
+		VALUES ($1, $2, $3, '{}'::jsonb, $4, $5, $6, $7, $8)
 		RETURNING id
-	`, lobbyCode, input.MaxPlayers, time.Now().Add(a.photoRetention), identityID, config.ID, config.Version, snapshot).Scan(&lobbyID); err != nil {
+	`, lobbyCode, input.Mode, maxPlayers, time.Now().Add(a.photoRetention), identityID, config.ID, config.Version, snapshot).Scan(&lobbyID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
@@ -1273,8 +1295,8 @@ func hydrateQuestionnaireSnapshot(snapshot *questionnaireSnapshot) {
 	}
 }
 
-func lobbyFromSnapshot(code, status string, maxPlayers int, snapshot questionnaireSnapshot) lobbyResponse {
-	response := lobbyResponse{Code: code, Status: status, MaxPlayers: maxPlayers}
+func lobbyFromSnapshot(code, status, mode string, maxPlayers *int, snapshot questionnaireSnapshot) lobbyResponse {
+	response := lobbyResponse{Code: code, Status: status, Mode: mode, MaxPlayers: maxPlayers}
 	response.GameConfig.ID = snapshot.SourceConfigID
 	response.GameConfig.Name = snapshot.Name
 	response.GameConfig.Version = snapshot.SourceVersion
@@ -1283,14 +1305,14 @@ func lobbyFromSnapshot(code, status string, maxPlayers int, snapshot questionnai
 }
 
 func loadLobbyResponse(ctx context.Context, db dbQuerier, code string) (lobbyResponse, error) {
-	var status string
-	var maxPlayers int
+	var status, mode string
+	var maxPlayers *int
 	var snapshotJSON []byte
 	err := db.QueryRow(ctx, `
-		SELECT status, max_players, game_config_snapshot
+		SELECT status, mode, max_players, game_config_snapshot
 		FROM lobbies
 		WHERE code = $1 AND status <> 'expired' AND expires_at > now()
-	`, code).Scan(&status, &maxPlayers, &snapshotJSON)
+	`, code).Scan(&status, &mode, &maxPlayers, &snapshotJSON)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return lobbyResponse{}, errNotFound
 	}
@@ -1301,7 +1323,7 @@ func loadLobbyResponse(ctx context.Context, db dbQuerier, code string) (lobbyRes
 	if err := json.Unmarshal(snapshotJSON, &snapshot); err != nil {
 		return lobbyResponse{}, err
 	}
-	return lobbyFromSnapshot(code, status, maxPlayers, snapshot), nil
+	return lobbyFromSnapshot(code, status, mode, maxPlayers, snapshot), nil
 }
 
 func randomToken(byteCount int) (string, error) {

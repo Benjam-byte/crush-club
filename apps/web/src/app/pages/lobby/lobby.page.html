@@ -9,7 +9,96 @@
             Reconnexion au lobby en cours… Les actions sont momentanément désactivées.
           </p>
         }
-        @if (gameState.game()?.phase === 'between_rounds') {
+        @if (gameState.isFastBioMode()) {
+          <div class="lobby-code-card relative overflow-hidden rounded-[28px] p-6 text-center text-white">
+            <div class="absolute -left-6 -top-8 size-28 rounded-full border-[18px] border-white/10"></div>
+            <div class="absolute -bottom-12 -right-8 size-36 rounded-full border-[24px] border-white/10"></div>
+            <p class="relative text-xs font-bold uppercase tracking-[0.18em] text-white/75">Code à partager</p>
+            <div class="relative mt-1 text-[44px] font-extrabold tracking-[0.18em]">
+              {{ gameState.lobbyCode() }}
+            </div>
+            <p class="relative mt-1 text-xs font-semibold text-white/80">Fast Bio · 5 joueurs minimum, pas de maximum</p>
+          </div>
+
+          <div class="surface-card overflow-hidden">
+            <header class="flex items-center gap-3 border-b border-peach-100 bg-peach-50 px-5 py-4">
+              <div class="grid size-10 shrink-0 place-items-center rounded-2xl bg-peach-100 text-lg text-brand-600">
+                <ion-icon name="share-social" aria-hidden="true" />
+              </div>
+              <h2 class="text-sm font-extrabold text-ink-900">Invite le groupe</h2>
+            </header>
+            <div class="p-5">
+              <p class="text-xs leading-5 text-ink-600">Le code du lobby sera déjà rempli à l’ouverture du lien.</p>
+              <div class="mt-4 flex justify-end">
+                <button
+                  class="copy-link-button inline-flex min-h-12 items-center justify-center gap-2 bg-peach-100 text-xs font-extrabold text-brand-600 transition active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-brand-500"
+                  type="button"
+                  (click)="onCopyLink()"
+                >
+                  <ion-icon name="copy" aria-hidden="true" />
+                  Copier le lien
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <section class="surface-card overflow-hidden">
+            <header class="flex items-center justify-between border-b border-peach-100 px-5 py-4">
+              <h2 class="text-base font-extrabold text-ink-900">Joueurs</h2>
+              <span class="rounded-full bg-peach-100 px-3 py-1.5 text-xs font-extrabold text-brand-600">
+                {{ gameState.playerList().length }} joueurs
+              </span>
+            </header>
+            <ul class="divide-y divide-peach-100">
+              @for (player of gameState.playerList(); track player.id) {
+                <li class="flex min-h-[60px] items-center gap-3 px-4 py-3">
+                  <span class="size-2.5 rounded-full" [class.bg-success-500]="player.connected" [class.bg-warning-500]="!player.connected"></span>
+                  <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">
+                    {{ player.displayName }}
+                    @if (player.isHost) { <span class="text-[10px] uppercase text-warning-500">· hôte</span> }
+                    @if (player.isCurrentPlayer) { <span class="text-[10px] font-bold text-ink-500">· toi</span> }
+                  </span>
+                  <span class="text-[10px] font-bold" [class.text-success-500]="player.connected" [class.text-warning-500]="!player.connected">
+                    {{ player.connected ? 'En ligne' : 'Reconnexion…' }}
+                  </span>
+                  @if (gameState.canExcludePlayer(player)) {
+                    <button
+                      class="rounded-xl bg-danger-50 px-2 py-1 text-[10px] font-extrabold text-danger-500"
+                      type="button"
+                      [attr.aria-label]="'Exclure ' + player.displayName"
+                      [disabled]="!gameState.isRealtimeConnected() || gameState.isExcludingPlayer(player.id)"
+                      (click)="onExcludePlayer(player.id)"
+                    >{{ gameState.isExcludingPlayer(player.id) ? 'Exclusion…' : 'Exclure' }}</button>
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+
+          @if (gameState.isHost()) {
+            <ion-button
+              class="action-button w-full"
+              expand="block"
+              [disabled]="!gameState.canStartFastBioGame()"
+              (click)="onStartFastBioGame()"
+            >
+              <ion-icon name="rocket" slot="start" aria-hidden="true" />
+              {{ gameState.canStartFastBioGame() ? 'Lancer la partie' : 'En attente du groupe (5 min.)' }}
+              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+            </ion-button>
+          } @else {
+            <div class="surface-card p-5 text-center">
+              <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
+              <p class="mt-2 text-sm font-extrabold text-ink-900">En attente de l’hôte</p>
+              <p class="mt-1 text-xs text-ink-500">La partie démarre dès que l’hôte la lance.</p>
+            </div>
+          }
+
+          @if (gameState.errorMessage(); as errorMessage) {
+            <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
+          }
+        } @else {
+        @if (gameState.game()?.phase === 'between_rounds' && gameState.game()?.isParticipant) {
           <header class="text-center">
             <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
               Entracte · manche {{ gameState.game()?.roundNumber }} terminée
@@ -278,6 +367,7 @@
         <p class="text-center text-[11px] leading-5 text-ink-500">
           Le démarrage devient disponible dès que tout le monde a validé ses quatre photos.
         </p>
+        }
         }
       </section>
     </main>

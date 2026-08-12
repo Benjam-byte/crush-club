@@ -2,6 +2,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom, timeout } from 'rxjs';
 import type {
+  LobbyMode,
   LobbyResponse,
   LobbyStateResponse,
   PlayerSessionResponse,
@@ -10,7 +11,8 @@ import type {
 
 export interface CreateLobbyInput {
   displayName: string
-  maxPlayers: number
+  mode: LobbyMode
+  maxPlayers?: number
   gameConfigId: string
 }
 
@@ -182,6 +184,96 @@ export class LobbyApiService {
         null,
         { headers: this.authorizationHeaders(reconnectToken) },
       ),
+    );
+  }
+
+  startFastBio(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/fast-bio/start`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  submitFastBioTheme(code: string, reconnectToken: string, theme: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/fast-bio/themes`,
+        { theme },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  rankFastBioThemes(code: string, reconnectToken: string, ranking: readonly string[]): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/fast-bio/themes/rank`,
+        { ranking },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  submitFastBioProposal(
+    code: string,
+    reconnectToken: string,
+    photo: File,
+    bio: string,
+  ): Promise<LobbyStateResponse> {
+    const formData = new FormData();
+    formData.append('photo', photo, photo.name);
+    formData.append('bio', bio);
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/fast-bio/proposal`, formData, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  getFastBioProposalPhoto(code: string, reconnectToken: string, proposalId: string): Promise<Blob> {
+    return firstValueFrom(
+      this.http.get(`/api/v1/lobbies/${code}/fast-bio/photos/${proposalId}`, {
+        headers: this.authorizationHeaders(reconnectToken),
+        responseType: 'blob',
+      }),
+    );
+  }
+
+  advanceFastBioReview(
+    code: string,
+    reconnectToken: string,
+    direction: 'next' | 'previous',
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/fast-bio/review/advance`,
+        { direction },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  reactToFastBioProposal(
+    code: string,
+    reconnectToken: string,
+    proposalId: string,
+    emoji: string,
+  ): Promise<void> {
+    return firstValueFrom(
+      this.http.post<void>(
+        `/api/v1/lobbies/${code}/fast-bio/proposals/${proposalId}/react`,
+        { emoji },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  replayFastBio(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/fast-bio/replay`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
     );
   }
 

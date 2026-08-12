@@ -1,0 +1,112 @@
+<div class="ion-page">
+  <ion-content>
+    <main class="app-shell min-h-full pb-8">
+      <app-page-header title="Thèmes Fast Bio" backLink="/" />
+
+      <section class="space-y-4 px-5 pt-3">
+        @if (!gameState.isRealtimeConnected()) {
+          <p class="rounded-2xl bg-warning-50 px-4 py-3 text-xs font-semibold text-warning-500">
+            Reconnexion au lobby en cours…
+          </p>
+        }
+
+        @if (gameState.fastBioGame()?.phase === 'collecting_themes') {
+          @if (!gameState.fastBioGame()?.themeSubmitted) {
+            <header class="text-center">
+              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">Étape 1</p>
+              <h1 class="mt-2 text-2xl font-extrabold text-ink-900">Propose un thème</h1>
+              <p class="mt-2 text-sm text-ink-600">Facultatif : un mot ou une expression, ex. « Mode mystérieux ».</p>
+            </header>
+            <form class="surface-card space-y-4 p-5" [formGroup]="themeForm" (ngSubmit)="onSubmitTheme()">
+              <ion-input
+                class="form-input"
+                formControlName="theme"
+                label="Ton thème"
+                labelPlacement="stacked"
+                maxlength="60"
+                placeholder="Mode glamour…"
+              />
+              <ion-button class="action-button w-full" expand="block" type="submit" [disabled]="isSubmittingTheme()">
+                {{ isSubmittingTheme() ? 'Envoi…' : 'Proposer ce thème' }}
+                <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+              </ion-button>
+              <ion-button
+                class="w-full"
+                expand="block"
+                fill="clear"
+                type="button"
+                [disabled]="isSubmittingTheme()"
+                (click)="onSkipTheme()"
+              >
+                Passer
+              </ion-button>
+            </form>
+          } @else {
+            <div class="surface-card p-6 text-center">
+              <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
+              <p class="mt-2 text-sm font-extrabold text-ink-900">En attente des autres joueurs…</p>
+              <p class="mt-1 text-xs text-ink-500">Le classement des thèmes s’ouvrira automatiquement.</p>
+            </div>
+          }
+        }
+
+        @if (gameState.fastBioGame()?.phase === 'ranking_themes') {
+          @if (!gameState.fastBioGame()?.themeRanked) {
+            <header class="text-center">
+              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">Étape 2</p>
+              <h1 class="mt-2 text-2xl font-extrabold text-ink-900">Classe les thèmes</h1>
+              <p class="mt-2 text-sm text-ink-600">Du meilleur (en haut) au moins bon. Les 3 premiers seront joués.</p>
+            </header>
+            <ol class="surface-card divide-y divide-peach-100 overflow-hidden">
+              @for (theme of ranking(); track theme; let index = $index) {
+                <li class="flex items-center gap-3 px-4 py-3">
+                  <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">
+                    {{ index + 1 }}
+                  </span>
+                  <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{ theme }}</span>
+                  <button
+                    class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-50 text-brand-600 disabled:opacity-30"
+                    type="button"
+                    [disabled]="index === 0"
+                    (click)="moveUp(index)"
+                    aria-label="Monter ce thème"
+                  >
+                    <ion-icon name="chevron-up" aria-hidden="true" />
+                  </button>
+                  <button
+                    class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-50 text-brand-600 disabled:opacity-30"
+                    type="button"
+                    [disabled]="index === ranking().length - 1"
+                    (click)="moveDown(index)"
+                    aria-label="Descendre ce thème"
+                  >
+                    <ion-icon name="chevron-down" aria-hidden="true" />
+                  </button>
+                </li>
+              }
+            </ol>
+            <ion-button
+              class="action-button w-full"
+              expand="block"
+              [disabled]="isSubmittingRanking()"
+              (click)="onSubmitRanking()"
+            >
+              {{ isSubmittingRanking() ? 'Envoi…' : 'Valider mon classement' }}
+              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+            </ion-button>
+          } @else {
+            <div class="surface-card p-6 text-center">
+              <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
+              <p class="mt-2 text-sm font-extrabold text-ink-900">En attente des autres votes…</p>
+              <p class="mt-1 text-xs text-ink-500">La première manche démarrera automatiquement.</p>
+            </div>
+          }
+        }
+
+        @if (gameState.errorMessage(); as errorMessage) {
+          <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
+        }
+      </section>
+    </main>
+  </ion-content>
+</div>

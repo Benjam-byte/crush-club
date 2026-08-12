@@ -10,6 +10,7 @@ import {
   IonSelect,
   IonSelectOption,
 } from '@ionic/angular/standalone';
+import type { LobbyMode } from '@core/models/game.models';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
 import { GameConfigService } from '../../core/services/game-config.service';
 import { GameStateService } from '../../core/services/game-state.service';
@@ -42,6 +43,7 @@ export class JoinPage implements OnInit {
   );
   protected readonly hasSubmitted = signal(false);
   protected readonly isSubmitting = signal(false);
+  protected readonly selectedMode = signal<LobbyMode>('classic');
   private readonly invitedLobbyCode = (this.activatedRoute.snapshot.queryParamMap.get('code') ?? '')
     .replace(/[^a-zA-Z0-9]/g, '')
     .toUpperCase()
@@ -55,6 +57,11 @@ export class JoinPage implements OnInit {
     displayName: new FormControl('', {
       nonNullable: true,
       validators: [Validators.required, Validators.minLength(2), Validators.maxLength(24)],
+    }),
+    mode: new FormControl<LobbyMode>('classic', { nonNullable: true }),
+    maxPlayers: new FormControl(5, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(3), Validators.max(5)],
     }),
     gameConfigId: new FormControl('', { nonNullable: true }),
   });
@@ -83,7 +90,8 @@ export class JoinPage implements OnInit {
     if (!this.isCreateMode() && this.joinForm.controls.lobbyCode.invalid) {
       return;
     }
-    if (this.isCreateMode() && !this.joinForm.controls.gameConfigId.value) {
+    const isFastBioMode = this.selectedMode() === 'fast_bio';
+    if (this.isCreateMode() && !isFastBioMode && !this.joinForm.controls.gameConfigId.value) {
       return;
     }
 
@@ -93,7 +101,9 @@ export class JoinPage implements OnInit {
       const lobbyCode = this.isCreateMode()
         ? await this.gameState.createLobby(
             displayName,
+            this.selectedMode(),
             this.joinForm.controls.gameConfigId.value,
+            isFastBioMode ? undefined : this.joinForm.controls.maxPlayers.value,
           )
         : await this.gameState.joinLobby(displayName, this.joinForm.controls.lobbyCode.value);
       await this.router.navigate(['/lobby', lobbyCode]);
@@ -112,5 +122,11 @@ export class JoinPage implements OnInit {
     this.joinForm.controls.lobbyCode.setValue(normalizedCode, {
       emitEvent: false,
     });
+  }
+
+  protected onModeChange(event: Event): void {
+    const mode = (event as CustomEvent<{ value: LobbyMode }>).detail.value;
+    this.selectedMode.set(mode);
+    this.joinForm.controls.mode.setValue(mode, { emitEvent: false });
   }
 }

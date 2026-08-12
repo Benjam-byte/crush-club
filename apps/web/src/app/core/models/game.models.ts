@@ -6,6 +6,16 @@ export type LobbyStatus =
   | 'completed'
   | 'expired'
 
+export type LobbyMode = 'classic' | 'fast_bio'
+
+export type FastBioGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
+
+export type FastBioRoundPhase = 'submitting' | 'reviewing' | 'completed'
+
+export const fastBioReactionEmojis = ['❤️', '😂', '😐', '🤮'] as const
+
+export type FastBioReactionEmoji = typeof fastBioReactionEmojis[number]
+
 export type PlayerReadyStatus = 'joining' | 'preparing_photos' | 'ready'
 
 export type PlayerRole = 'lover' | 'cupid'
@@ -109,7 +119,8 @@ export interface LobbyGameConfigSummary {
 export interface LobbyResponse {
   code: string
   status: LobbyStatus
-  maxPlayers: number
+  mode: LobbyMode
+  maxPlayers: number | null
   gameConfig: LobbyGameConfigSummary
 }
 
@@ -169,6 +180,7 @@ export interface GameStateView {
   roundNumber: number
   totalRounds: number
   role: 'subject' | 'cupid'
+  isParticipant: boolean
   subjectPlayerId: string
   nextSubjectPlayerId?: string
   submitted: boolean
@@ -185,12 +197,61 @@ export interface LobbyStateResponse {
   serverTime: string
   code: string
   status: LobbyStatus
-  maxPlayers: number
+  mode: LobbyMode
+  maxPlayers: number | null
   currentPlayerId: string
   players: readonly Omit<LobbyPlayer, 'isCurrentPlayer'>[]
   gameConfig: LobbyGameConfigSummary
   questionnaire: QuestionnaireSnapshot
   game?: GameStateView
+  fastBioGame?: FastBioStateView
+}
+
+export interface FastBioProposalView {
+  id: string
+  authorPlayerId: string
+  authorDisplayName: string
+  targetPlayerId: string
+  targetDisplayName: string
+  photoId: string
+  bio: string
+  reactions: readonly FastBioReactionCountView[]
+  totalPoints: number
+}
+
+export interface FastBioReactionCountView {
+  emoji: string
+  count: number
+}
+
+export interface FastBioLeaderboardEntryView {
+  playerId: string
+  displayName: string
+  score: number
+  roundScore: number
+}
+
+export interface FastBioStateView {
+  id: string
+  phase: FastBioGamePhase
+  themeSubmitted: boolean
+  themeCandidates?: readonly string[]
+  themeRanked: boolean
+  selectedThemes?: readonly string[]
+  roundNumber?: number
+  totalRounds?: number
+  roundPhase?: FastBioRoundPhase
+  themeLabel?: string
+  submissionDeadline?: string
+  targetPlayerId?: string
+  targetDisplayName?: string
+  submitted: boolean
+  proposalCount?: number
+  reviewIndex?: number
+  isHostReview?: boolean
+  currentProposal?: FastBioProposalView
+  myReactionEmoji?: string
+  leaderboard?: readonly FastBioLeaderboardEntryView[]
 }
 
 export interface PlayerSessionResponse {

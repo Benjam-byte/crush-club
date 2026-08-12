@@ -24,6 +24,19 @@ type realtimeClient struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	send   chan struct{}
+	events chan websocketReactionEvent
+}
+
+// websocketReactionEvent is an ephemeral, non-persisted push used for the
+// Fast Bio emoji "fly-up" animation. Unlike state.snapshot (revision-based,
+// reliable), it is delivered on a best-effort basis: a dropped reaction only
+// costs a missed animation, never a wrong score (the score itself is always
+// persisted before this is broadcast).
+type websocketReactionEvent struct {
+	Type           string `json:"type"`
+	ProposalID     string `json:"proposalId"`
+	Emoji          string `json:"emoji"`
+	AuthorPlayerID string `json:"authorPlayerId"`
 }
 
 type websocketAuthentication struct {
@@ -74,6 +87,7 @@ func (a *api) handleLobbyWebSocket(w http.ResponseWriter, r *http.Request) {
 		ctx:    connectionContext,
 		cancel: cancelConnection,
 		send:   make(chan struct{}, 1),
+		events: make(chan websocketReactionEvent, 8),
 	}
 	firstConnection := a.hub.register(client)
 	if firstConnection {
@@ -160,6 +174,26 @@ func (h *realtimeHub) publish(code string) {
 	}
 }
 
+// broadcastReaction pushes an ephemeral reaction event to every client in the
+// room. Delivery is non-blocking and best-effort: a client whose events
+// buffer is full simply misses the animation rather than stalling the
+// broadcaster or the state.snapshot path.
+func (h *realtimeHub) broadcastReaction(code string, event websocketReactionEvent) {
+	h.mu.RLock()
+	room := h.clients[strings.ToUpper(code)]
+	clientList := make([]*realtimeClient, 0, len(room))
+	for client := range room {
+		clientList = append(clientList, client)
+	}
+	h.mu.RUnlock()
+	for _, client := range clientList {
+		select {
+		case client.events <- event:
+		default:
+		}
+	}
+}
+
 func (h *realtimeHub) writeLoop(client *realtimeClient) {
 	for {
 		select {
@@ -178,6 +212,17 @@ func (h *realtimeHub) writeLoop(client *realtimeClient) {
 			if err != nil {
 				if !errors.Is(err, context.Canceled) {
 					h.api.logger.Debug("websocket snapshot failed", "player_id", client.player.ID, "error", err)
+				}
+				client.cancel()
+				return
+			}
+		case event := <-client.events:
+			requestContext, cancel := context.WithTimeout(client.ctx, 10*time.Second)
+			err := wsjson.Write(requestContext, client.conn, event)
+			cancel()
+			if err != nil {
+				if !errors.Is(err, context.Canceled) {
+					h.api.logger.Debug("websocket reaction broadcast failed", "player_id", client.player.ID, "error", err)
 				}
 				client.cancel()
 				return

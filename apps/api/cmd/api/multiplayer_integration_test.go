@@ -165,7 +165,7 @@ func TestIntegrationLegacyCatalogReferencesBecomeIndependentPersonalCopies(t *te
 			http.StatusCreated,
 		)
 	}
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	suffix := fmt.Sprintf("%06d", time.Now().UnixNano()%1_000_000)
 	first := createCopy("Legacy copy A " + suffix)
 	second := createCopy("Legacy copy B " + suffix)
 	if first.Kind != "personal" || len(first.Questions) != len(orderedSources) {
@@ -609,7 +609,7 @@ func TestDisconnectedPlayersCanBeExcludedDuringAndBetweenRounds(t *testing.T) {
 			http.MethodPost,
 			baseURL+"/api/v1/lobbies/"+code+"/players",
 			"",
-			map[string]string{"displayName": fmt.Sprintf("RoundExcludeGuest%d-%s", index, suffix)},
+			map[string]string{"displayName": fmt.Sprintf("RndGuest%d-%s", index, suffix)},
 			http.StatusCreated,
 		))
 	}
@@ -845,15 +845,18 @@ func TestMultiplayerHTTPFlow(t *testing.T) {
 		state.Game.RoundNumber != 2 || state.Game.SubjectPlayerID != guest.State.CurrentPlayerID {
 		t.Fatalf("roles did not reverse: %#v", state.Game)
 	}
+	round2PrimaryPhotoID := integrationSubjectPhotoID(t, state)
+	round2OfficialInput := validIntegrationSubmission(state.Questionnaire, round2PrimaryPhotoID, false)
+	round2PredictionInput := validIntegrationSubmission(state.Questionnaire, round2PrimaryPhotoID, true)
 	integrationRequestJSON[lobbyStateResponse](
 		t, hostIdentity, http.MethodPut,
 		baseURL+"/api/v1/lobbies/"+code+"/rounds/current/submission",
-		host.ReconnectToken, predictionInput, http.StatusOK,
+		host.ReconnectToken, round2PredictionInput, http.StatusOK,
 	)
 	state = integrationRequestJSON[lobbyStateResponse](
 		t, integrationSession{client: hostIdentity.client}, http.MethodPut,
 		baseURL+"/api/v1/lobbies/"+code+"/rounds/current/submission",
-		guest.ReconnectToken, officialInput, http.StatusOK,
+		guest.ReconnectToken, round2OfficialInput, http.StatusOK,
 	)
 	if state.Game == nil || len(state.Game.Submissions) != 1 || state.Game.Submissions[0].PlayerID != "" {
 		t.Fatal("the target received a non-anonymous prediction")
@@ -931,6 +934,12 @@ func TestLeavingInProgressGameTransfersHostAndPurgesLastPlayer(t *testing.T) {
 	)
 	uploadIntegrationPhotos(t, baseURL, code, host.ReconnectToken, hostIdentity.client)
 	uploadIntegrationPhotos(t, baseURL, code, guest.ReconnectToken, hostIdentity.client)
+	hostSocket := openIntegrationWebSocket(t, baseURL, code, host.ReconnectToken)
+	defer hostSocket.CloseNow()
+	guestSocket := openIntegrationWebSocket(t, baseURL, code, guest.ReconnectToken)
+	defer guestSocket.CloseNow()
+	waitForPlayerConnection(t, baseURL, code, host.ReconnectToken, host.State.CurrentPlayerID, true)
+	waitForPlayerConnection(t, baseURL, code, host.ReconnectToken, guest.State.CurrentPlayerID, true)
 	integrationRequestJSON[lobbyStateResponse](
 		t, hostIdentity, http.MethodPost, baseURL+"/api/v1/lobbies/"+code+"/start",
 		host.ReconnectToken, nil, http.StatusOK,
@@ -1169,7 +1178,7 @@ func TestFourPlayerRoundIntermissions(t *testing.T) {
 func TestMultiplayerCapacityIsAtomic(t *testing.T) {
 	baseURL := integrationBaseURL(t)
 	suffix := fmt.Sprintf("%06d", time.Now().UnixNano()%1_000_000)
-	hostIdentity, host := createIntegrationLobby(t, baseURL, "CapacityHost-"+suffix, maximumPlayerCount)
+	hostIdentity, host := createIntegrationLobby(t, baseURL, "CapacityHost-"+suffix, classicLobbyMaxPlayers)
 
 	var waitGroup sync.WaitGroup
 	statusList := make(chan int, 12)
@@ -1207,15 +1216,17 @@ func TestMultiplayerCapacityIsAtomic(t *testing.T) {
 			t.Fatalf("unexpected concurrent join status: %d", status)
 		}
 	}
-	if createdCount != 9 || conflictCount != 3 {
-		t.Fatalf("concurrent joins: created=%d conflicts=%d, want 9 and 3", createdCount, conflictCount)
+	wantCreated := classicLobbyMaxPlayers - 1 // the host already holds one seat
+	wantConflict := 12 - wantCreated
+	if createdCount != wantCreated || conflictCount != wantConflict {
+		t.Fatalf("concurrent joins: created=%d conflicts=%d, want %d and %d", createdCount, conflictCount, wantCreated, wantConflict)
 	}
 	state := integrationRequestJSON[lobbyStateResponse](
 		t, hostIdentity, http.MethodGet,
 		baseURL+"/api/v1/lobbies/"+host.State.Code+"/state",
 		host.ReconnectToken, nil, http.StatusOK,
 	)
-	if len(state.Players) != maximumPlayerCount {
-		t.Fatalf("lobby contains %d players, want %d", len(state.Players), maximumPlayerCount)
+	if len(state.Players) != classicLobbyMaxPlayers {
+		t.Fatalf("lobby contains %d players, want %d", len(state.Players), classicLobbyMaxPlayers)
 	}
 }
