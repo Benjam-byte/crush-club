@@ -189,7 +189,7 @@ export class GameStateService {
       this.fastBioGame() === null &&
       this.isHost() &&
       this.isRealtimeConnected() &&
-      players.length >= 5 &&
+      players.length >= 2 &&
       players.every((player) => player.connected);
   });
   readonly canStartZeroToHundredGame = computed(() => {
@@ -198,7 +198,7 @@ export class GameStateService {
       this.zeroToHundredGame() === null &&
       this.isHost() &&
       this.isRealtimeConnected() &&
-      players.length >= 5 &&
+      players.length >= 3 &&
       players.every((player) => player.connected);
   });
 
@@ -532,6 +532,11 @@ export class GameStateService {
 
   isExcludingPlayer(playerId: string): boolean {
     return this.playerExclusion.isPending(playerId);
+  }
+
+  /** Clears the current error message, e.g. once the global error toast has been read/dismissed. */
+  clearError(): void {
+    this.errorMessageState.set(null);
   }
 
   photoUrl(photoId: string | undefined): string | null {
@@ -883,7 +888,7 @@ export class GameStateService {
         player_not_found: 'Ce joueur ne fait plus partie du lobby.',
         cannot_exclude_self: 'Tu ne peux pas t’exclure toi-même du lobby.',
         cannot_exclude_host: 'L’hôte du lobby ne peut pas être exclu.',
-        invalid_player_count: 'Il faut au moins cinq joueurs pour lancer une partie Fast Bio.',
+        invalid_player_count: 'Il n’y a pas assez de joueurs actifs pour lancer la partie.',
         players_offline: 'Tout le monde doit être connecté avant de lancer la partie.',
         wrong_mode: 'Ce lobby n’est pas configuré en mode Fast Bio.',
         invalid_theme: 'Ce thème est trop long.',

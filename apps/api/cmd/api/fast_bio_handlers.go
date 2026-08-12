@@ -57,8 +57,8 @@ func (a *api) handleStartFastBioGame(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	if len(playerIDs) < fastBioLobbyMinPlayers {
-		writeError(w, http.StatusConflict, "invalid_player_count", "Fast Bio needs at least five players")
+	if len(playerIDs) < minimumPlayerCount {
+		writeError(w, http.StatusConflict, "invalid_player_count", "Fast Bio needs at least two players")
 		return
 	}
 	for _, id := range playerIDs {

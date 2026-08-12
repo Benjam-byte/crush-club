@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { IonApp, IonRouterOutlet, IonToast } from '@ionic/angular/standalone';
 import { AppUpdateService } from '@core/services/app-update.service';
+import { GameStateService } from '@core/services/game-state.service';
 import { HostDisconnectedPlayersComponent } from './core/components/host-disconnected-players/host-disconnected-players.component';
 
 @Component({
@@ -12,6 +13,7 @@ import { HostDisconnectedPlayersComponent } from './core/components/host-disconn
 })
 export class AppComponent {
   protected readonly appUpdate = inject(AppUpdateService);
+  protected readonly gameState = inject(GameStateService);
 
   protected readonly updateToastButtons = [
     {

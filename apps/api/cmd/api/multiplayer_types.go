@@ -25,7 +25,6 @@ const (
 	// classic engine (which already treats 2 as a valid game size).
 	classicLobbyMinPlayers  = minimumPlayerCount
 	classicLobbyMaxPlayers  = 5
-	fastBioLobbyMinPlayers  = 5
 	fastBioRoundCount       = 3
 	fastBioSubmissionWindow = 2 * time.Minute
 
@@ -34,7 +33,6 @@ const (
 	fastBioReactionNeutral = "😐"
 	fastBioReactionSick    = "🤮"
 
-	zeroToHundredLobbyMinPlayers       = 5
 	zeroToHundredRoundCount            = 3
 	zeroToHundredGuessWindow           = 2 * time.Minute
 	zeroToHundredNomineeCount          = 3

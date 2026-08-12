@@ -9,4 +9,13 @@
     [buttons]="updateToastButtons"
     (didDismiss)="appUpdate.dismissUpdateToast()"
   />
+
+  <ion-toast
+    [isOpen]="!!gameState.errorMessage()"
+    [message]="gameState.errorMessage() ?? ''"
+    color="danger"
+    position="top"
+    [duration]="4000"
+    (didDismiss)="gameState.clearError()"
+  />
 </ion-app>

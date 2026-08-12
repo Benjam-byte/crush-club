@@ -65,8 +65,8 @@ func (a *api) handleStartZeroToHundredGame(w http.ResponseWriter, r *http.Reques
 		a.internalError(w, r, err)
 		return
 	}
-	if len(playerIDs) < zeroToHundredLobbyMinPlayers {
-		writeError(w, http.StatusConflict, "invalid_player_count", "0 à 100 needs at least five players")
+	if len(playerIDs) < zeroToHundredNomineeCount {
+		writeError(w, http.StatusConflict, "invalid_player_count", "0 à 100 needs at least three players")
 		return
 	}
 	for _, id := range playerIDs {
