@@ -86,7 +86,7 @@
               (click)="onStartUncappedGame()"
             >
               <ion-icon name="rocket" slot="start" aria-hidden="true" />
-              {{ canStartUncappedGame() ? 'Lancer la partie' : ('En attente du groupe (' + uncappedModeMinPlayers() + ' min.)') }}
+              {{ canStartUncappedGame() ? 'Lancer la partie' : ('En attente de joueurs (' + uncappedModeMinPlayers() + ' joueurs minimum)') }}
               <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
             </ion-button>
           } @else {

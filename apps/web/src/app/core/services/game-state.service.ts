@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { activeNavigationUrl } from '@core/guards/lobby-route';
+import { activeNavigationUrl, uncappedModeDestination } from '@core/guards/lobby-route';
 import { primaryPhotoQuestionId } from '@core/models/game.models';
 import type {
   AnswerValue,
@@ -852,16 +852,11 @@ export class GameStateService {
     if (!currentURL.startsWith('/lobby/') && !currentURL.startsWith('/game/')) {
       return;
     }
-    if (state.mode === 'fast_bio') {
-      await this.synchronizeFastBioRoute(state, currentURL);
-      return;
-    }
-    if (state.mode === 'zero_to_100') {
-      await this.synchronizeZeroToHundredRoute(state, currentURL);
-      return;
-    }
-    if (state.mode === 'situation') {
-      await this.synchronizeSituationRoute(state, currentURL);
+    if (state.mode === 'fast_bio' || state.mode === 'zero_to_100' || state.mode === 'situation') {
+      const destination = uncappedModeDestination(state);
+      if (currentURL !== destination && (currentURL.startsWith('/game/') || destination !== `/lobby/${state.code}`)) {
+        await this.router.navigateByUrl(destination);
+      }
       return;
     }
     if (
@@ -897,90 +892,6 @@ export class GameStateService {
     const collectingRouteIsValid = state.game.phase === 'collecting_submissions' &&
       (currentURL.startsWith(roundBase) && !currentURL.includes('/reveal') && !currentURL.includes('/scores'));
     if (!collectingRouteIsValid && !currentURL.startsWith(expectedPrefix)) {
-      await this.router.navigateByUrl(destination);
-    }
-  }
-
-  private async synchronizeFastBioRoute(state: LobbyStateResponse, currentURL: string): Promise<void> {
-    const lobbyURL = `/lobby/${state.code}`;
-    const fastBio = state.fastBioGame;
-    if (!fastBio || state.status !== 'in_game') {
-      if (currentURL !== lobbyURL && currentURL.startsWith('/game/')) {
-        await this.router.navigateByUrl(lobbyURL);
-      }
-      return;
-    }
-    let destination = lobbyURL;
-    if (fastBio.phase === 'collecting_themes' || fastBio.phase === 'ranking_themes') {
-      destination = `/game/${state.code}/theme-selection`;
-    } else if (fastBio.phase === 'playing' && fastBio.roundNumber) {
-      const roundBase = `/game/${state.code}/fast-bio/${fastBio.roundNumber}`;
-      destination = fastBio.roundPhase === 'submitting' ? `${roundBase}/assignment` : `${roundBase}/review`;
-    } else if (fastBio.phase === 'completed') {
-      destination = `/game/${state.code}/fast-bio/final`;
-    }
-    if (currentURL !== destination) {
-      await this.router.navigateByUrl(destination);
-    }
-  }
-
-  private async synchronizeZeroToHundredRoute(state: LobbyStateResponse, currentURL: string): Promise<void> {
-    const lobbyURL = `/lobby/${state.code}`;
-    const zeroToHundred = state.zeroToHundredGame;
-    if (!zeroToHundred || state.status !== 'in_game') {
-      if (currentURL !== lobbyURL && currentURL.startsWith('/game/')) {
-        await this.router.navigateByUrl(lobbyURL);
-      }
-      return;
-    }
-    let destination = lobbyURL;
-    if (zeroToHundred.phase === 'collecting_themes' || zeroToHundred.phase === 'ranking_themes') {
-      destination = `/game/${state.code}/theme-selection`;
-    } else if (zeroToHundred.phase === 'playing' && zeroToHundred.roundNumber) {
-      const roundBase = `/game/${state.code}/zero-to-100/${zeroToHundred.roundNumber}`;
-      destination = zeroToHundred.roundPhase === 'guessing' ? `${roundBase}/guess` : `${roundBase}/results`;
-    } else if (zeroToHundred.phase === 'completed') {
-      destination = `/game/${state.code}/zero-to-100/final`;
-    }
-    if (currentURL !== destination) {
-      await this.router.navigateByUrl(destination);
-    }
-  }
-
-  private async synchronizeSituationRoute(state: LobbyStateResponse, currentURL: string): Promise<void> {
-    const lobbyURL = `/lobby/${state.code}`;
-    const situation = state.situationGame;
-    if (!situation || state.status !== 'in_game') {
-      if (currentURL !== lobbyURL && currentURL.startsWith('/game/')) {
-        await this.router.navigateByUrl(lobbyURL);
-      }
-      return;
-    }
-    let destination = lobbyURL;
-    if (situation.phase === 'collecting_themes' || situation.phase === 'ranking_themes') {
-      destination = `/game/${state.code}/theme-selection`;
-    } else if (situation.phase === 'playing' && situation.roundNumber) {
-      const roundBase = `/game/${state.code}/situation/${situation.roundNumber}`;
-      switch (situation.roundPhase) {
-        case 'proposing':
-          destination = `${roundBase}/propose`;
-          break;
-        case 'dueling':
-          destination = `${roundBase}/duel`;
-          break;
-        case 'revealing':
-          destination = `${roundBase}/review`;
-          break;
-        case 'ranking':
-          destination = `${roundBase}/ranking`;
-          break;
-        default:
-          destination = `${roundBase}/results`;
-      }
-    } else if (situation.phase === 'completed') {
-      destination = `/game/${state.code}/situation/final`;
-    }
-    if (currentURL !== destination) {
       await this.router.navigateByUrl(destination);
     }
   }
