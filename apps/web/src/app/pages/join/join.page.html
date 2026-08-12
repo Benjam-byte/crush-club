@@ -74,10 +74,13 @@
                 >
                   <ion-select-option value="classic">Classique · 3 à 5 joueurs</ion-select-option>
                   <ion-select-option value="fast_bio">Fast Bio · 5 joueurs minimum</ion-select-option>
+                  <ion-select-option value="zero_to_100">0 à 100 · 5 joueurs minimum</ion-select-option>
                 </ion-select>
                 <p class="mt-2 text-xs leading-5 text-ink-500">
                   @if (selectedMode() === 'fast_bio') {
                     Chacun invente une bio + une photo pour un autre joueur sur un thème choisi par le groupe, puis tout le monde note les propositions.
+                  } @else if (selectedMode() === 'zero_to_100') {
+                    Le groupe choisit 3 thèmes, puis à chaque manche 3 nominés sont tirés au sort et tout le monde les place sur une échelle de 0 à 100.
                   } @else {
                     Chacun uploade 4 photos, puis devine les réponses de l’Amoureux à chaque manche.
                   }

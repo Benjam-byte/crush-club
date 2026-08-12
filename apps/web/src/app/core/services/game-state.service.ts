@@ -14,6 +14,8 @@ import type {
   QuestionDefinition,
   QuestionnaireSnapshot,
   RoundSubmissionInput,
+  ThemeSelectionState,
+  ZeroToHundredStateView,
 } from '@core/models/game.models';
 import { LobbyApiService } from './lobby-api.service';
 import { filterBioAnswers, restoredPrimaryPhotoId } from './game-state-draft';
@@ -88,7 +90,12 @@ export class GameStateService {
   readonly lobbyStatus = computed<LobbyStatus>(() => this.state()?.status ?? 'waiting_for_players');
   readonly mode = computed<LobbyMode>(() => this.state()?.mode ?? 'classic');
   readonly isFastBioMode = computed(() => this.mode() === 'fast_bio');
+  readonly isZeroToHundredMode = computed(() => this.mode() === 'zero_to_100');
+  readonly isUncappedMode = computed(() => this.isFastBioMode() || this.isZeroToHundredMode());
   readonly fastBioGame = computed<FastBioStateView | null>(() => this.state()?.fastBioGame ?? null);
+  readonly zeroToHundredGame = computed<ZeroToHundredStateView | null>(() => this.state()?.zeroToHundredGame ?? null);
+  /** Shared theme-collection-and-ranking state, whichever uncapped mode is active. */
+  readonly themeSelectionState = computed<ThemeSelectionState | null>(() => this.fastBioGame() ?? this.zeroToHundredGame());
   readonly displayName = computed(() => this.currentPlayer().displayName);
   readonly isHost = computed(() => this.currentPlayer().isHost);
   readonly playerList = computed<readonly LobbyPlayer[]>(() => {
@@ -180,6 +187,15 @@ export class GameStateService {
     const players = this.playerList();
     return this.isFastBioMode() &&
       this.fastBioGame() === null &&
+      this.isHost() &&
+      this.isRealtimeConnected() &&
+      players.length >= 5 &&
+      players.every((player) => player.connected);
+  });
+  readonly canStartZeroToHundredGame = computed(() => {
+    const players = this.playerList();
+    return this.isZeroToHundredMode() &&
+      this.zeroToHundredGame() === null &&
       this.isHost() &&
       this.isRealtimeConnected() &&
       players.length >= 5 &&
@@ -321,17 +337,54 @@ export class GameStateService {
     );
   }
 
-  async submitFastBioTheme(theme: string): Promise<void> {
+  /** Submits (or passes on, via an empty string) a theme proposal for whichever uncapped mode is active. */
+  async submitTheme(theme: string): Promise<void> {
     await this.runStateCommand(
-      (code, token) => this.lobbyApi.submitFastBioTheme(code, token, theme),
+      (code, token) => this.isZeroToHundredMode()
+        ? this.lobbyApi.submitZeroToHundredTheme(code, token, theme)
+        : this.lobbyApi.submitFastBioTheme(code, token, theme),
       'Ta proposition de thème n’a pas pu être envoyée.',
     );
   }
 
-  async rankFastBioThemes(ranking: readonly string[]): Promise<void> {
+  /** Submits the player's ranking of theme candidates for whichever uncapped mode is active. */
+  async rankThemes(ranking: readonly string[]): Promise<void> {
     await this.runStateCommand(
-      (code, token) => this.lobbyApi.rankFastBioThemes(code, token, ranking),
+      (code, token) => this.isZeroToHundredMode()
+        ? this.lobbyApi.rankZeroToHundredThemes(code, token, ranking)
+        : this.lobbyApi.rankFastBioThemes(code, token, ranking),
       'Ton classement n’a pas pu être envoyé.',
+    );
+  }
+
+  async startZeroToHundredGame(): Promise<void> {
+    if (!this.canStartZeroToHundredGame()) {
+      return;
+    }
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.startZeroToHundred(code, token),
+      'La partie n’a pas pu démarrer.',
+    );
+  }
+
+  async submitZeroToHundredGuesses(positions: Readonly<Record<string, number>>): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.submitZeroToHundredGuesses(code, token, positions),
+      'Tes positions n’ont pas pu être envoyées.',
+    );
+  }
+
+  async startNextZeroToHundredRound(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.startNextZeroToHundredRound(code, token),
+      'La manche suivante n’a pas pu démarrer.',
+    );
+  }
+
+  async replayZeroToHundred(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.replayZeroToHundred(code, token),
+      'Impossible de relancer une nouvelle manche.',
     );
   }
 
@@ -720,6 +773,10 @@ export class GameStateService {
       await this.synchronizeFastBioRoute(state, currentURL);
       return;
     }
+    if (state.mode === 'zero_to_100') {
+      await this.synchronizeZeroToHundredRoute(state, currentURL);
+      return;
+    }
     if (
       !state.game || !state.status || state.status !== 'in_game' && state.status !== 'completed' ||
       !state.game.isParticipant
@@ -768,12 +825,35 @@ export class GameStateService {
     }
     let destination = lobbyURL;
     if (fastBio.phase === 'collecting_themes' || fastBio.phase === 'ranking_themes') {
-      destination = `/game/${state.code}/fast-bio/themes`;
+      destination = `/game/${state.code}/theme-selection`;
     } else if (fastBio.phase === 'playing' && fastBio.roundNumber) {
       const roundBase = `/game/${state.code}/fast-bio/${fastBio.roundNumber}`;
       destination = fastBio.roundPhase === 'submitting' ? `${roundBase}/assignment` : `${roundBase}/review`;
     } else if (fastBio.phase === 'completed') {
       destination = `/game/${state.code}/fast-bio/final`;
+    }
+    if (currentURL !== destination) {
+      await this.router.navigateByUrl(destination);
+    }
+  }
+
+  private async synchronizeZeroToHundredRoute(state: LobbyStateResponse, currentURL: string): Promise<void> {
+    const lobbyURL = `/lobby/${state.code}`;
+    const zeroToHundred = state.zeroToHundredGame;
+    if (!zeroToHundred || state.status !== 'in_game') {
+      if (currentURL !== lobbyURL && currentURL.startsWith('/game/')) {
+        await this.router.navigateByUrl(lobbyURL);
+      }
+      return;
+    }
+    let destination = lobbyURL;
+    if (zeroToHundred.phase === 'collecting_themes' || zeroToHundred.phase === 'ranking_themes') {
+      destination = `/game/${state.code}/theme-selection`;
+    } else if (zeroToHundred.phase === 'playing' && zeroToHundred.roundNumber) {
+      const roundBase = `/game/${state.code}/zero-to-100/${zeroToHundred.roundNumber}`;
+      destination = zeroToHundred.roundPhase === 'guessing' ? `${roundBase}/guess` : `${roundBase}/results`;
+    } else if (zeroToHundred.phase === 'completed') {
+      destination = `/game/${state.code}/zero-to-100/final`;
     }
     if (currentURL !== destination) {
       await this.router.navigateByUrl(destination);
@@ -822,6 +902,11 @@ export class GameStateService {
         proposal_not_active: 'Cette proposition n’est plus celle affichée par l’hôte.',
         proposal_not_found: 'Cette proposition n’existe plus.',
         fast_bio_in_progress: 'Le cycle Fast Bio en cours n’est pas encore terminé.',
+        invalid_positions: 'Place chaque nominé entre 0 et 100.',
+        zero_to_100_not_started: 'La partie 0 à 100 n’a pas encore démarré.',
+        zero_to_100_not_playing: 'Aucune manche 0 à 100 n’est ouverte pour le moment.',
+        zero_to_100_round_locked: 'Cette manche n’accepte plus de réponses.',
+        zero_to_100_in_progress: 'Le cycle 0 à 100 en cours n’est pas encore terminé.',
       };
       this.errorMessageState.set(
         serverError?.code ? errorMessageByCode[serverError.code] ?? serverError.message ?? fallbackMessage :

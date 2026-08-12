@@ -1,0 +1,72 @@
+<div class="ion-page">
+  <ion-content>
+    <main class="app-shell min-h-full pb-8">
+      <app-page-header title="Résultats de la manche" backLink="/" />
+
+      <section class="space-y-4 px-5 pt-3">
+        @if (!gameState.isRealtimeConnected()) {
+          <p class="rounded-2xl bg-warning-50 px-4 py-3 text-xs font-semibold text-warning-500">
+            Reconnexion au lobby en cours…
+          </p>
+        }
+
+        <header class="text-center">
+          <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
+            Manche {{ gameState.zeroToHundredGame()?.roundNumber }} / {{ gameState.zeroToHundredGame()?.totalRounds }}
+          </p>
+          <h1 class="mt-2 text-xl font-extrabold text-ink-900">{{ gameState.zeroToHundredGame()?.themeLabel }}</h1>
+          <p class="mt-2 text-sm font-extrabold text-brand-600">
+            Ton score cette manche : {{ gameState.zeroToHundredGame()?.roundScore ?? 0 }} pts
+          </p>
+        </header>
+
+        <div class="surface-card space-y-6 p-5">
+          @for (entry of reveal(); track entry.playerId) {
+            <div>
+              <div class="mb-2 flex items-center justify-between">
+                <span class="text-sm font-extrabold text-ink-900">{{ entry.displayName }}</span>
+                <span class="text-xs text-ink-500">
+                  Vérité <strong class="text-ink-900">{{ entry.truePosition }}</strong>
+                  · Moyenne <strong class="text-ink-900">{{ entry.averagePosition | number: '1.0-0' }}</strong>
+                  @if (entry.myGuess !== undefined) {
+                    · Ta réponse <strong class="text-ink-900">{{ entry.myGuess }}</strong>
+                  }
+                </span>
+              </div>
+              <div class="reveal-track">
+                <span class="reveal-marker reveal-marker--average" [style.left.%]="entry.averagePosition" title="Moyenne du groupe"></span>
+                @if (entry.myGuess !== undefined) {
+                  <span class="reveal-marker reveal-marker--guess" [style.left.%]="entry.myGuess" title="Ta réponse"></span>
+                }
+                <span class="reveal-marker reveal-marker--truth" [style.left.%]="entry.truePosition" title="Vérité"></span>
+              </div>
+            </div>
+          }
+        </div>
+
+        @if (gameState.isHost()) {
+          <ion-button
+            class="action-button w-full"
+            expand="block"
+            [disabled]="isStartingNextRound()"
+            (click)="onStartNextRound()"
+          >
+            <ion-icon name="rocket" slot="start" aria-hidden="true" />
+            {{ isStartingNextRound() ? 'Lancement…' : (isLastRound() ? 'Voir le classement final' : 'Lancer la manche suivante') }}
+            <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+          </ion-button>
+        } @else {
+          <div class="surface-card p-5 text-center">
+            <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
+            <p class="mt-2 text-sm font-extrabold text-ink-900">En attente de l’hôte</p>
+            <p class="mt-1 text-xs text-ink-500">La manche suivante s’ouvrira quand l’hôte la lancera.</p>
+          </div>
+        }
+
+        @if (gameState.errorMessage(); as errorMessage) {
+          <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
+        }
+      </section>
+    </main>
+  </ion-content>
+</div>

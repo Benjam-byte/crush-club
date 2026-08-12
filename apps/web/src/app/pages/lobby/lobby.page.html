@@ -9,7 +9,7 @@
             Reconnexion au lobby en cours… Les actions sont momentanément désactivées.
           </p>
         }
-        @if (gameState.isFastBioMode()) {
+        @if (gameState.isUncappedMode()) {
           <div class="lobby-code-card relative overflow-hidden rounded-[28px] p-6 text-center text-white">
             <div class="absolute -left-6 -top-8 size-28 rounded-full border-[18px] border-white/10"></div>
             <div class="absolute -bottom-12 -right-8 size-36 rounded-full border-[24px] border-white/10"></div>
@@ -17,7 +17,9 @@
             <div class="relative mt-1 text-[44px] font-extrabold tracking-[0.18em]">
               {{ gameState.lobbyCode() }}
             </div>
-            <p class="relative mt-1 text-xs font-semibold text-white/80">Fast Bio · 5 joueurs minimum, pas de maximum</p>
+            <p class="relative mt-1 text-xs font-semibold text-white/80">
+              {{ gameState.isZeroToHundredMode() ? '0 à 100' : 'Fast Bio' }} · 5 joueurs minimum, pas de maximum
+            </p>
           </div>
 
           <div class="surface-card overflow-hidden">
@@ -79,11 +81,11 @@
             <ion-button
               class="action-button w-full"
               expand="block"
-              [disabled]="!gameState.canStartFastBioGame()"
-              (click)="onStartFastBioGame()"
+              [disabled]="!canStartUncappedGame()"
+              (click)="onStartUncappedGame()"
             >
               <ion-icon name="rocket" slot="start" aria-hidden="true" />
-              {{ gameState.canStartFastBioGame() ? 'Lancer la partie' : 'En attente du groupe (5 min.)' }}
+              {{ canStartUncappedGame() ? 'Lancer la partie' : 'En attente du groupe (5 min.)' }}
               <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
             </ion-button>
           } @else {

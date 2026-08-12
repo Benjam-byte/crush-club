@@ -186,6 +186,12 @@ func (a *api) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/fast-bio/review/advance", a.handleAdvanceFastBioReview)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/fast-bio/proposals/{proposalID}/react", a.handleReactToFastBioProposal)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/fast-bio/replay", a.handleReplayFastBio)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/zero-to-100/start", a.handleStartZeroToHundredGame)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/zero-to-100/themes", a.handleSubmitZeroToHundredTheme)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/zero-to-100/themes/rank", a.handleRankZeroToHundredThemes)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/zero-to-100/guesses", a.handleSubmitZeroToHundredGuess)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/zero-to-100/rounds/next", a.handleStartNextZeroToHundredRound)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/zero-to-100/replay", a.handleReplayZeroToHundred)
 	mux.HandleFunc("GET /ws/lobbies/{code}", a.handleLobbyWebSocket)
 	return mux
 }
@@ -544,8 +550,8 @@ func (a *api) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 	if input.Mode == "" {
 		input.Mode = lobbyModeClassic
 	}
-	if input.Mode != lobbyModeClassic && input.Mode != lobbyModeFastBio {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "mode must be classic or fast_bio")
+	if input.Mode != lobbyModeClassic && input.Mode != lobbyModeFastBio && input.Mode != lobbyModeZeroToHundred {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "mode must be classic, fast_bio, or zero_to_100")
 		return
 	}
 	var maxPlayers *int
@@ -559,7 +565,7 @@ func (a *api) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 		}
 		maxPlayers = &input.MaxPlayers
 	}
-	// fast_bio has no player cap: maxPlayers stays nil (NULL in the database).
+	// fast_bio and zero_to_100 have no player cap: maxPlayers stays nil (NULL in the database).
 	if input.GameConfigID == "" {
 		input.GameConfigID = defaultConfigID
 	}

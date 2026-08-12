@@ -15,19 +15,19 @@ func TestTallyFastBioThemeRankingPicksTopThreeByBordaCount(t *testing.T) {
 	// Borda weights (4 candidates): 1st=4, 2nd=3, 3rd=2, 4th=1.
 	// Mystérieux: 4+4+3=11, Aventurier: 3+2+4=9, Glamour: 2+3+1=6, Intello: 1+1+2=4.
 	want := []string{"Mystérieux", "Aventurier", "Glamour"}
-	got := tallyFastBioThemeRanking(candidates, rankings)
+	got := tallyThemeRanking(candidates, rankings)
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("tallyFastBioThemeRanking() = %v, want %v", got, want)
+		t.Fatalf("tallyThemeRanking() = %v, want %v", got, want)
 	}
 }
 
 func TestTallyFastBioThemeRankingBreaksTiesByCandidateOrder(t *testing.T) {
 	candidates := []string{"A", "B", "C"}
 	// No rankings at all: every candidate has score 0, so the original order wins.
-	got := tallyFastBioThemeRanking(candidates, nil)
+	got := tallyThemeRanking(candidates, nil)
 	want := []string{"A", "B", "C"}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("tallyFastBioThemeRanking() = %v, want %v", got, want)
+		t.Fatalf("tallyThemeRanking() = %v, want %v", got, want)
 	}
 }
 
@@ -36,10 +36,10 @@ func TestTallyFastBioThemeRankingIgnoresUnknownEntries(t *testing.T) {
 	rankings := [][]string{
 		{"B", "unknown-theme", "A", "C"},
 	}
-	got := tallyFastBioThemeRanking(candidates, rankings)
+	got := tallyThemeRanking(candidates, rankings)
 	want := []string{"B", "A", "C"}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("tallyFastBioThemeRanking() = %v, want %v", got, want)
+		t.Fatalf("tallyThemeRanking() = %v, want %v", got, want)
 	}
 }
 

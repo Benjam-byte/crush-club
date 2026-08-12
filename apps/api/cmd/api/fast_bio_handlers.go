@@ -283,7 +283,7 @@ func (a *api) tryConcludeFastBioRanking(
 	}
 	rows.Close()
 
-	selectedThemes := tallyFastBioThemeRanking(candidates, rankings)
+	selectedThemes := tallyThemeRanking(candidates, rankings)
 	if len(selectedThemes) == 0 {
 		return "", false, errors.New("fast bio ranking produced no selected themes")
 	}
@@ -370,11 +370,11 @@ func rankingMatchesCandidates(ranking, candidates []string) bool {
 	return true
 }
 
-// tallyFastBioThemeRanking runs a Borda count over every submitted ranking
+// tallyThemeRanking runs a Borda count over every submitted ranking
 // (first place among N candidates earns N points, last place earns 1) and
 // returns the top three candidates, most popular first. Ties break by the
 // candidate's position in the input list (earliest submission first).
-func tallyFastBioThemeRanking(candidates []string, rankings [][]string) []string {
+func tallyThemeRanking(candidates []string, rankings [][]string) []string {
 	labelByKey := make(map[string]string, len(candidates))
 	orderByKey := make(map[string]int, len(candidates))
 	scoreByKey := make(map[string]int, len(candidates))

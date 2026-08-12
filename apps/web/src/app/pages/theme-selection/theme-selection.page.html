@@ -1,7 +1,7 @@
 <div class="ion-page">
   <ion-content>
     <main class="app-shell min-h-full pb-8">
-      <app-page-header title="Thèmes Fast Bio" backLink="/" />
+      <app-page-header [title]="gameState.isZeroToHundredMode() ? 'Thèmes 0 à 100' : 'Thèmes Fast Bio'" backLink="/" />
 
       <section class="space-y-4 px-5 pt-3">
         @if (!gameState.isRealtimeConnected()) {
@@ -10,12 +10,18 @@
           </p>
         }
 
-        @if (gameState.fastBioGame()?.phase === 'collecting_themes') {
-          @if (!gameState.fastBioGame()?.themeSubmitted) {
+        @if (gameState.themeSelectionState()?.phase === 'collecting_themes') {
+          @if (!gameState.themeSelectionState()?.themeSubmitted) {
             <header class="text-center">
               <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">Étape 1</p>
               <h1 class="mt-2 text-2xl font-extrabold text-ink-900">Propose un thème</h1>
-              <p class="mt-2 text-sm text-ink-600">Facultatif : un mot ou une expression, ex. « Mode mystérieux ».</p>
+              <p class="mt-2 text-sm text-ink-600">
+                @if (gameState.isZeroToHundredMode()) {
+                  Facultatif : une question à placer sur une échelle de 0 à 100, ex. « Mettre le plus de nourriture dans sa bouche ».
+                } @else {
+                  Facultatif : un mot ou une expression, ex. « Mode mystérieux ».
+                }
+              </p>
             </header>
             <form class="surface-card space-y-4 p-5" [formGroup]="themeForm" (ngSubmit)="onSubmitTheme()">
               <ion-input
@@ -23,8 +29,8 @@
                 formControlName="theme"
                 label="Ton thème"
                 labelPlacement="stacked"
-                maxlength="60"
-                placeholder="Mode glamour…"
+                maxlength="80"
+                placeholder="Résister à un fou rire…"
               />
               <ion-button class="action-button w-full" expand="block" type="submit" [disabled]="isSubmittingTheme()">
                 {{ isSubmittingTheme() ? 'Envoi…' : 'Proposer ce thème' }}
@@ -50,8 +56,8 @@
           }
         }
 
-        @if (gameState.fastBioGame()?.phase === 'ranking_themes') {
-          @if (!gameState.fastBioGame()?.themeRanked) {
+        @if (gameState.themeSelectionState()?.phase === 'ranking_themes') {
+          @if (!gameState.themeSelectionState()?.themeRanked) {
             <header class="text-center">
               <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">Étape 2</p>
               <h1 class="mt-2 text-2xl font-extrabold text-ink-900">Classe les thèmes</h1>

@@ -110,13 +110,13 @@ export const routes: Routes = [
     title: "Fin de partie Crush Club",
   },
   {
-    path: "game/:code/fast-bio/themes",
+    path: "game/:code/theme-selection",
     canActivate: [lobbySessionGuard],
     loadComponent: () =>
-      import("./pages/fast-bio-themes/fast-bio-themes.page").then(
-        (module) => module.FastBioThemesPage,
+      import("./pages/theme-selection/theme-selection.page").then(
+        (module) => module.ThemeSelectionPage,
       ),
-    title: "Thèmes Fast Bio Crush Club",
+    title: "Thèmes Crush Club",
   },
   {
     path: "game/:code/fast-bio/:roundNumber/assignment",
@@ -144,6 +144,33 @@ export const routes: Routes = [
         (module) => module.FastBioFinalPage,
       ),
     title: "Classement Fast Bio Crush Club",
+  },
+  {
+    path: "game/:code/zero-to-100/:roundNumber/guess",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/zero-to-100-guess/zero-to-100-guess.page").then(
+        (module) => module.ZeroToHundredGuessPage,
+      ),
+    title: "Devine 0 à 100 Crush Club",
+  },
+  {
+    path: "game/:code/zero-to-100/:roundNumber/results",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/zero-to-100-results/zero-to-100-results.page").then(
+        (module) => module.ZeroToHundredResultsPage,
+      ),
+    title: "Résultats 0 à 100 Crush Club",
+  },
+  {
+    path: "game/:code/zero-to-100/final",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/zero-to-100-final/zero-to-100-final.page").then(
+        (module) => module.ZeroToHundredFinalPage,
+      ),
+    title: "Classement 0 à 100 Crush Club",
   },
   {
     path: "**",

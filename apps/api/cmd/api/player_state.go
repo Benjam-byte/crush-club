@@ -165,6 +165,18 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 		return state, nil
 	}
 
+	if state.Mode == lobbyModeZeroToHundred {
+		zeroToHundredGame, err := a.loadZeroToHundredState(ctx, currentPlayer)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return state, nil
+		}
+		if err != nil {
+			return lobbyStateResponse{}, err
+		}
+		state.ZeroToHundredGame = &zeroToHundredGame
+		return state, nil
+	}
+
 	game, err := a.loadGameState(ctx, currentPlayer)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return state, nil

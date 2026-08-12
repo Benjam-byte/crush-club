@@ -277,6 +277,68 @@ export class LobbyApiService {
     );
   }
 
+  startZeroToHundred(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/zero-to-100/start`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  submitZeroToHundredTheme(code: string, reconnectToken: string, theme: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/zero-to-100/themes`,
+        { theme },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  rankZeroToHundredThemes(
+    code: string,
+    reconnectToken: string,
+    ranking: readonly string[],
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/zero-to-100/themes/rank`,
+        { ranking },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  submitZeroToHundredGuesses(
+    code: string,
+    reconnectToken: string,
+    positions: Readonly<Record<string, number>>,
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/zero-to-100/guesses`,
+        { positions },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  startNextZeroToHundredRound(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/zero-to-100/rounds/next`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  replayZeroToHundred(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/zero-to-100/replay`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
   private authorizationHeaders(reconnectToken: string): HttpHeaders {
     return new HttpHeaders({ Authorization: `Bearer ${reconnectToken}` });
   }

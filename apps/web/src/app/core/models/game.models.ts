@@ -6,7 +6,7 @@ export type LobbyStatus =
   | 'completed'
   | 'expired'
 
-export type LobbyMode = 'classic' | 'fast_bio'
+export type LobbyMode = 'classic' | 'fast_bio' | 'zero_to_100'
 
 export type FastBioGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
 
@@ -15,6 +15,18 @@ export type FastBioRoundPhase = 'submitting' | 'reviewing' | 'completed'
 export const fastBioReactionEmojis = ['❤️', '😂', '😐', '🤮'] as const
 
 export type FastBioReactionEmoji = typeof fastBioReactionEmojis[number]
+
+export type ZeroToHundredGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
+
+export type ZeroToHundredRoundPhase = 'guessing' | 'results' | 'completed'
+
+/** Shared shape of the theme-collection-and-ranking step, common to every mode that uses it. */
+export interface ThemeSelectionState {
+  phase: string
+  themeSubmitted: boolean
+  themeCandidates?: readonly string[]
+  themeRanked: boolean
+}
 
 export type PlayerReadyStatus = 'joining' | 'preparing_photos' | 'ready'
 
@@ -205,6 +217,7 @@ export interface LobbyStateResponse {
   questionnaire: QuestionnaireSnapshot
   game?: GameStateView
   fastBioGame?: FastBioStateView
+  zeroToHundredGame?: ZeroToHundredStateView
 }
 
 export interface FastBioProposalView {
@@ -251,6 +264,37 @@ export interface FastBioStateView {
   isHostReview?: boolean
   currentProposal?: FastBioProposalView
   myReactionEmoji?: string
+  leaderboard?: readonly FastBioLeaderboardEntryView[]
+}
+
+export interface ZeroToHundredNomineeView {
+  playerId: string
+  displayName: string
+  isCurrentPlayer: boolean
+}
+
+export interface ZeroToHundredRevealEntryView {
+  playerId: string
+  displayName: string
+  truePosition: number
+  averagePosition: number
+  myGuess?: number
+}
+
+export interface ZeroToHundredStateView extends ThemeSelectionState {
+  id: string
+  phase: ZeroToHundredGamePhase
+  selectedThemes?: readonly string[]
+  roundNumber?: number
+  totalRounds?: number
+  roundPhase?: ZeroToHundredRoundPhase
+  themeLabel?: string
+  submissionDeadline?: string
+  nominees?: readonly ZeroToHundredNomineeView[]
+  isNominee?: boolean
+  submitted: boolean
+  reveal?: readonly ZeroToHundredRevealEntryView[]
+  roundScore?: number
   leaderboard?: readonly FastBioLeaderboardEntryView[]
 }
 

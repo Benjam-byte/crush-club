@@ -1,0 +1,71 @@
+<div class="ion-page">
+  <ion-content>
+    <main class="app-shell min-h-full pb-8">
+      <app-page-header
+        [title]="'Manche ' + (gameState.zeroToHundredGame()?.roundNumber ?? 1) + ' / ' + (gameState.zeroToHundredGame()?.totalRounds ?? 3)"
+        backLink="/"
+      />
+
+      <section class="space-y-4 px-5 pt-3">
+        @if (!gameState.isRealtimeConnected()) {
+          <p class="rounded-2xl bg-warning-50 px-4 py-3 text-xs font-semibold text-warning-500">
+            Reconnexion au lobby en cours…
+          </p>
+        }
+
+        @if (!gameState.zeroToHundredGame()?.submitted) {
+          <div class="selection-timer" [class.selection-timer--warning]="isCountdownWarning()">
+            <p class="text-sm font-extrabold text-ink-900">Temps restant</p>
+            <div class="selection-timer__value">{{ countdownLabel() }}</div>
+          </div>
+
+          <div class="lobby-code-card relative overflow-hidden rounded-[28px] p-6 text-center text-white">
+            <p class="relative text-xs font-bold uppercase tracking-[0.18em] text-white/75">Thème de la manche</p>
+            <h1 class="relative mt-2 text-xl font-extrabold">{{ gameState.zeroToHundredGame()?.themeLabel }}</h1>
+            @if (gameState.zeroToHundredGame()?.isNominee) {
+              <p class="relative mt-3 text-xs font-semibold text-white/80">Tu es nominé·e : place-toi aussi sur l’échelle.</p>
+            }
+          </div>
+
+          <div class="surface-card space-y-6 p-5">
+            @for (nominee of nominees(); track nominee.playerId) {
+              <div>
+                <div class="mb-1 flex items-center justify-between">
+                  <span class="text-sm font-extrabold text-ink-900">
+                    {{ nominee.displayName }}
+                    @if (nominee.isCurrentPlayer) { <span class="text-[10px] font-bold text-ink-500">· toi</span> }
+                  </span>
+                  <span class="range-value">{{ positionFor(nominee.playerId) }}</span>
+                </div>
+                <ion-range
+                  [min]="0"
+                  [max]="100"
+                  [value]="positionFor(nominee.playerId)"
+                  (ionInput)="onPositionChange(nominee.playerId, $event)"
+                >
+                  <ion-icon slot="start" name="remove-outline" aria-hidden="true" />
+                  <ion-icon slot="end" name="add-outline" aria-hidden="true" />
+                </ion-range>
+              </div>
+            }
+          </div>
+
+          @if (gameState.errorMessage(); as errorMessage) {
+            <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
+          }
+
+          <ion-button class="action-button w-full" expand="block" [disabled]="isSubmitting()" (click)="onSubmit()">
+            {{ isSubmitting() ? 'Envoi…' : 'Valider mes positions' }}
+            <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+          </ion-button>
+        } @else {
+          <div class="surface-card p-6 text-center">
+            <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
+            <p class="mt-2 text-sm font-extrabold text-ink-900">Positions envoyées !</p>
+            <p class="mt-1 text-xs text-ink-500">En attente des autres joueurs…</p>
+          </div>
+        }
+      </section>
+    </main>
+  </ion-content>
+</div>

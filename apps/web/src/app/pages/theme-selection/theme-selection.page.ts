@@ -6,14 +6,15 @@ import { IonButton, IonContent, IonIcon, IonInput } from '@ionic/angular/standal
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { GameStateService } from '@core/services/game-state.service';
 
+/** Shared theme-collection-and-ranking screen, reused by every uncapped mode (Fast Bio, 0 à 100). */
 @Component({
-  selector: 'app-fast-bio-themes-page',
+  selector: 'app-theme-selection-page',
   imports: [IonButton, IonContent, IonIcon, IonInput, PageHeaderComponent, ReactiveFormsModule],
-  templateUrl: './fast-bio-themes.page.html',
-  styleUrl: './fast-bio-themes.page.scss',
+  templateUrl: './theme-selection.page.html',
+  styleUrl: './theme-selection.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FastBioThemesPage implements OnInit {
+export class ThemeSelectionPage implements OnInit {
   protected readonly gameState = inject(GameStateService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -24,12 +25,12 @@ export class FastBioThemesPage implements OnInit {
   private rankingInitializedForCandidates: readonly string[] | null = null;
 
   protected readonly themeForm = new FormGroup({
-    theme: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(60)] }),
+    theme: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(80)] }),
   });
 
   constructor() {
     effect(() => {
-      const candidates = this.gameState.fastBioGame()?.themeCandidates;
+      const candidates = this.gameState.themeSelectionState()?.themeCandidates;
       if (!candidates || candidates === this.rankingInitializedForCandidates) {
         return;
       }
@@ -52,7 +53,7 @@ export class FastBioThemesPage implements OnInit {
     }
     this.isSubmittingTheme.set(true);
     try {
-      await this.gameState.submitFastBioTheme(this.themeForm.controls.theme.value.trim());
+      await this.gameState.submitTheme(this.themeForm.controls.theme.value.trim());
     } catch {
       // GameState exposes the API error.
     } finally {
@@ -66,7 +67,7 @@ export class FastBioThemesPage implements OnInit {
     }
     this.isSubmittingTheme.set(true);
     try {
-      await this.gameState.submitFastBioTheme('');
+      await this.gameState.submitTheme('');
     } catch {
       // GameState exposes the API error.
     } finally {
@@ -102,7 +103,7 @@ export class FastBioThemesPage implements OnInit {
     }
     this.isSubmittingRanking.set(true);
     try {
-      await this.gameState.rankFastBioThemes(this.ranking());
+      await this.gameState.rankThemes(this.ranking());
     } catch {
       // GameState exposes the API error.
     } finally {

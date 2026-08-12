@@ -46,7 +46,7 @@ export class LobbyPage implements OnInit {
   async ngOnInit(): Promise<void> {
     try {
       await this.gameState.refreshLobby(this.route.snapshot.paramMap.get('code') ?? undefined);
-      if (this.gameState.isHost() && !this.gameState.isFastBioMode()) {
+      if (this.gameState.isHost() && !this.gameState.isUncappedMode()) {
         await this.gameConfigs.initialize();
       }
     } catch {
@@ -103,15 +103,22 @@ export class LobbyPage implements OnInit {
     }
   }
 
-  protected async onStartFastBioGame(): Promise<void> {
-    if (!this.gameState.canStartFastBioGame()) {
-      return;
-    }
+  protected async onStartUncappedGame(): Promise<void> {
     try {
-      await this.gameState.startFastBioGame();
+      if (this.gameState.isZeroToHundredMode()) {
+        await this.gameState.startZeroToHundredGame();
+      } else {
+        await this.gameState.startFastBioGame();
+      }
     } catch {
       // GameState exposes the API error.
     }
+  }
+
+  protected canStartUncappedGame(): boolean {
+    return this.gameState.isZeroToHundredMode()
+      ? this.gameState.canStartZeroToHundredGame()
+      : this.gameState.canStartFastBioGame();
   }
 
   protected async onStartNextRound(): Promise<void> {
