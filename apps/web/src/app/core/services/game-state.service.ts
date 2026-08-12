@@ -14,6 +14,7 @@ import type {
   QuestionDefinition,
   QuestionnaireSnapshot,
   RoundSubmissionInput,
+  SituationStateView,
   ThemeSelectionState,
   ZeroToHundredStateView,
 } from '@core/models/game.models';
@@ -91,11 +92,15 @@ export class GameStateService {
   readonly mode = computed<LobbyMode>(() => this.state()?.mode ?? 'classic');
   readonly isFastBioMode = computed(() => this.mode() === 'fast_bio');
   readonly isZeroToHundredMode = computed(() => this.mode() === 'zero_to_100');
-  readonly isUncappedMode = computed(() => this.isFastBioMode() || this.isZeroToHundredMode());
+  readonly isSituationMode = computed(() => this.mode() === 'situation');
+  readonly isUncappedMode = computed(() => this.isFastBioMode() || this.isZeroToHundredMode() || this.isSituationMode());
   readonly fastBioGame = computed<FastBioStateView | null>(() => this.state()?.fastBioGame ?? null);
   readonly zeroToHundredGame = computed<ZeroToHundredStateView | null>(() => this.state()?.zeroToHundredGame ?? null);
+  readonly situationGame = computed<SituationStateView | null>(() => this.state()?.situationGame ?? null);
   /** Shared theme-collection-and-ranking state, whichever uncapped mode is active. */
-  readonly themeSelectionState = computed<ThemeSelectionState | null>(() => this.fastBioGame() ?? this.zeroToHundredGame());
+  readonly themeSelectionState = computed<ThemeSelectionState | null>(() => {
+    return this.fastBioGame() ?? this.zeroToHundredGame() ?? this.situationGame();
+  });
   readonly displayName = computed(() => this.currentPlayer().displayName);
   readonly isHost = computed(() => this.currentPlayer().isHost);
   readonly playerList = computed<readonly LobbyPlayer[]>(() => {
@@ -199,6 +204,15 @@ export class GameStateService {
       this.isHost() &&
       this.isRealtimeConnected() &&
       players.length >= 3 &&
+      players.every((player) => player.connected);
+  });
+  readonly canStartSituationGame = computed(() => {
+    const players = this.playerList();
+    return this.isSituationMode() &&
+      this.situationGame() === null &&
+      this.isHost() &&
+      this.isRealtimeConnected() &&
+      players.length >= 2 &&
       players.every((player) => player.connected);
   });
 
@@ -340,9 +354,15 @@ export class GameStateService {
   /** Submits (or passes on, via an empty string) a theme proposal for whichever uncapped mode is active. */
   async submitTheme(theme: string): Promise<void> {
     await this.runStateCommand(
-      (code, token) => this.isZeroToHundredMode()
-        ? this.lobbyApi.submitZeroToHundredTheme(code, token, theme)
-        : this.lobbyApi.submitFastBioTheme(code, token, theme),
+      (code, token) => {
+        if (this.isZeroToHundredMode()) {
+          return this.lobbyApi.submitZeroToHundredTheme(code, token, theme);
+        }
+        if (this.isSituationMode()) {
+          return this.lobbyApi.submitSituationTheme(code, token, theme);
+        }
+        return this.lobbyApi.submitFastBioTheme(code, token, theme);
+      },
       'Ta proposition de thème n’a pas pu être envoyée.',
     );
   }
@@ -350,9 +370,15 @@ export class GameStateService {
   /** Submits the player's ranking of theme candidates for whichever uncapped mode is active. */
   async rankThemes(ranking: readonly string[]): Promise<void> {
     await this.runStateCommand(
-      (code, token) => this.isZeroToHundredMode()
-        ? this.lobbyApi.rankZeroToHundredThemes(code, token, ranking)
-        : this.lobbyApi.rankFastBioThemes(code, token, ranking),
+      (code, token) => {
+        if (this.isZeroToHundredMode()) {
+          return this.lobbyApi.rankZeroToHundredThemes(code, token, ranking);
+        }
+        if (this.isSituationMode()) {
+          return this.lobbyApi.rankSituationThemes(code, token, ranking);
+        }
+        return this.lobbyApi.rankFastBioThemes(code, token, ranking);
+      },
       'Ton classement n’a pas pu être envoyé.',
     );
   }
@@ -417,6 +443,58 @@ export class GameStateService {
   async replayFastBio(): Promise<void> {
     await this.runStateCommand(
       (code, token) => this.lobbyApi.replayFastBio(code, token),
+      'Impossible de relancer une nouvelle manche.',
+    );
+  }
+
+  async startSituationGame(): Promise<void> {
+    if (!this.canStartSituationGame()) {
+      return;
+    }
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.startSituation(code, token),
+      'La partie n’a pas pu démarrer.',
+    );
+  }
+
+  async submitSituationProposal(chosenPlayerId: string, reason: string): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.submitSituationProposal(code, token, chosenPlayerId, reason),
+      'Ta proposition n’a pas pu être envoyée.',
+    );
+  }
+
+  async voteSituationDuel(duelId: string, proposalId: string): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.voteSituationDuel(code, token, duelId, proposalId),
+      'Ton vote n’a pas pu être envoyé.',
+    );
+  }
+
+  async advanceSituationReview(direction: 'next' | 'previous'): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.advanceSituationReview(code, token, direction),
+      'Impossible de changer de proposition.',
+    );
+  }
+
+  async submitSituationRanking(ranking: readonly string[]): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.submitSituationRanking(code, token, ranking),
+      'Ton classement n’a pas pu être envoyé.',
+    );
+  }
+
+  async startNextSituationRound(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.startNextSituationRound(code, token),
+      'La manche suivante n’a pas pu démarrer.',
+    );
+  }
+
+  async replaySituation(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.replaySituation(code, token),
       'Impossible de relancer une nouvelle manche.',
     );
   }
@@ -782,6 +860,10 @@ export class GameStateService {
       await this.synchronizeZeroToHundredRoute(state, currentURL);
       return;
     }
+    if (state.mode === 'situation') {
+      await this.synchronizeSituationRoute(state, currentURL);
+      return;
+    }
     if (
       !state.game || !state.status || state.status !== 'in_game' && state.status !== 'completed' ||
       !state.game.isParticipant
@@ -865,6 +947,44 @@ export class GameStateService {
     }
   }
 
+  private async synchronizeSituationRoute(state: LobbyStateResponse, currentURL: string): Promise<void> {
+    const lobbyURL = `/lobby/${state.code}`;
+    const situation = state.situationGame;
+    if (!situation || state.status !== 'in_game') {
+      if (currentURL !== lobbyURL && currentURL.startsWith('/game/')) {
+        await this.router.navigateByUrl(lobbyURL);
+      }
+      return;
+    }
+    let destination = lobbyURL;
+    if (situation.phase === 'collecting_themes' || situation.phase === 'ranking_themes') {
+      destination = `/game/${state.code}/theme-selection`;
+    } else if (situation.phase === 'playing' && situation.roundNumber) {
+      const roundBase = `/game/${state.code}/situation/${situation.roundNumber}`;
+      switch (situation.roundPhase) {
+        case 'proposing':
+          destination = `${roundBase}/propose`;
+          break;
+        case 'dueling':
+          destination = `${roundBase}/duel`;
+          break;
+        case 'revealing':
+          destination = `${roundBase}/review`;
+          break;
+        case 'ranking':
+          destination = `${roundBase}/ranking`;
+          break;
+        default:
+          destination = `${roundBase}/results`;
+      }
+    } else if (situation.phase === 'completed') {
+      destination = `/game/${state.code}/situation/final`;
+    }
+    if (currentURL !== destination) {
+      await this.router.navigateByUrl(destination);
+    }
+  }
+
   private captureError(error: unknown, fallbackMessage: string): void {
     if (error instanceof HttpErrorResponse) {
       const serverError = (error.error as {
@@ -890,7 +1010,7 @@ export class GameStateService {
         cannot_exclude_host: 'L’hôte du lobby ne peut pas être exclu.',
         invalid_player_count: 'Il n’y a pas assez de joueurs actifs pour lancer la partie.',
         players_offline: 'Tout le monde doit être connecté avant de lancer la partie.',
-        wrong_mode: 'Ce lobby n’est pas configuré en mode Fast Bio.',
+        wrong_mode: 'Ce lobby n’est pas configuré pour ce mode de jeu.',
         invalid_theme: 'Ce thème est trop long.',
         themes_locked: 'La collecte des thèmes est terminée.',
         ranking_locked: 'Le classement des thèmes n’est pas ouvert.',
@@ -912,6 +1032,14 @@ export class GameStateService {
         zero_to_100_not_playing: 'Aucune manche 0 à 100 n’est ouverte pour le moment.',
         zero_to_100_round_locked: 'Cette manche n’accepte plus de réponses.',
         zero_to_100_in_progress: 'Le cycle 0 à 100 en cours n’est pas encore terminé.',
+        invalid_choice: 'Choisis un autre joueur actif.',
+        invalid_reason: 'La raison doit contenir entre 1 et 100 caractères.',
+        situation_not_started: 'La partie Situation n’a pas encore démarré.',
+        situation_not_playing: 'Aucune manche Situation n’est ouverte pour le moment.',
+        situation_round_locked: 'Cette étape n’est plus ouverte.',
+        duel_not_active: 'Ce duel n’est plus ouvert au vote.',
+        not_a_representative: 'Tu ne fais pas partie de ce duel.',
+        situation_in_progress: 'Le cycle Situation en cours n’est pas encore terminé.',
       };
       this.errorMessageState.set(
         serverError?.code ? errorMessageByCode[serverError.code] ?? serverError.message ?? fallbackMessage :

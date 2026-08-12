@@ -192,6 +192,15 @@ func (a *api) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/zero-to-100/guesses", a.handleSubmitZeroToHundredGuess)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/zero-to-100/rounds/next", a.handleStartNextZeroToHundredRound)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/zero-to-100/replay", a.handleReplayZeroToHundred)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/start", a.handleStartSituationGame)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/themes", a.handleSubmitSituationTheme)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/themes/rank", a.handleRankSituationThemes)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/proposal", a.handleSubmitSituationProposal)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/duels/{duelID}/vote", a.handleVoteSituationDuel)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/review/advance", a.handleAdvanceSituationReview)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/ranking", a.handleSubmitSituationRanking)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/rounds/next", a.handleStartNextSituationRound)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/replay", a.handleReplaySituation)
 	mux.HandleFunc("GET /ws/lobbies/{code}", a.handleLobbyWebSocket)
 	return mux
 }
@@ -550,8 +559,9 @@ func (a *api) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 	if input.Mode == "" {
 		input.Mode = lobbyModeClassic
 	}
-	if input.Mode != lobbyModeClassic && input.Mode != lobbyModeFastBio && input.Mode != lobbyModeZeroToHundred {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "mode must be classic, fast_bio, or zero_to_100")
+	if input.Mode != lobbyModeClassic && input.Mode != lobbyModeFastBio &&
+		input.Mode != lobbyModeZeroToHundred && input.Mode != lobbyModeSituation {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "mode must be classic, fast_bio, zero_to_100, or situation")
 		return
 	}
 	var maxPlayers *int

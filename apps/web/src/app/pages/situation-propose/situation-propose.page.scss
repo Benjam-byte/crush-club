@@ -1,0 +1,56 @@
+.selection-timer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--color-layer-border);
+  border-radius: 22px;
+  background: white;
+  box-shadow: var(--shadow-card);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.selection-timer--warning {
+  border-color: rgb(212 71 88 / 0.35);
+  background: var(--color-danger-50);
+}
+
+.selection-timer__value {
+  min-width: 76px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--color-layer-soft);
+  color: var(--color-brand-600);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-align: center;
+}
+
+.lobby-code-card {
+  background: linear-gradient(135deg, var(--color-brand-600), var(--color-coral-400));
+  box-shadow: 0 18px 42px rgb(242 83 106 / 0.24);
+}
+
+.player-pick-row {
+  display: flex;
+  width: 100%;
+  min-height: 60px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+.player-pick-row:active {
+  background: var(--color-layer-soft);
+}
+
+.player-pick-row--active {
+  background: var(--color-layer-soft);
+}

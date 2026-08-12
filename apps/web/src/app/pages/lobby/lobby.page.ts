@@ -107,6 +107,8 @@ export class LobbyPage implements OnInit {
     try {
       if (this.gameState.isZeroToHundredMode()) {
         await this.gameState.startZeroToHundredGame();
+      } else if (this.gameState.isSituationMode()) {
+        await this.gameState.startSituationGame();
       } else {
         await this.gameState.startFastBioGame();
       }
@@ -116,9 +118,27 @@ export class LobbyPage implements OnInit {
   }
 
   protected canStartUncappedGame(): boolean {
-    return this.gameState.isZeroToHundredMode()
-      ? this.gameState.canStartZeroToHundredGame()
-      : this.gameState.canStartFastBioGame();
+    if (this.gameState.isZeroToHundredMode()) {
+      return this.gameState.canStartZeroToHundredGame();
+    }
+    if (this.gameState.isSituationMode()) {
+      return this.gameState.canStartSituationGame();
+    }
+    return this.gameState.canStartFastBioGame();
+  }
+
+  protected uncappedModeLabel(): string {
+    if (this.gameState.isZeroToHundredMode()) {
+      return '0 à 100';
+    }
+    if (this.gameState.isSituationMode()) {
+      return 'Situation';
+    }
+    return 'Fast Bio';
+  }
+
+  protected uncappedModeMinPlayers(): number {
+    return this.gameState.isZeroToHundredMode() ? 3 : 2;
   }
 
   protected async onStartNextRound(): Promise<void> {

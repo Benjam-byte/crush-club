@@ -18,6 +18,7 @@ const (
 	lobbyModeClassic       = "classic"
 	lobbyModeFastBio       = "fast_bio"
 	lobbyModeZeroToHundred = "zero_to_100"
+	lobbyModeSituation     = "situation"
 
 	// classicLobbyMinPlayers matches the system-wide floor (minimumPlayerCount)
 	// rather than a stricter 3: the create-lobby UI only ever offers 3-5, this
@@ -38,6 +39,11 @@ const (
 	zeroToHundredNomineeCount          = 3
 	zeroToHundredProximityMaximumScore = 10
 	zeroToHundredOrderBonus            = 15
+
+	situationRoundCount     = 3
+	situationProposalWindow = 2 * time.Minute
+	situationDuelWindow     = 1 * time.Minute
+	situationFinalistCount  = 4
 )
 
 var fastBioReactionPoints = map[string]int{
@@ -139,6 +145,7 @@ type lobbyStateResponse struct {
 	Game              *gameStateView          `json:"game,omitempty"`
 	FastBioGame       *fastBioStateView       `json:"fastBioGame,omitempty"`
 	ZeroToHundredGame *zeroToHundredStateView `json:"zeroToHundredGame,omitempty"`
+	SituationGame     *situationStateView     `json:"situationGame,omitempty"`
 }
 
 type lobbyGameConfigSummary struct {
@@ -276,6 +283,49 @@ type zeroToHundredRevealEntryView struct {
 	TruePosition    int     `json:"truePosition"`
 	AveragePosition float64 `json:"averagePosition"`
 	MyGuess         *int    `json:"myGuess,omitempty"`
+}
+
+type situationStateView struct {
+	ID                string                        `json:"id"`
+	Phase             string                        `json:"phase"`
+	ThemeSubmitted    bool                          `json:"themeSubmitted"`
+	ThemeCandidates   []string                      `json:"themeCandidates,omitempty"`
+	ThemeRanked       bool                          `json:"themeRanked"`
+	SelectedThemes    []string                      `json:"selectedThemes,omitempty"`
+	RoundNumber       int                           `json:"roundNumber,omitempty"`
+	TotalRounds       int                           `json:"totalRounds,omitempty"`
+	RoundPhase        string                        `json:"roundPhase,omitempty"`
+	ThemeLabel        string                        `json:"themeLabel,omitempty"`
+	ProposalDeadline  *time.Time                    `json:"proposalDeadline,omitempty"`
+	Submitted         bool                          `json:"submitted"`
+	CurrentDuel       *situationDuelView            `json:"currentDuel,omitempty"`
+	ProposalCount     int                           `json:"proposalCount,omitempty"`
+	ReviewIndex       int                           `json:"reviewIndex,omitempty"`
+	IsHostReview      bool                          `json:"isHostReview,omitempty"`
+	CurrentProposal   *situationProposalView        `json:"currentProposal,omitempty"`
+	RankingCandidates []situationProposalView       `json:"rankingCandidates,omitempty"`
+	RankingSubmitted  bool                          `json:"rankingSubmitted,omitempty"`
+	RoundScore        int                           `json:"roundScore,omitempty"`
+	Leaderboard       []fastBioLeaderboardEntryView `json:"leaderboard,omitempty"`
+}
+
+type situationProposalView struct {
+	ID                string `json:"id"`
+	AuthorPlayerID    string `json:"authorPlayerId,omitempty"`
+	AuthorDisplayName string `json:"authorDisplayName,omitempty"`
+	ChosenPlayerID    string `json:"chosenPlayerId"`
+	ChosenDisplayName string `json:"chosenDisplayName"`
+	Reason            string `json:"reason"`
+}
+
+type situationDuelView struct {
+	ID                  string                `json:"id"`
+	OpponentDisplayName string                `json:"opponentDisplayName"`
+	ProposalA           situationProposalView `json:"proposalA"`
+	ProposalB           situationProposalView `json:"proposalB"`
+	MyVoteProposalID    string                `json:"myVoteProposalId,omitempty"`
+	OpponentHasVoted    bool                  `json:"opponentHasVoted"`
+	Deadline            time.Time             `json:"deadline"`
 }
 
 type roundSubmissionInput struct {

@@ -173,6 +173,60 @@ export const routes: Routes = [
     title: "Classement 0 à 100 Crush Club",
   },
   {
+    path: "game/:code/situation/:roundNumber/propose",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/situation-propose/situation-propose.page").then(
+        (module) => module.SituationProposePage,
+      ),
+    title: "Ta proposition Situation Crush Club",
+  },
+  {
+    path: "game/:code/situation/:roundNumber/duel",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/situation-duel/situation-duel.page").then(
+        (module) => module.SituationDuelPage,
+      ),
+    title: "Duel Situation Crush Club",
+  },
+  {
+    path: "game/:code/situation/:roundNumber/review",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/situation-review/situation-review.page").then(
+        (module) => module.SituationReviewPage,
+      ),
+    title: "Revue Situation Crush Club",
+  },
+  {
+    path: "game/:code/situation/:roundNumber/ranking",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/situation-ranking/situation-ranking.page").then(
+        (module) => module.SituationRankingPage,
+      ),
+    title: "Classement Situation Crush Club",
+  },
+  {
+    path: "game/:code/situation/:roundNumber/results",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/situation-results/situation-results.page").then(
+        (module) => module.SituationResultsPage,
+      ),
+    title: "Résultats Situation Crush Club",
+  },
+  {
+    path: "game/:code/situation/final",
+    canActivate: [lobbySessionGuard],
+    loadComponent: () =>
+      import("./pages/situation-final/situation-final.page").then(
+        (module) => module.SituationFinalPage,
+      ),
+    title: "Classement Situation Crush Club",
+  },
+  {
     path: "**",
     redirectTo: "",
   },

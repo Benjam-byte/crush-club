@@ -1,7 +1,10 @@
 <div class="ion-page">
   <ion-content>
     <main class="app-shell min-h-full pb-8">
-      <app-page-header [title]="gameState.isZeroToHundredMode() ? 'Thèmes 0 à 100' : 'Thèmes Fast Bio'" backLink="/" />
+      <app-page-header
+        [title]="gameState.isZeroToHundredMode() ? 'Thèmes 0 à 100' : (gameState.isSituationMode() ? 'Situations' : 'Thèmes Fast Bio')"
+        backLink="/"
+      />
 
       <section class="space-y-4 px-5 pt-3">
         @if (!gameState.isRealtimeConnected()) {
@@ -18,6 +21,8 @@
               <p class="mt-2 text-sm text-ink-600">
                 @if (gameState.isZeroToHundredMode()) {
                   Facultatif : une question à placer sur une échelle de 0 à 100, ex. « Mettre le plus de nourriture dans sa bouche ».
+                } @else if (gameState.isSituationMode()) {
+                  Facultatif : une situation, ex. « En entretien d’embauche avec le Père Fouettard ».
                 } @else {
                   Facultatif : un mot ou une expression, ex. « Mode mystérieux ».
                 }

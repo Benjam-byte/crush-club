@@ -18,8 +18,8 @@
               {{ gameState.lobbyCode() }}
             </div>
             <p class="relative mt-1 text-xs font-semibold text-white/80">
-              {{ gameState.isZeroToHundredMode() ? '0 à 100' : 'Fast Bio' }} ·
-              dès {{ gameState.isZeroToHundredMode() ? '3' : '2' }} joueurs (5+ recommandé), pas de maximum
+              {{ uncappedModeLabel() }} ·
+              dès {{ uncappedModeMinPlayers() }} joueurs (5+ recommandé), pas de maximum
             </p>
           </div>
 
@@ -86,7 +86,7 @@
               (click)="onStartUncappedGame()"
             >
               <ion-icon name="rocket" slot="start" aria-hidden="true" />
-              {{ canStartUncappedGame() ? 'Lancer la partie' : ('En attente du groupe (' + (gameState.isZeroToHundredMode() ? '3' : '2') + ' min.)') }}
+              {{ canStartUncappedGame() ? 'Lancer la partie' : ('En attente du groupe (' + uncappedModeMinPlayers() + ' min.)') }}
               <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
             </ion-button>
           } @else {

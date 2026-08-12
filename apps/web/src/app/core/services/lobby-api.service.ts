@@ -339,6 +339,112 @@ export class LobbyApiService {
     );
   }
 
+  startSituation(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/situation/start`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  submitSituationTheme(code: string, reconnectToken: string, theme: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/situation/themes`,
+        { theme },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  rankSituationThemes(
+    code: string,
+    reconnectToken: string,
+    ranking: readonly string[],
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/situation/themes/rank`,
+        { ranking },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  submitSituationProposal(
+    code: string,
+    reconnectToken: string,
+    chosenPlayerId: string,
+    reason: string,
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/situation/proposal`,
+        { chosenPlayerId, reason },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  voteSituationDuel(
+    code: string,
+    reconnectToken: string,
+    duelId: string,
+    proposalId: string,
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/situation/duels/${duelId}/vote`,
+        { proposalId },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  advanceSituationReview(
+    code: string,
+    reconnectToken: string,
+    direction: 'next' | 'previous',
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/situation/review/advance`,
+        { direction },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  submitSituationRanking(
+    code: string,
+    reconnectToken: string,
+    ranking: readonly string[],
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/situation/ranking`,
+        { ranking },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  startNextSituationRound(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/situation/rounds/next`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  replaySituation(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/situation/replay`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
   private authorizationHeaders(reconnectToken: string): HttpHeaders {
     return new HttpHeaders({ Authorization: `Bearer ${reconnectToken}` });
   }

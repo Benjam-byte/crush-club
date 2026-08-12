@@ -1,0 +1,51 @@
+<div class="ion-page">
+  <ion-content>
+    <main class="app-shell min-h-full pb-8">
+      <app-page-header title="Résultats de la manche" backLink="/" />
+
+      <section class="space-y-4 px-5 pt-3">
+        @if (!gameState.isRealtimeConnected()) {
+          <p class="rounded-2xl bg-warning-50 px-4 py-3 text-xs font-semibold text-warning-500">
+            Reconnexion au lobby en cours…
+          </p>
+        }
+
+        <header class="text-center">
+          <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
+            Manche {{ gameState.situationGame()?.roundNumber }} / {{ gameState.situationGame()?.totalRounds }}
+          </p>
+          <h1 class="mt-2 text-xl font-extrabold text-ink-900">{{ gameState.situationGame()?.themeLabel }}</h1>
+        </header>
+
+        <div class="surface-card p-8 text-center">
+          <p class="text-xs font-bold uppercase tracking-[0.14em] text-ink-500">Ton score cette manche</p>
+          <p class="mt-2 text-4xl font-extrabold text-brand-600">{{ gameState.situationGame()?.roundScore ?? 0 }}</p>
+          <p class="mt-1 text-xs text-ink-500">points</p>
+        </div>
+
+        @if (gameState.isHost()) {
+          <ion-button
+            class="action-button w-full"
+            expand="block"
+            [disabled]="isStartingNextRound()"
+            (click)="onStartNextRound()"
+          >
+            <ion-icon name="rocket" slot="start" aria-hidden="true" />
+            {{ isStartingNextRound() ? 'Lancement…' : (isLastRound() ? 'Voir le classement final' : 'Lancer la manche suivante') }}
+            <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+          </ion-button>
+        } @else {
+          <div class="surface-card p-5 text-center">
+            <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
+            <p class="mt-2 text-sm font-extrabold text-ink-900">En attente de l’hôte</p>
+            <p class="mt-1 text-xs text-ink-500">La manche suivante s’ouvrira quand l’hôte la lancera.</p>
+          </div>
+        }
+
+        @if (gameState.errorMessage(); as errorMessage) {
+          <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
+        }
+      </section>
+    </main>
+  </ion-content>
+</div>

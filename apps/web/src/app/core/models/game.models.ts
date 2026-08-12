@@ -6,7 +6,7 @@ export type LobbyStatus =
   | 'completed'
   | 'expired'
 
-export type LobbyMode = 'classic' | 'fast_bio' | 'zero_to_100'
+export type LobbyMode = 'classic' | 'fast_bio' | 'zero_to_100' | 'situation'
 
 export type FastBioGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
 
@@ -19,6 +19,10 @@ export type FastBioReactionEmoji = typeof fastBioReactionEmojis[number]
 export type ZeroToHundredGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
 
 export type ZeroToHundredRoundPhase = 'guessing' | 'results' | 'completed'
+
+export type SituationGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
+
+export type SituationRoundPhase = 'proposing' | 'dueling' | 'revealing' | 'ranking' | 'results' | 'completed'
 
 /** Shared shape of the theme-collection-and-ranking step, common to every mode that uses it. */
 export interface ThemeSelectionState {
@@ -218,6 +222,7 @@ export interface LobbyStateResponse {
   game?: GameStateView
   fastBioGame?: FastBioStateView
   zeroToHundredGame?: ZeroToHundredStateView
+  situationGame?: SituationStateView
 }
 
 export interface FastBioProposalView {
@@ -294,6 +299,46 @@ export interface ZeroToHundredStateView extends ThemeSelectionState {
   isNominee?: boolean
   submitted: boolean
   reveal?: readonly ZeroToHundredRevealEntryView[]
+  roundScore?: number
+  leaderboard?: readonly FastBioLeaderboardEntryView[]
+}
+
+export interface SituationProposalView {
+  id: string
+  authorPlayerId?: string
+  authorDisplayName?: string
+  chosenPlayerId: string
+  chosenDisplayName: string
+  reason: string
+}
+
+export interface SituationDuelView {
+  id: string
+  opponentDisplayName: string
+  proposalA: SituationProposalView
+  proposalB: SituationProposalView
+  myVoteProposalId?: string
+  opponentHasVoted: boolean
+  deadline: string
+}
+
+export interface SituationStateView extends ThemeSelectionState {
+  id: string
+  phase: SituationGamePhase
+  selectedThemes?: readonly string[]
+  roundNumber?: number
+  totalRounds?: number
+  roundPhase?: SituationRoundPhase
+  themeLabel?: string
+  proposalDeadline?: string
+  submitted: boolean
+  currentDuel?: SituationDuelView
+  proposalCount?: number
+  reviewIndex?: number
+  isHostReview?: boolean
+  currentProposal?: SituationProposalView
+  rankingCandidates?: readonly SituationProposalView[]
+  rankingSubmitted?: boolean
   roundScore?: number
   leaderboard?: readonly FastBioLeaderboardEntryView[]
 }
