@@ -17,7 +17,7 @@
           <h1 class="mt-2 text-xl font-extrabold text-ink-900">{{ gameState.situationGame()?.themeLabel }}</h1>
         </header>
 
-        <div class="surface-card p-8 text-center">
+        <div class="surface-card p-6 text-center">
           <p class="text-xs font-bold uppercase tracking-[0.14em] text-ink-500">Ton score cette manche</p>
           <p class="mt-2 text-4xl font-extrabold text-brand-600">{{ gameState.situationGame()?.roundScore ?? 0 }}</p>
           <p class="mt-1 text-xs text-ink-500">points</p>
@@ -38,7 +38,9 @@
           <div class="surface-card p-5 text-center">
             <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
             <p class="mt-2 text-sm font-extrabold text-ink-900">En attente de l’hôte</p>
-            <p class="mt-1 text-xs text-ink-500">La manche suivante s’ouvrira quand l’hôte la lancera.</p>
+            <p class="mt-1 text-xs text-ink-500">
+              {{ isLastRound() ? 'Le classement final s’ouvrira quand l’hôte le lancera.' : 'La manche suivante s’ouvrira quand l’hôte la lancera.' }}
+            </p>
           </div>
         }
 

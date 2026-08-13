@@ -3,11 +3,13 @@ import type { OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon, IonRange } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
+import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
+import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 @Component({
   selector: 'app-zero-to-100-guess-page',
-  imports: [IonButton, IonContent, IonIcon, IonRange, PageHeaderComponent],
+  imports: [IonButton, IonContent, IonIcon, IonRange, PageHeaderComponent, PhaseConfirmationComponent, PhaseTimerComponent],
   templateUrl: './zero-to-100-guess.page.html',
   styleUrl: './zero-to-100-guess.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -20,13 +22,6 @@ export class ZeroToHundredGuessPage implements OnInit, OnDestroy {
   protected readonly isSubmitting = signal(false);
   protected readonly positionByPlayerId = signal<Record<string, number>>({});
   protected readonly remainingSeconds = signal(0);
-  protected readonly countdownLabel = computed(() => {
-    const totalSeconds = this.remainingSeconds();
-    const minuteCount = Math.floor(totalSeconds / 60);
-    const secondCount = totalSeconds % 60;
-    return `${minuteCount.toString().padStart(2, '0')}:${secondCount.toString().padStart(2, '0')}`;
-  });
-  protected readonly isCountdownWarning = computed(() => this.remainingSeconds() <= 30);
   protected readonly nominees = computed(() => this.gameState.zeroToHundredGame()?.nominees ?? []);
 
   private countdownInterval: ReturnType<typeof setInterval> | null = null;

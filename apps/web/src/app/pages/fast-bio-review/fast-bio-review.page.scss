@@ -65,6 +65,12 @@
 
 .reaction-button__count {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--color-text-secondary, var(--color-ink-500, #6b7280));
+}
+
+.reaction-button__points {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--color-brand-600);
 }

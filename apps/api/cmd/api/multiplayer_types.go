@@ -234,6 +234,8 @@ type fastBioStateView struct {
 	IsHostReview               bool                          `json:"isHostReview,omitempty"`
 	CurrentProposal            *fastBioProposalView          `json:"currentProposal,omitempty"`
 	MyReactionEmoji            string                        `json:"myReactionEmoji,omitempty"`
+	ReactionProgressCount      int                           `json:"reactionProgressCount"`
+	ReactionProgressRequired   int                           `json:"reactionProgressRequired"`
 	Leaderboard                []fastBioLeaderboardEntryView `json:"leaderboard,omitempty"`
 }
 

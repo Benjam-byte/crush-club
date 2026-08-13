@@ -294,9 +294,37 @@ func requireFastBioReactionRevision(
 		state.FastBioGame.CurrentProposal == nil {
 		t.Fatalf("Fast Bio did not enter review after every proposal: %#v", state.FastBioGame)
 	}
+	if state.FastBioGame.ReactionProgressCount != 0 ||
+		state.FastBioGame.ReactionProgressRequired != len(players)-1 {
+		t.Fatalf("unexpected initial Fast Bio reaction progress: %#v", state.FastBioGame)
+	}
 	waitForSnapshotRevision(t, sockets[0], state.Revision)
 
 	proposal := state.FastBioGame.CurrentProposal
+	blocked := integrationRequestJSON[struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+players[0].State.Code+"/fast-bio/review/advance",
+		players[0].ReconnectToken,
+		map[string]string{"direction": "next"},
+		http.StatusConflict,
+	)
+	if blocked.Error.Code != "reactions_pending" {
+		t.Fatalf("advance before every reaction error = %q, want reactions_pending", blocked.Error.Code)
+	}
+	unchanged := integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodGet,
+		baseURL+"/api/v1/lobbies/"+players[0].State.Code+"/state",
+		players[0].ReconnectToken, nil, http.StatusOK,
+	)
+	if unchanged.Revision != state.Revision || unchanged.FastBioGame == nil ||
+		unchanged.FastBioGame.ReviewIndex != state.FastBioGame.ReviewIndex {
+		t.Fatalf("blocked Fast Bio advance changed state: before=%#v after=%#v", state.FastBioGame, unchanged.FastBioGame)
+	}
+
 	reactorIndex := 0
 	if proposal.AuthorPlayerID == players[0].State.CurrentPlayerID {
 		reactorIndex = 1
@@ -315,10 +343,33 @@ func requireFastBioReactionRevision(
 	if snapshot.FastBioGame == nil || snapshot.FastBioGame.CurrentProposal == nil {
 		t.Fatalf("Fast Bio reaction snapshot has no current proposal: %#v", snapshot.FastBioGame)
 	}
+	if snapshot.FastBioGame.ReactionProgressCount != len(players)-1 ||
+		snapshot.FastBioGame.ReactionProgressRequired != len(players)-1 {
+		t.Fatalf("Fast Bio reaction progress was not broadcast: %#v", snapshot.FastBioGame)
+	}
+	foundReaction := false
 	for _, reaction := range snapshot.FastBioGame.CurrentProposal.Reactions {
 		if reaction.Emoji == fastBioReactionHeart && reaction.Count == 1 {
-			return
+			foundReaction = true
+			break
 		}
 	}
-	t.Fatalf("Fast Bio reaction count was not broadcast: %#v", snapshot.FastBioGame.CurrentProposal.Reactions)
+	if !foundReaction {
+		t.Fatalf("Fast Bio reaction count was not broadcast: %#v", snapshot.FastBioGame.CurrentProposal.Reactions)
+	}
+
+	previousRevision = snapshot.Revision
+	advanced := integrationRequestJSON[lobbyStateResponse](
+		t, hostIdentity, http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+players[0].State.Code+"/fast-bio/review/advance",
+		players[0].ReconnectToken,
+		map[string]string{"direction": "next"},
+		http.StatusOK,
+	)
+	requireAdvancedRevision(t, previousRevision, advanced.Revision)
+	if advanced.FastBioGame == nil || advanced.FastBioGame.RoundPhase != "reviewing" ||
+		advanced.FastBioGame.ReviewIndex != 1 {
+		t.Fatalf("Fast Bio did not advance after every reaction: %#v", advanced.FastBioGame)
+	}
+	*state = advanced
 }

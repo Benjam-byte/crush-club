@@ -2,15 +2,29 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import type { OnDestroy, OnInit } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CdkDrag, CdkDragDrop, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { IonButton, IonContent, IonIcon, IonInput } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
+import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
+import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 /** Shared theme-collection-and-ranking screen, reused by every uncapped mode (Fast Bio, 0 à 100, Situation). */
 @Component({
   selector: 'app-theme-selection-page',
-  imports: [CdkDrag, CdkDropList, IonButton, IonContent, IonIcon, IonInput, PageHeaderComponent, ReactiveFormsModule],
+  imports: [
+    CdkDrag,
+    CdkDropList,
+    IonButton,
+    IonContent,
+    IonIcon,
+    IonInput,
+    PageHeaderComponent,
+    PhaseConfirmationComponent,
+    PhaseTimerComponent,
+    ReactiveFormsModule,
+  ],
   templateUrl: './theme-selection.page.html',
   styleUrl: './theme-selection.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -28,14 +42,19 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
   protected readonly mySubmittedTheme = signal<string | null>(null);
 
   protected readonly remainingSeconds = signal(0);
-  protected readonly countdownLabel = computed(() => {
-    const totalSeconds = this.remainingSeconds();
-    const minuteCount = Math.floor(totalSeconds / 60);
-    const secondCount = totalSeconds % 60;
-    return `${minuteCount.toString().padStart(2, '0')}:${secondCount.toString().padStart(2, '0')}`;
+  protected readonly showCountdown = computed(() => {
+    const selection = this.gameState.themeSelectionState();
+    if (!selection?.themeDeadline) {
+      return false;
+    }
+    if (selection.phase === 'collecting_themes') {
+      return !selection.themeSubmitted;
+    }
+    if (selection.phase === 'ranking_themes') {
+      return !selection.themeRanked;
+    }
+    return false;
   });
-  protected readonly isCountdownWarning = computed(() => this.remainingSeconds() <= 30);
-  protected readonly hasDeadline = computed(() => !!this.gameState.themeSelectionState()?.themeDeadline);
 
   private countdownInterval: ReturnType<typeof setInterval> | null = null;
 

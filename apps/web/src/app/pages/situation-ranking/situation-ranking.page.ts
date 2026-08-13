@@ -1,15 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CdkDrag, CdkDragDrop, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import type { SituationProposalView } from '@core/models/game.models';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
+import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 @Component({
   selector: 'app-situation-ranking-page',
-  imports: [CdkDrag, CdkDropList, IonButton, IonContent, IonIcon, PageHeaderComponent],
+  imports: [CdkDrag, CdkDropList, IonButton, IonContent, IonIcon, PageHeaderComponent, PhaseConfirmationComponent],
   templateUrl: './situation-ranking.page.html',
   styleUrl: './situation-ranking.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

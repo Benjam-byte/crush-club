@@ -10,12 +10,12 @@
           </p>
         }
 
-        <p class="text-center text-xs font-bold text-ink-500">
-          {{ gameState.situationGame()?.submissionProgressCount ?? 0 }}/{{ gameState.situationGame()?.submissionProgressRequired ?? 0 }}
-          joueurs ont validé leur classement
-        </p>
-
         @if (!gameState.situationGame()?.rankingSubmitted) {
+          <p class="text-center text-xs font-bold text-ink-500">
+            {{ gameState.situationGame()?.submissionProgressCount ?? 0 }}/{{ gameState.situationGame()?.submissionProgressRequired ?? 0 }}
+            joueurs ont validé leur classement
+          </p>
+
           <header class="text-center">
             <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
               {{ gameState.situationGame()?.themeLabel }}
@@ -58,11 +58,13 @@
             <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
           </ion-button>
         } @else {
-          <div class="surface-card p-6 text-center">
-            <ion-icon class="text-3xl text-success-500" name="checkmark-circle" aria-hidden="true" />
-            <p class="mt-2 text-sm font-extrabold text-ink-900">Classement envoyé !</p>
-            <p class="mt-1 text-xs text-ink-500">En attente des autres votes…</p>
-          </div>
+          <app-phase-confirmation
+            title="Classement envoyé !"
+            [progressCount]="gameState.situationGame()?.submissionProgressCount ?? 0"
+            [progressRequired]="gameState.situationGame()?.submissionProgressRequired ?? 0"
+            progressLabel="joueurs ont validé leur classement"
+            message="Les résultats de la manche s’ouvriront automatiquement."
+          />
         }
       </section>
     </main>

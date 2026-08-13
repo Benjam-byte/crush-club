@@ -8,6 +8,7 @@ import {
 } from '@ionic/angular/standalone';
 import type { AnswerValue, QuestionDefinition } from '@core/models/game.models';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
+import { PhaseConfirmationComponent } from '../../core/components/phase-confirmation/phase-confirmation.component';
 import { GameStateService } from '../../core/services/game-state.service';
 
 interface ReviewItem {
@@ -19,7 +20,7 @@ interface ReviewItem {
 
 @Component({
   selector: 'app-review-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, RouterLink],
+  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, PhaseConfirmationComponent, RouterLink],
   templateUrl: './review.page.html',
   styleUrl: './review.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

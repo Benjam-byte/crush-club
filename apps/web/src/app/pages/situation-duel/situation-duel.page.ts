@@ -3,11 +3,12 @@ import type { OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonContent, IonIcon } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
+import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 @Component({
   selector: 'app-situation-duel-page',
-  imports: [IonContent, IonIcon, PageHeaderComponent],
+  imports: [IonContent, IonIcon, PageHeaderComponent, PhaseTimerComponent],
   templateUrl: './situation-duel.page.html',
   styleUrl: './situation-duel.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -20,13 +21,13 @@ export class SituationDuelPage implements OnInit, OnDestroy {
   protected readonly isVoting = signal(false);
   protected readonly duel = computed(() => this.gameState.situationGame()?.currentDuel ?? null);
   protected readonly remainingSeconds = signal(0);
-  protected readonly countdownLabel = computed(() => {
-    const totalSeconds = this.remainingSeconds();
-    const minuteCount = Math.floor(totalSeconds / 60);
-    const secondCount = totalSeconds % 60;
-    return `${minuteCount.toString().padStart(2, '0')}:${secondCount.toString().padStart(2, '0')}`;
+  protected readonly duelVoteCount = computed(() => {
+    const duel = this.duel();
+    if (!duel) {
+      return 0;
+    }
+    return Number(!!duel.myVoteProposalId) + Number(duel.opponentHasVoted);
   });
-  protected readonly isCountdownWarning = computed(() => this.remainingSeconds() <= 15);
 
   private countdownInterval: ReturnType<typeof setInterval> | null = null;
 

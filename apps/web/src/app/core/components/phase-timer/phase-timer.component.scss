@@ -1,0 +1,36 @@
+:host {
+  display: block;
+}
+
+.phase-timer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--color-layer-border);
+  border-radius: 22px;
+  background: white;
+  box-shadow: var(--shadow-card);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.phase-timer--warning {
+  border-color: rgb(212 71 88 / 0.35);
+  background: var(--color-danger-50);
+}
+
+.phase-timer__value {
+  min-width: 76px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--color-layer-soft);
+  color: var(--color-brand-600);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-align: center;
+}

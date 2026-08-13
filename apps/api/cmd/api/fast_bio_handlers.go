@@ -901,6 +901,30 @@ func (a *api) handleAdvanceFastBioReview(w http.ResponseWriter, r *http.Request)
 		a.internalError(w, r, err)
 		return
 	}
+	if input.Direction == "next" {
+		proposalID, authorPlayerID, err := loadFastBioProposalIdentityAt(
+			r.Context(), tx, round.ID, round.ReviewIndex,
+		)
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusConflict, "fast_bio_round_locked", "There is no proposal to review")
+			return
+		}
+		if err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+		reactionCount, reactionRequired, err := loadFastBioReactionProgress(
+			r.Context(), tx, player.LobbyID, proposalID, authorPlayerID,
+		)
+		if err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+		if reactionCount < reactionRequired {
+			writeError(w, http.StatusConflict, "reactions_pending", "Every eligible player must react before continuing")
+			return
+		}
+	}
 
 	var nextRoundID string
 	var shouldScheduleNext, changed bool
@@ -1190,6 +1214,53 @@ func loadFastBioSelectedThemes(ctx context.Context, db dbQuerier, gameID string)
 	return themes, rows.Err()
 }
 
+func loadFastBioProposalIdentityAt(
+	ctx context.Context,
+	db dbQuerier,
+	roundID string,
+	index int,
+) (string, string, error) {
+	var proposalID, authorPlayerID string
+	err := db.QueryRow(ctx, `
+		SELECT id, author_player_id
+		FROM fast_bio_proposals
+		WHERE round_id = $1
+		ORDER BY submitted_at, id
+		OFFSET $2 LIMIT 1
+	`, roundID, index).Scan(&proposalID, &authorPlayerID)
+	return proposalID, authorPlayerID, err
+}
+
+func loadFastBioReactionProgress(
+	ctx context.Context,
+	db dbQuerier,
+	lobbyID string,
+	proposalID string,
+	authorPlayerID string,
+) (int, int, error) {
+	var count, required int
+	err := db.QueryRow(ctx, `
+		SELECT
+			(
+				SELECT count(*)
+				FROM fast_bio_reactions AS reaction
+				JOIN players AS voter ON voter.id = reaction.voter_player_id
+				WHERE reaction.proposal_id = $2
+				  AND voter.lobby_id = $1
+				  AND voter.excluded_at IS NULL
+				  AND voter.id <> $3
+			),
+			(
+				SELECT count(*)
+				FROM players
+				WHERE lobby_id = $1
+				  AND excluded_at IS NULL
+				  AND id <> $3
+			)
+	`, lobbyID, proposalID, authorPlayerID).Scan(&count, &required)
+	return count, required, err
+}
+
 func (a *api) loadFastBioProposalAt(ctx context.Context, roundID string, index int) (fastBioProposalView, error) {
 	var proposal fastBioProposalView
 	err := a.pool.QueryRow(ctx, `
@@ -1400,6 +1471,12 @@ func (a *api) loadFastBioState(ctx context.Context, currentPlayer authenticatedP
 					return fastBioStateView{}, err
 				}
 				view.CurrentProposal = &proposal
+				view.ReactionProgressCount, view.ReactionProgressRequired, err = loadFastBioReactionProgress(
+					ctx, a.pool, currentPlayer.LobbyID, proposal.ID, proposal.AuthorPlayerID,
+				)
+				if err != nil {
+					return fastBioStateView{}, err
+				}
 				var myEmoji string
 				err = a.pool.QueryRow(ctx, `
 					SELECT emoji FROM fast_bio_reactions WHERE proposal_id = $1 AND voter_player_id = $2

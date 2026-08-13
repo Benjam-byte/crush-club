@@ -11,10 +11,11 @@
         }
 
         @if (duel(); as currentDuel) {
-          <div class="selection-timer" [class.selection-timer--warning]="isCountdownWarning()">
-            <p class="text-sm font-extrabold text-ink-900">Mettez-vous d’accord avant</p>
-            <div class="selection-timer__value">{{ countdownLabel() }}</div>
-          </div>
+          <app-phase-timer
+            label="Mettez-vous d’accord avant"
+            [remainingSeconds]="remainingSeconds()"
+            [warningAt]="15"
+          />
 
           <p class="text-center text-xs text-ink-500">
             Retrouve <strong class="text-ink-900">{{ currentDuel.opponentDisplayName }}</strong> et décidez ensemble laquelle des deux réponses mérite d’être gardée.
@@ -53,6 +54,8 @@
               }
             </button>
           </div>
+
+          <p class="text-center text-xs font-semibold text-ink-500">{{ duelVoteCount() }} / 2 votes enregistrés</p>
 
           <p class="text-center text-xs text-ink-500">
             @if (currentDuel.myVoteProposalId) {

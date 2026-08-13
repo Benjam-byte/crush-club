@@ -2,12 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
-import { BrandMarkComponent } from '../../core/components/brand-mark/brand-mark.component';
+import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
 import { GameStateService } from '../../core/services/game-state.service';
 
 @Component({
   selector: 'app-final-results-page',
-  imports: [BrandMarkComponent, IonButton, IonContent, IonIcon],
+  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent],
   templateUrl: './final-results.page.html',
   styleUrl: './final-results.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

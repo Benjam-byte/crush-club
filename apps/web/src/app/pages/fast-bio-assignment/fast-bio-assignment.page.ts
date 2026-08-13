@@ -1,15 +1,26 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import type { OnDestroy, OnInit } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon, IonTextarea } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
+import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
+import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
 import { GameStateService } from '@core/services/game-state.service';
 import { PhotoPreparationError, PhotoService } from '@core/services/photo.service';
 
 @Component({
   selector: 'app-fast-bio-assignment-page',
-  imports: [IonButton, IonContent, IonIcon, IonTextarea, PageHeaderComponent, ReactiveFormsModule],
+  imports: [
+    IonButton,
+    IonContent,
+    IonIcon,
+    IonTextarea,
+    PageHeaderComponent,
+    PhaseConfirmationComponent,
+    PhaseTimerComponent,
+    ReactiveFormsModule,
+  ],
   templateUrl: './fast-bio-assignment.page.html',
   styleUrl: './fast-bio-assignment.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -24,13 +35,6 @@ export class FastBioAssignmentPage implements OnInit, OnDestroy {
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly selectedPreviewUrl = signal<string | null>(null);
   protected readonly remainingSeconds = signal(0);
-  protected readonly countdownLabel = computed(() => {
-    const totalSeconds = this.remainingSeconds();
-    const minuteCount = Math.floor(totalSeconds / 60);
-    const secondCount = totalSeconds % 60;
-    return `${minuteCount.toString().padStart(2, '0')}:${secondCount.toString().padStart(2, '0')}`;
-  });
-  protected readonly isCountdownWarning = computed(() => this.remainingSeconds() <= 30);
 
   protected readonly bioForm = new FormGroup({
     bio: new FormControl('', {

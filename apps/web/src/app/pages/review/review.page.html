@@ -90,13 +90,13 @@
         </section>
 
         @if (gameState.isProfileLocked()) {
-          <div class="surface-card p-5 text-center">
-            <ion-icon class="text-3xl text-success-500" name="checkmark-circle" aria-hidden="true" />
-            <h2 class="mt-2 text-base font-extrabold text-ink-900">Profil envoyé</h2>
-            <p class="mt-1 text-xs leading-5 text-ink-500">
-              {{ gameState.game()?.submittedCount }}/{{ gameState.game()?.requiredCount }} joueurs ont terminé. La révélation s’ouvrira automatiquement.
-            </p>
-          </div>
+          <app-phase-confirmation
+            title="Profil envoyé !"
+            [progressCount]="gameState.game()?.submittedCount ?? 0"
+            [progressRequired]="gameState.game()?.requiredCount ?? 0"
+            progressLabel="joueurs ont terminé"
+            message="La révélation s’ouvrira automatiquement."
+          />
         } @else {
         <div class="rounded-2xl bg-warning-50 px-4 py-3 text-xs leading-5 text-ink-600">
           <strong class="text-warning-500">Attention&nbsp;:</strong>

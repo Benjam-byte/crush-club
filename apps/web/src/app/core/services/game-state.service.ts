@@ -937,6 +937,7 @@ export class GameStateService {
         cannot_react_to_own_proposal: 'Tu ne peux pas réagir à ta propre proposition.',
         proposal_not_active: 'Cette proposition n’est plus celle affichée par l’hôte.',
         proposal_not_found: 'Cette proposition n’existe plus.',
+        reactions_pending: 'Tout le monde doit choisir un emoji avant de continuer.',
         fast_bio_in_progress: 'Le cycle Fast Bio en cours n’est pas encore terminé.',
         invalid_positions: 'Place chaque nominé entre 0 et 100.',
         zero_to_100_not_started: 'La partie 0 à 100 n’a pas encore démarré.',

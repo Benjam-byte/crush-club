@@ -16,6 +16,13 @@ export const fastBioReactionEmojis = ['❤️', '😂', '😐', '🤮'] as const
 
 export type FastBioReactionEmoji = typeof fastBioReactionEmojis[number]
 
+export const fastBioReactionPoints: Readonly<Record<FastBioReactionEmoji, number>> = {
+  '❤️': 3,
+  '😂': 2,
+  '😐': 1,
+  '🤮': 0,
+}
+
 export type ZeroToHundredGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
 
 export type ZeroToHundredRoundPhase = 'guessing' | 'results' | 'completed'
@@ -280,6 +287,8 @@ export interface FastBioStateView {
   isHostReview?: boolean
   currentProposal?: FastBioProposalView
   myReactionEmoji?: string
+  reactionProgressCount?: number
+  reactionProgressRequired?: number
   leaderboard?: readonly FastBioLeaderboardEntryView[]
 }
 

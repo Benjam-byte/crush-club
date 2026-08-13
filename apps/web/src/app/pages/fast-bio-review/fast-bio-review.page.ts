@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, v
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
-import { fastBioReactionEmojis } from '@core/models/game.models';
+import { fastBioReactionEmojis, fastBioReactionPoints } from '@core/models/game.models';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { ReactionBurstComponent } from '@core/components/reaction-burst/reaction-burst.component';
 import { GameStateService } from '@core/services/game-state.service';
@@ -25,6 +25,7 @@ export class FastBioReviewPage implements OnInit {
   protected readonly isAdvancing = signal(false);
   protected readonly isReacting = signal(false);
   protected readonly emojiList = fastBioReactionEmojis;
+  protected readonly reactionPoints = fastBioReactionPoints;
   protected readonly proposal = computed(() => this.gameState.fastBioGame()?.currentProposal ?? null);
   protected readonly canReact = computed(() => {
     const proposal = this.proposal();
@@ -36,6 +37,13 @@ export class FastBioReviewPage implements OnInit {
       return '';
     }
     return `${(fastBio.reviewIndex ?? 0) + 1} / ${fastBio.proposalCount}`;
+  });
+  protected readonly allReactionsSubmitted = computed(() => {
+    const fastBio = this.gameState.fastBioGame();
+    if (!fastBio || fastBio.reactionProgressRequired === undefined) {
+      return false;
+    }
+    return (fastBio.reactionProgressCount ?? 0) >= fastBio.reactionProgressRequired;
   });
 
   constructor() {
@@ -61,7 +69,11 @@ export class FastBioReviewPage implements OnInit {
   }
 
   protected async onAdvance(direction: 'next' | 'previous'): Promise<void> {
-    if (this.isAdvancing() || !this.gameState.fastBioGame()?.isHostReview) {
+    if (
+      this.isAdvancing() ||
+      !this.gameState.fastBioGame()?.isHostReview ||
+      (direction === 'next' && !this.allReactionsSubmitted())
+    ) {
       return;
     }
     this.isAdvancing.set(true);

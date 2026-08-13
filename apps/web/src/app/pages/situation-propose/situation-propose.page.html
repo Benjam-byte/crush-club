@@ -13,16 +13,13 @@
           </p>
         }
 
-        <p class="text-center text-xs font-bold text-ink-500">
-          {{ gameState.situationGame()?.submissionProgressCount ?? 0 }}/{{ gameState.situationGame()?.submissionProgressRequired ?? 0 }}
-          joueurs ont envoyé leur proposition
-        </p>
-
         @if (!gameState.situationGame()?.submitted) {
-          <div class="selection-timer" [class.selection-timer--warning]="isCountdownWarning()">
-            <p class="text-sm font-extrabold text-ink-900">Temps restant pour proposer</p>
-            <div class="selection-timer__value">{{ countdownLabel() }}</div>
-          </div>
+          <p class="text-center text-xs font-bold text-ink-500">
+            {{ gameState.situationGame()?.submissionProgressCount ?? 0 }}/{{ gameState.situationGame()?.submissionProgressRequired ?? 0 }}
+            joueurs ont envoyé leur proposition
+          </p>
+
+          <app-phase-timer label="Temps restant pour proposer" [remainingSeconds]="remainingSeconds()" />
 
           <div class="lobby-code-card relative overflow-hidden rounded-[28px] p-6 text-center text-white">
             <p class="relative text-xs font-bold uppercase tracking-[0.18em] text-white/75">Situation</p>
@@ -87,11 +84,13 @@
             </ion-button>
           </form>
         } @else {
-          <div class="surface-card p-6 text-center">
-            <ion-icon class="text-3xl text-success-500" name="checkmark-circle" aria-hidden="true" />
-            <p class="mt-2 text-sm font-extrabold text-ink-900">Proposition envoyée !</p>
-            <p class="mt-1 text-xs text-ink-500">En attente des autres joueurs…</p>
-          </div>
+          <app-phase-confirmation
+            title="Proposition envoyée !"
+            [progressCount]="gameState.situationGame()?.submissionProgressCount ?? 0"
+            [progressRequired]="gameState.situationGame()?.submissionProgressRequired ?? 0"
+            progressLabel="joueurs ont envoyé leur proposition"
+            message="Les duels s’ouvriront automatiquement."
+          />
         }
       </section>
     </main>

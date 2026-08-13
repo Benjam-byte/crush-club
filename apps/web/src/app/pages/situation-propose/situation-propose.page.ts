@@ -4,11 +4,22 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon, IonTextarea } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
+import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
+import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 @Component({
   selector: 'app-situation-propose-page',
-  imports: [IonButton, IonContent, IonIcon, IonTextarea, PageHeaderComponent, ReactiveFormsModule],
+  imports: [
+    IonButton,
+    IonContent,
+    IonIcon,
+    IonTextarea,
+    PageHeaderComponent,
+    PhaseConfirmationComponent,
+    PhaseTimerComponent,
+    ReactiveFormsModule,
+  ],
   templateUrl: './situation-propose.page.html',
   styleUrl: './situation-propose.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -21,13 +32,6 @@ export class SituationProposePage implements OnInit, OnDestroy {
   protected readonly isSubmitting = signal(false);
   protected readonly selectedPlayerId = signal<string | null>(null);
   protected readonly remainingSeconds = signal(0);
-  protected readonly countdownLabel = computed(() => {
-    const totalSeconds = this.remainingSeconds();
-    const minuteCount = Math.floor(totalSeconds / 60);
-    const secondCount = totalSeconds % 60;
-    return `${minuteCount.toString().padStart(2, '0')}:${secondCount.toString().padStart(2, '0')}`;
-  });
-  protected readonly isCountdownWarning = computed(() => this.remainingSeconds() <= 30);
   protected readonly otherPlayers = computed(() =>
     this.gameState.playerList().filter((player) => !player.isCurrentPlayer),
   );
