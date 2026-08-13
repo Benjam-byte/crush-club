@@ -1115,6 +1115,16 @@ func (a *api) loadZeroToHundredState(ctx context.Context, currentPlayer authenti
 		if round.Phase == "guessing" {
 			deadline := round.SubmissionDeadline
 			view.SubmissionDeadline = &deadline
+			requiredCount, err := activeLobbyPlayerCount(ctx, a.pool, currentPlayer.LobbyID)
+			if err != nil {
+				return zeroToHundredStateView{}, err
+			}
+			view.SubmissionProgressRequired = requiredCount
+			if err := a.pool.QueryRow(ctx, `
+				SELECT count(DISTINCT guesser_player_id) FROM zero_to_100_guesses WHERE round_id = $1
+			`, round.ID).Scan(&view.SubmissionProgressCount); err != nil {
+				return zeroToHundredStateView{}, err
+			}
 		}
 
 		nominees, err := loadZeroToHundredNominees(ctx, a.pool, round.ID)

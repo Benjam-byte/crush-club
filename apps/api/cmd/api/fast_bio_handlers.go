@@ -1297,6 +1297,16 @@ func (a *api) loadFastBioState(ctx context.Context, currentPlayer authenticatedP
 		if round.Phase == "submitting" {
 			deadline := round.SubmissionDeadline
 			view.SubmissionDeadline = &deadline
+			if err := a.pool.QueryRow(ctx, `
+				SELECT count(*) FROM fast_bio_assignments WHERE round_id = $1
+			`, round.ID).Scan(&view.SubmissionProgressRequired); err != nil {
+				return fastBioStateView{}, err
+			}
+			if err := a.pool.QueryRow(ctx, `
+				SELECT count(*) FROM fast_bio_proposals WHERE round_id = $1
+			`, round.ID).Scan(&view.SubmissionProgressCount); err != nil {
+				return fastBioStateView{}, err
+			}
 		}
 
 		var targetID, targetName string

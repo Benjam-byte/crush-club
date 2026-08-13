@@ -6,6 +6,10 @@
         [backLink]="'/game/' + gameState.lobbyCode() + '/round/' + gameState.game()?.roundNumber + '/role'"
       />
 
+      <p class="px-5 pt-2 text-center text-xs font-bold text-ink-500">
+        {{ gameState.game()?.submittedCount ?? 0 }}/{{ gameState.game()?.requiredCount ?? 0 }} joueurs ont terminé
+      </p>
+
       <section class="px-5 pt-1">
         @if (currentStepIndex() === 0) {
           <section class="questionnaire-step-content mt-2">

@@ -13,6 +13,11 @@
           </p>
         }
 
+        <p class="text-center text-xs font-bold text-ink-500">
+          {{ gameState.zeroToHundredGame()?.submissionProgressCount ?? 0 }}/{{ gameState.zeroToHundredGame()?.submissionProgressRequired ?? 0 }}
+          joueurs ont validé leurs positions
+        </p>
+
         @if (!gameState.zeroToHundredGame()?.submitted) {
           <div class="selection-timer" [class.selection-timer--warning]="isCountdownWarning()">
             <p class="text-sm font-extrabold text-ink-900">Temps restant</p>
@@ -60,7 +65,7 @@
           </ion-button>
         } @else {
           <div class="surface-card p-6 text-center">
-            <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
+            <ion-icon class="text-3xl text-success-500" name="checkmark-circle" aria-hidden="true" />
             <p class="mt-2 text-sm font-extrabold text-ink-900">Positions envoyées !</p>
             <p class="mt-1 text-xs text-ink-500">En attente des autres joueurs…</p>
           </div>

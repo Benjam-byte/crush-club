@@ -24,6 +24,8 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
   protected readonly isSubmittingRanking = signal(false);
   protected readonly ranking = signal<readonly string[]>([]);
   private rankingInitializedForCandidates: readonly string[] | null = null;
+  /** What the current player just proposed, kept locally since the server only tracks a yes/no flag. Empty string means "passed". */
+  protected readonly mySubmittedTheme = signal<string | null>(null);
 
   protected readonly remainingSeconds = signal(0);
   protected readonly countdownLabel = computed(() => {
@@ -73,9 +75,11 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
     if (this.isSubmittingTheme() || this.themeForm.invalid) {
       return;
     }
+    const theme = this.themeForm.controls.theme.value.trim();
     this.isSubmittingTheme.set(true);
     try {
-      await this.gameState.submitTheme(this.themeForm.controls.theme.value.trim());
+      await this.gameState.submitTheme(theme);
+      this.mySubmittedTheme.set(theme);
     } catch {
       // GameState exposes the API error.
     } finally {
@@ -90,6 +94,7 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
     this.isSubmittingTheme.set(true);
     try {
       await this.gameState.submitTheme('');
+      this.mySubmittedTheme.set('');
     } catch {
       // GameState exposes the API error.
     } finally {

@@ -55,7 +55,11 @@
         </div>
       </div>
 
-      <ion-button class="action-button relative z-10 w-full" expand="block" (click)="onStartQuestionnaire()">
+      <p class="relative z-10 mt-6 text-xs font-bold text-ink-500">
+        {{ gameState.game()?.submittedCount ?? 0 }}/{{ gameState.game()?.requiredCount ?? 0 }} joueurs ont déjà répondu
+      </p>
+
+      <ion-button class="action-button relative z-10 mt-3 w-full" expand="block" (click)="onStartQuestionnaire()">
         {{ gameState.role() === 'lover' ? 'Remplir mon vrai profil' : 'Commencer à deviner' }}
         <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
       </ion-button>

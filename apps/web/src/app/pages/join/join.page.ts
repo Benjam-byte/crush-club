@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import type { OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { map } from 'rxjs';
 import {
   IonButton,
   IonContent,
@@ -32,14 +33,20 @@ import { GameStateService } from '../../core/services/game-state.service';
   styleUrl: './join.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class JoinPage implements OnInit {
+export class JoinPage {
   private readonly activatedRoute = inject(ActivatedRoute);
   protected readonly gameConfigs = inject(GameConfigService);
   protected readonly gameState = inject(GameStateService);
   private readonly router = inject(Router);
 
-  protected readonly isCreateMode = signal(
-    this.activatedRoute.snapshot.queryParamMap.get('mode') === 'create',
+  // Reactive to queryParamMap (not just a one-time snapshot): the Ionic route
+  // strategy reuses this page's instance across "/join" <-> "/join?mode=create"
+  // navigations (same route config, only the query param differs), so relying
+  // on the constructor-time snapshot would leave this stuck on whichever mode
+  // was active the first time the page was ever created this session.
+  protected readonly isCreateMode = toSignal(
+    this.activatedRoute.queryParamMap.pipe(map((params) => params.get('mode') === 'create')),
+    { initialValue: this.activatedRoute.snapshot.queryParamMap.get('mode') === 'create' },
   );
   protected readonly hasSubmitted = signal(false);
   protected readonly isSubmitting = signal(false);
@@ -66,10 +73,22 @@ export class JoinPage implements OnInit {
     gameConfigId: new FormControl('', { nonNullable: true }),
   });
 
-  async ngOnInit(): Promise<void> {
-    if (!this.isCreateMode()) {
-      return;
-    }
+  private hasLoadedGameConfigs = false;
+
+  constructor() {
+    // An effect (not ngOnInit) so this still fires if the Ionic route
+    // strategy reuses this instance and the user only later navigates into
+    // create mode (see the isCreateMode comment above).
+    effect(() => {
+      if (!this.isCreateMode() || this.hasLoadedGameConfigs) {
+        return;
+      }
+      this.hasLoadedGameConfigs = true;
+      void this.loadDefaultGameConfig();
+    });
+  }
+
+  private async loadDefaultGameConfig(): Promise<void> {
     try {
       await this.gameConfigs.initialize();
       const defaultConfig = this.gameConfigs.configList().find((config) => config.kind === 'system')

@@ -273,6 +273,8 @@ export interface FastBioStateView {
   targetPlayerId?: string
   targetDisplayName?: string
   submitted: boolean
+  submissionProgressCount?: number
+  submissionProgressRequired?: number
   proposalCount?: number
   reviewIndex?: number
   isHostReview?: boolean
@@ -307,6 +309,8 @@ export interface ZeroToHundredStateView extends ThemeSelectionState {
   nominees?: readonly ZeroToHundredNomineeView[]
   isNominee?: boolean
   submitted: boolean
+  submissionProgressCount?: number
+  submissionProgressRequired?: number
   reveal?: readonly ZeroToHundredRevealEntryView[]
   roundScore?: number
   leaderboard?: readonly FastBioLeaderboardEntryView[]
@@ -341,6 +345,8 @@ export interface SituationStateView extends ThemeSelectionState {
   themeLabel?: string
   proposalDeadline?: string
   submitted: boolean
+  submissionProgressCount?: number
+  submissionProgressRequired?: number
   currentDuel?: SituationDuelView
   proposalCount?: number
   reviewIndex?: number

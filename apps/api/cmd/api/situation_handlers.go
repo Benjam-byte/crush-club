@@ -1597,6 +1597,16 @@ func (a *api) loadSituationState(ctx context.Context, currentPlayer authenticate
 				return situationStateView{}, err
 			}
 			view.Submitted = submitted
+			requiredCount, err := activeLobbyPlayerCount(ctx, a.pool, currentPlayer.LobbyID)
+			if err != nil {
+				return situationStateView{}, err
+			}
+			view.SubmissionProgressRequired = requiredCount
+			if err := a.pool.QueryRow(ctx, `
+				SELECT count(*) FROM situation_proposals WHERE round_id = $1
+			`, round.ID).Scan(&view.SubmissionProgressCount); err != nil {
+				return situationStateView{}, err
+			}
 
 		case "dueling":
 			duel, err := loadMySituationDuel(ctx, a.pool, round.ID, currentPlayer.ID)
@@ -1634,6 +1644,16 @@ func (a *api) loadSituationState(ctx context.Context, currentPlayer authenticate
 				return situationStateView{}, err
 			}
 			view.RankingSubmitted = submitted
+			requiredCount, err := activeLobbyPlayerCount(ctx, a.pool, currentPlayer.LobbyID)
+			if err != nil {
+				return situationStateView{}, err
+			}
+			view.SubmissionProgressRequired = requiredCount
+			if err := a.pool.QueryRow(ctx, `
+				SELECT count(*) FROM situation_final_rankings WHERE round_id = $1
+			`, round.ID).Scan(&view.SubmissionProgressCount); err != nil {
+				return situationStateView{}, err
+			}
 
 		case "results", "completed":
 			var roundScore int
