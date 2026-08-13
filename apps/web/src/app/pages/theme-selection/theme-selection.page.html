@@ -13,6 +13,13 @@
           </p>
         }
 
+        @if (hasDeadline()) {
+          <div class="selection-timer" [class.selection-timer--warning]="isCountdownWarning()">
+            <p class="text-sm font-extrabold text-ink-900">Temps restant</p>
+            <div class="selection-timer__value">{{ countdownLabel() }}</div>
+          </div>
+        }
+
         @if (gameState.themeSelectionState()?.phase === 'collecting_themes') {
           @if (!gameState.themeSelectionState()?.themeSubmitted) {
             <header class="text-center">
@@ -56,7 +63,10 @@
             <div class="surface-card p-6 text-center">
               <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
               <p class="mt-2 text-sm font-extrabold text-ink-900">En attente des autres joueurs…</p>
-              <p class="mt-1 text-xs text-ink-500">Le classement des thèmes s’ouvrira automatiquement.</p>
+              <p class="mt-1 text-xs text-ink-500">
+                {{ gameState.themeSelectionState()?.themeProgressCount ?? 0 }}/{{ gameState.themeSelectionState()?.themeProgressRequired ?? 0 }}
+                joueurs ont proposé. Le classement des thèmes s’ouvrira automatiquement.
+              </p>
             </div>
           }
         }
@@ -66,33 +76,20 @@
             <header class="text-center">
               <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">Étape 2</p>
               <h1 class="mt-2 text-2xl font-extrabold text-ink-900">Classe les thèmes</h1>
-              <p class="mt-2 text-sm text-ink-600">Du meilleur (en haut) au moins bon. Les 3 premiers seront joués.</p>
+              <p class="mt-2 text-sm text-ink-600">Glisse pour réordonner, du meilleur (en haut) au moins bon. Les 3 premiers seront joués.</p>
             </header>
-            <ol class="surface-card divide-y divide-peach-100 overflow-hidden">
+            <ol
+              class="surface-card divide-y divide-peach-100 overflow-hidden"
+              cdkDropList
+              (cdkDropListDropped)="onDropTheme($event)"
+            >
               @for (theme of ranking(); track theme; let index = $index) {
-                <li class="flex items-center gap-3 px-4 py-3">
+                <li class="ranking-row flex items-center gap-3 px-4 py-3" cdkDrag [cdkDragData]="theme">
                   <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">
                     {{ index + 1 }}
                   </span>
                   <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{ theme }}</span>
-                  <button
-                    class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-50 text-brand-600 disabled:opacity-30"
-                    type="button"
-                    [disabled]="index === 0"
-                    (click)="moveUp(index)"
-                    aria-label="Monter ce thème"
-                  >
-                    <ion-icon name="chevron-up" aria-hidden="true" />
-                  </button>
-                  <button
-                    class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-50 text-brand-600 disabled:opacity-30"
-                    type="button"
-                    [disabled]="index === ranking().length - 1"
-                    (click)="moveDown(index)"
-                    aria-label="Descendre ce thème"
-                  >
-                    <ion-icon name="chevron-down" aria-hidden="true" />
-                  </button>
+                  <ion-icon class="shrink-0 text-lg text-ink-500" name="reorder-two-outline" cdkDragHandle aria-hidden="true" />
                 </li>
               }
             </ol>
@@ -109,7 +106,10 @@
             <div class="surface-card p-6 text-center">
               <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
               <p class="mt-2 text-sm font-extrabold text-ink-900">En attente des autres votes…</p>
-              <p class="mt-1 text-xs text-ink-500">La première manche démarrera automatiquement.</p>
+              <p class="mt-1 text-xs text-ink-500">
+                {{ gameState.themeSelectionState()?.themeProgressCount ?? 0 }}/{{ gameState.themeSelectionState()?.themeProgressRequired ?? 0 }}
+                joueurs ont validé leur classement. La première manche démarrera automatiquement.
+              </p>
             </div>
           }
         }

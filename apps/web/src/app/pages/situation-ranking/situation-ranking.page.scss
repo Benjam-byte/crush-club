@@ -1,3 +1,36 @@
 :host {
   display: block;
 }
+
+.ranking-row {
+  background: white;
+  cursor: grab;
+  transition: background 120ms ease;
+}
+
+.ranking-row:active {
+  cursor: grabbing;
+}
+
+// The CDK clones the dragged element into the overlay container at the
+// document body, outside this component's view — ::ng-deep is required for
+// these rules to reach it despite Angular's style encapsulation.
+::ng-deep .cdk-drag-preview {
+  box-sizing: border-box;
+  border-radius: 16px;
+  background: white;
+  box-shadow: var(--shadow-card);
+  list-style: none;
+}
+
+::ng-deep .cdk-drag-placeholder {
+  opacity: 0.3;
+}
+
+::ng-deep .cdk-drag-animating {
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.cdk-drop-list-dragging .ranking-row:not(.cdk-drag-placeholder) {
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}

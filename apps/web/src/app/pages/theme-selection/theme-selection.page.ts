@@ -1,20 +1,21 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
-import type { OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import type { OnDestroy, OnInit } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { CdkDrag, CdkDragDrop, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import { IonButton, IonContent, IonIcon, IonInput } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { GameStateService } from '@core/services/game-state.service';
 
-/** Shared theme-collection-and-ranking screen, reused by every uncapped mode (Fast Bio, 0 à 100). */
+/** Shared theme-collection-and-ranking screen, reused by every uncapped mode (Fast Bio, 0 à 100, Situation). */
 @Component({
   selector: 'app-theme-selection-page',
-  imports: [IonButton, IonContent, IonIcon, IonInput, PageHeaderComponent, ReactiveFormsModule],
+  imports: [CdkDrag, CdkDropList, IonButton, IonContent, IonIcon, IonInput, PageHeaderComponent, ReactiveFormsModule],
   templateUrl: './theme-selection.page.html',
   styleUrl: './theme-selection.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ThemeSelectionPage implements OnInit {
+export class ThemeSelectionPage implements OnInit, OnDestroy {
   protected readonly gameState = inject(GameStateService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -23,6 +24,18 @@ export class ThemeSelectionPage implements OnInit {
   protected readonly isSubmittingRanking = signal(false);
   protected readonly ranking = signal<readonly string[]>([]);
   private rankingInitializedForCandidates: readonly string[] | null = null;
+
+  protected readonly remainingSeconds = signal(0);
+  protected readonly countdownLabel = computed(() => {
+    const totalSeconds = this.remainingSeconds();
+    const minuteCount = Math.floor(totalSeconds / 60);
+    const secondCount = totalSeconds % 60;
+    return `${minuteCount.toString().padStart(2, '0')}:${secondCount.toString().padStart(2, '0')}`;
+  });
+  protected readonly isCountdownWarning = computed(() => this.remainingSeconds() <= 30);
+  protected readonly hasDeadline = computed(() => !!this.gameState.themeSelectionState()?.themeDeadline);
+
+  private countdownInterval: ReturnType<typeof setInterval> | null = null;
 
   protected readonly themeForm = new FormGroup({
     theme: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(80)] }),
@@ -44,6 +57,15 @@ export class ThemeSelectionPage implements OnInit {
       await this.gameState.refreshLobby(this.route.snapshot.paramMap.get('code') ?? undefined);
     } catch {
       await this.router.navigate(['/join'], { queryParams: { code: this.route.snapshot.paramMap.get('code') } });
+      return;
+    }
+    this.refreshCountdown();
+    this.countdownInterval = setInterval(() => this.refreshCountdown(), 250);
+  }
+
+  ngOnDestroy(): void {
+    if (this.countdownInterval !== null) {
+      clearInterval(this.countdownInterval);
     }
   }
 
@@ -75,24 +97,10 @@ export class ThemeSelectionPage implements OnInit {
     }
   }
 
-  protected moveUp(index: number): void {
-    if (index <= 0) {
-      return;
-    }
+  protected onDropTheme(event: CdkDragDrop<readonly string[]>): void {
     this.ranking.update((current) => {
       const next = [...current];
-      [next[index - 1], next[index]] = [next[index], next[index - 1]];
-      return next;
-    });
-  }
-
-  protected moveDown(index: number): void {
-    this.ranking.update((current) => {
-      if (index >= current.length - 1) {
-        return current;
-      }
-      const next = [...current];
-      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      moveItemInArray(next, event.previousIndex, event.currentIndex);
       return next;
     });
   }
@@ -109,5 +117,15 @@ export class ThemeSelectionPage implements OnInit {
     } finally {
       this.isSubmittingRanking.set(false);
     }
+  }
+
+  private refreshCountdown(): void {
+    const deadline = this.gameState.themeSelectionState()?.themeDeadline;
+    if (!deadline) {
+      this.remainingSeconds.set(0);
+      return;
+    }
+    const remainingMs = new Date(deadline).getTime() - Date.now();
+    this.remainingSeconds.set(Math.max(0, Math.ceil(remainingMs / 1000)));
   }
 }

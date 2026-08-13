@@ -77,9 +77,10 @@ func (a *api) handleStartZeroToHundredGame(w http.ResponseWriter, r *http.Reques
 	}
 
 	var gameID string
+	themeDeadline := time.Now().Add(themePhaseWindow)
 	if err := tx.QueryRow(r.Context(), `
-		INSERT INTO zero_to_100_games (lobby_id) VALUES ($1) RETURNING id
-	`, player.LobbyID).Scan(&gameID); err != nil {
+		INSERT INTO zero_to_100_games (lobby_id, theme_phase_deadline) VALUES ($1, $2) RETURNING id
+	`, player.LobbyID, themeDeadline).Scan(&gameID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
@@ -93,6 +94,7 @@ func (a *api) handleStartZeroToHundredGame(w http.ResponseWriter, r *http.Reques
 		a.internalError(w, r, err)
 		return
 	}
+	a.scheduleZeroToHundredThemeSubmissionTimeout(player.Code, gameID)
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
@@ -146,7 +148,8 @@ func (a *api) handleSubmitZeroToHundredTheme(w http.ResponseWriter, r *http.Requ
 		a.internalError(w, r, err)
 		return
 	}
-	if err := a.tryAdvanceZeroToHundredThemeCollection(r.Context(), tx, gameID, player.LobbyID); err != nil {
+	advanced, err := a.tryAdvanceZeroToHundredThemeCollection(r.Context(), tx, gameID, player.LobbyID, false)
+	if err != nil {
 		a.internalError(w, r, err)
 		return
 	}
@@ -154,25 +157,33 @@ func (a *api) handleSubmitZeroToHundredTheme(w http.ResponseWriter, r *http.Requ
 		a.internalError(w, r, err)
 		return
 	}
+	if advanced {
+		a.scheduleZeroToHundredThemeRankingTimeout(player.Code, gameID)
+	}
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
-func (a *api) tryAdvanceZeroToHundredThemeCollection(ctx context.Context, tx pgx.Tx, gameID, lobbyID string) error {
+func (a *api) tryAdvanceZeroToHundredThemeCollection(ctx context.Context, tx pgx.Tx, gameID, lobbyID string, force bool) (advanced bool, err error) {
 	activeCount, err := activeLobbyPlayerCount(ctx, tx, lobbyID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	var submittedCount int
 	if err := tx.QueryRow(ctx, `
 		SELECT count(*) FROM zero_to_100_theme_submissions WHERE game_id = $1
 	`, gameID).Scan(&submittedCount); err != nil {
-		return err
+		return false, err
 	}
-	if submittedCount < activeCount {
-		return nil
+	if !force && submittedCount < activeCount {
+		return false, nil
 	}
-	_, err = tx.Exec(ctx, `UPDATE zero_to_100_games SET phase = 'ranking_themes' WHERE id = $1`, gameID)
-	return err
+	deadline := time.Now().Add(themePhaseWindow)
+	if _, err := tx.Exec(ctx, `
+		UPDATE zero_to_100_games SET phase = 'ranking_themes', theme_phase_deadline = $2 WHERE id = $1
+	`, gameID, deadline); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (a *api) handleRankZeroToHundredThemes(w http.ResponseWriter, r *http.Request) {
@@ -231,7 +242,7 @@ func (a *api) handleRankZeroToHundredThemes(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	nextRoundID, shouldScheduleNext, err := a.tryConcludeZeroToHundredRanking(r.Context(), tx, gameID, player.LobbyID, candidates)
+	nextRoundID, shouldScheduleNext, err := a.tryConcludeZeroToHundredRanking(r.Context(), tx, gameID, player.LobbyID, candidates, false)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
@@ -247,7 +258,7 @@ func (a *api) handleRankZeroToHundredThemes(w http.ResponseWriter, r *http.Reque
 }
 
 func (a *api) tryConcludeZeroToHundredRanking(
-	ctx context.Context, tx pgx.Tx, gameID, lobbyID string, candidates []string,
+	ctx context.Context, tx pgx.Tx, gameID, lobbyID string, candidates []string, force bool,
 ) (nextRoundID string, shouldScheduleNext bool, err error) {
 	activeCount, err := activeLobbyPlayerCount(ctx, tx, lobbyID)
 	if err != nil {
@@ -259,7 +270,7 @@ func (a *api) tryConcludeZeroToHundredRanking(
 	`, gameID).Scan(&votedCount); err != nil {
 		return "", false, err
 	}
-	if votedCount < activeCount {
+	if !force && votedCount < activeCount {
 		return "", false, nil
 	}
 
@@ -307,6 +318,91 @@ func (a *api) tryConcludeZeroToHundredRanking(
 		return "", false, err
 	}
 	return roundID, true, nil
+}
+
+func (a *api) scheduleZeroToHundredThemeSubmissionTimeout(code, gameID string) {
+	time.AfterFunc(themePhaseWindow, func() {
+		a.forceZeroToHundredThemeSubmissionDeadline(code, gameID)
+	})
+}
+
+func (a *api) forceZeroToHundredThemeSubmissionDeadline(code, gameID string) {
+	ctx := context.Background()
+	tx, err := a.pool.Begin(ctx)
+	if err != nil {
+		a.logger.Error("unable to begin zero to 100 theme submission deadline transaction", "game_id", gameID, "error", err)
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	var phase, lobbyID string
+	if err := tx.QueryRow(ctx, `SELECT phase, lobby_id FROM zero_to_100_games WHERE id = $1 FOR UPDATE`, gameID).Scan(&phase, &lobbyID); err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			a.logger.Error("unable to load zero to 100 game for theme submission deadline", "game_id", gameID, "error", err)
+		}
+		return
+	}
+	if phase != "collecting_themes" {
+		return
+	}
+	advanced, err := a.tryAdvanceZeroToHundredThemeCollection(ctx, tx, gameID, lobbyID, true)
+	if err != nil {
+		a.logger.Error("unable to force zero to 100 theme collection deadline", "game_id", gameID, "error", err)
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		a.logger.Error("unable to commit zero to 100 theme submission deadline transition", "game_id", gameID, "error", err)
+		return
+	}
+	a.hub.publish(code)
+	if advanced {
+		a.scheduleZeroToHundredThemeRankingTimeout(code, gameID)
+	}
+}
+
+func (a *api) scheduleZeroToHundredThemeRankingTimeout(code, gameID string) {
+	time.AfterFunc(themePhaseWindow, func() {
+		a.forceZeroToHundredThemeRankingDeadline(code, gameID)
+	})
+}
+
+func (a *api) forceZeroToHundredThemeRankingDeadline(code, gameID string) {
+	ctx := context.Background()
+	tx, err := a.pool.Begin(ctx)
+	if err != nil {
+		a.logger.Error("unable to begin zero to 100 theme ranking deadline transaction", "game_id", gameID, "error", err)
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	var phase, lobbyID string
+	if err := tx.QueryRow(ctx, `SELECT phase, lobby_id FROM zero_to_100_games WHERE id = $1 FOR UPDATE`, gameID).Scan(&phase, &lobbyID); err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			a.logger.Error("unable to load zero to 100 game for theme ranking deadline", "game_id", gameID, "error", err)
+		}
+		return
+	}
+	if phase != "ranking_themes" {
+		return
+	}
+	candidates, err := zeroToHundredThemeCandidates(ctx, tx, gameID)
+	if err != nil {
+		a.logger.Error("unable to load zero to 100 theme candidates for ranking deadline", "game_id", gameID, "error", err)
+		return
+	}
+	nextRoundID, shouldScheduleNext, err := a.tryConcludeZeroToHundredRanking(ctx, tx, gameID, lobbyID, candidates, true)
+	if err != nil {
+		a.logger.Error("unable to force zero to 100 theme ranking deadline", "game_id", gameID, "error", err)
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		a.logger.Error("unable to commit zero to 100 theme ranking deadline transition", "game_id", gameID, "error", err)
+		return
+	}
+	a.hub.publish(code)
+	if shouldScheduleNext {
+		a.scheduleZeroToHundredRoundTimeout(code, nextRoundID)
+	}
 }
 
 func zeroToHundredThemeCandidates(ctx context.Context, db dbQuerier, gameID string) ([]string, error) {
@@ -749,9 +845,11 @@ func (a *api) handleReplayZeroToHundred(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if _, err := tx.Exec(r.Context(), `
-		INSERT INTO zero_to_100_games (lobby_id) VALUES ($1)
-	`, player.LobbyID); err != nil {
+	var gameID string
+	themeDeadline := time.Now().Add(themePhaseWindow)
+	if err := tx.QueryRow(r.Context(), `
+		INSERT INTO zero_to_100_games (lobby_id, theme_phase_deadline) VALUES ($1, $2) RETURNING id
+	`, player.LobbyID, themeDeadline).Scan(&gameID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
@@ -765,6 +863,7 @@ func (a *api) handleReplayZeroToHundred(w http.ResponseWriter, r *http.Request) 
 		a.internalError(w, r, err)
 		return
 	}
+	a.scheduleZeroToHundredThemeSubmissionTimeout(player.Code, gameID)
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
@@ -933,6 +1032,31 @@ func loadZeroToHundredLeaderboard(ctx context.Context, db dbQuerier, gameID stri
 
 // loadZeroToHundredState builds the 0 à 100 view of the lobby state for the
 // current player, mirroring loadFastBioState's role for the Fast Bio mode.
+// loadZeroToHundredThemeProgress populates the deadline and "X of Y" progress
+// counters shared by both theme sub-phases. progressTable is always one of
+// the two hardcoded table name constants below (never user input).
+func (a *api) loadZeroToHundredThemeProgress(ctx context.Context, gameID, lobbyID, progressTable string, view *zeroToHundredStateView) error {
+	var deadline *time.Time
+	if err := a.pool.QueryRow(ctx, `
+		SELECT theme_phase_deadline FROM zero_to_100_games WHERE id = $1
+	`, gameID).Scan(&deadline); err != nil {
+		return err
+	}
+	view.ThemeDeadline = deadline
+	requiredCount, err := activeLobbyPlayerCount(ctx, a.pool, lobbyID)
+	if err != nil {
+		return err
+	}
+	view.ThemeProgressRequired = requiredCount
+	var progressCount int
+	query := "SELECT count(*) FROM " + progressTable + " WHERE game_id = $1"
+	if err := a.pool.QueryRow(ctx, query, gameID).Scan(&progressCount); err != nil {
+		return err
+	}
+	view.ThemeProgressCount = progressCount
+	return nil
+}
+
 func (a *api) loadZeroToHundredState(ctx context.Context, currentPlayer authenticatedPlayer) (zeroToHundredStateView, error) {
 	gameID, gamePhase, err := loadActiveZeroToHundredGame(ctx, a.pool, currentPlayer.LobbyID)
 	if err != nil {
@@ -949,6 +1073,9 @@ func (a *api) loadZeroToHundredState(ctx context.Context, currentPlayer authenti
 			return zeroToHundredStateView{}, err
 		}
 		view.ThemeSubmitted = exists
+		if err := a.loadZeroToHundredThemeProgress(ctx, gameID, currentPlayer.LobbyID, "zero_to_100_theme_submissions", &view); err != nil {
+			return zeroToHundredStateView{}, err
+		}
 
 	case "ranking_themes":
 		view.ThemeSubmitted = true
@@ -964,6 +1091,9 @@ func (a *api) loadZeroToHundredState(ctx context.Context, currentPlayer authenti
 			return zeroToHundredStateView{}, err
 		}
 		view.ThemeRanked = exists
+		if err := a.loadZeroToHundredThemeProgress(ctx, gameID, currentPlayer.LobbyID, "zero_to_100_theme_rankings", &view); err != nil {
+			return zeroToHundredStateView{}, err
+		}
 
 	case "playing":
 		view.ThemeSubmitted = true

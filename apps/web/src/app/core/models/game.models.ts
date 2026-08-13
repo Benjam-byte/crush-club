@@ -30,6 +30,12 @@ export interface ThemeSelectionState {
   themeSubmitted: boolean
   themeCandidates?: readonly string[]
   themeRanked: boolean
+  /** Deadline for whichever theme sub-phase is currently active (submission or ranking). */
+  themeDeadline?: string
+  /** How many active players have completed the current theme sub-phase so far. */
+  themeProgressCount?: number
+  /** How many active players are required to complete the current theme sub-phase. */
+  themeProgressRequired?: number
 }
 
 export type PlayerReadyStatus = 'joining' | 'preparing_photos' | 'ready'
@@ -255,6 +261,9 @@ export interface FastBioStateView {
   themeSubmitted: boolean
   themeCandidates?: readonly string[]
   themeRanked: boolean
+  themeDeadline?: string
+  themeProgressCount?: number
+  themeProgressRequired?: number
   selectedThemes?: readonly string[]
   roundNumber?: number
   totalRounds?: number

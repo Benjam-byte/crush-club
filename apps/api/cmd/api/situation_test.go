@@ -44,7 +44,7 @@ func TestSituationDuelsForWaveSpecificCases(t *testing.T) {
 		aliveCount int
 		want       int
 	}{
-		{aliveCount: 3, want: 0},  // at or below the finalist count already
+		{aliveCount: 3, want: 0}, // at or below the finalist count already
 		{aliveCount: 4, want: 0},
 		{aliveCount: 5, want: 1},  // 5 -> 4: one duel, three byes
 		{aliveCount: 6, want: 2},  // 6 -> 4: three pairs possible, only need 2

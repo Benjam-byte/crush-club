@@ -44,6 +44,11 @@ const (
 	situationProposalWindow = 2 * time.Minute
 	situationDuelWindow     = 1 * time.Minute
 	situationFinalistCount  = 4
+
+	// themePhaseWindow bounds both sub-phases of the shared theme/situation
+	// selection step (collecting_themes, ranking_themes) across Fast Bio,
+	// 0 à 100 and Situation, mirroring the existing round-level windows.
+	themePhaseWindow = 2 * time.Minute
 )
 
 var fastBioReactionPoints = map[string]int{
@@ -205,26 +210,29 @@ type leaderboardEntryView struct {
 }
 
 type fastBioStateView struct {
-	ID                 string                        `json:"id"`
-	Phase              string                        `json:"phase"`
-	ThemeSubmitted     bool                          `json:"themeSubmitted"`
-	ThemeCandidates    []string                      `json:"themeCandidates,omitempty"`
-	ThemeRanked        bool                          `json:"themeRanked"`
-	SelectedThemes     []string                      `json:"selectedThemes,omitempty"`
-	RoundNumber        int                           `json:"roundNumber,omitempty"`
-	TotalRounds        int                           `json:"totalRounds,omitempty"`
-	RoundPhase         string                        `json:"roundPhase,omitempty"`
-	ThemeLabel         string                        `json:"themeLabel,omitempty"`
-	SubmissionDeadline *time.Time                    `json:"submissionDeadline,omitempty"`
-	TargetPlayerID     string                        `json:"targetPlayerId,omitempty"`
-	TargetDisplayName  string                        `json:"targetDisplayName,omitempty"`
-	Submitted          bool                          `json:"submitted"`
-	ProposalCount      int                           `json:"proposalCount,omitempty"`
-	ReviewIndex        int                           `json:"reviewIndex,omitempty"`
-	IsHostReview       bool                          `json:"isHostReview,omitempty"`
-	CurrentProposal    *fastBioProposalView          `json:"currentProposal,omitempty"`
-	MyReactionEmoji    string                        `json:"myReactionEmoji,omitempty"`
-	Leaderboard        []fastBioLeaderboardEntryView `json:"leaderboard,omitempty"`
+	ID                    string                        `json:"id"`
+	Phase                 string                        `json:"phase"`
+	ThemeSubmitted        bool                          `json:"themeSubmitted"`
+	ThemeCandidates       []string                      `json:"themeCandidates,omitempty"`
+	ThemeRanked           bool                          `json:"themeRanked"`
+	ThemeDeadline         *time.Time                    `json:"themeDeadline,omitempty"`
+	ThemeProgressCount    int                           `json:"themeProgressCount,omitempty"`
+	ThemeProgressRequired int                           `json:"themeProgressRequired,omitempty"`
+	SelectedThemes        []string                      `json:"selectedThemes,omitempty"`
+	RoundNumber           int                           `json:"roundNumber,omitempty"`
+	TotalRounds           int                           `json:"totalRounds,omitempty"`
+	RoundPhase            string                        `json:"roundPhase,omitempty"`
+	ThemeLabel            string                        `json:"themeLabel,omitempty"`
+	SubmissionDeadline    *time.Time                    `json:"submissionDeadline,omitempty"`
+	TargetPlayerID        string                        `json:"targetPlayerId,omitempty"`
+	TargetDisplayName     string                        `json:"targetDisplayName,omitempty"`
+	Submitted             bool                          `json:"submitted"`
+	ProposalCount         int                           `json:"proposalCount,omitempty"`
+	ReviewIndex           int                           `json:"reviewIndex,omitempty"`
+	IsHostReview          bool                          `json:"isHostReview,omitempty"`
+	CurrentProposal       *fastBioProposalView          `json:"currentProposal,omitempty"`
+	MyReactionEmoji       string                        `json:"myReactionEmoji,omitempty"`
+	Leaderboard           []fastBioLeaderboardEntryView `json:"leaderboard,omitempty"`
 }
 
 type fastBioProposalView struct {
@@ -252,23 +260,26 @@ type fastBioLeaderboardEntryView struct {
 }
 
 type zeroToHundredStateView struct {
-	ID                 string                         `json:"id"`
-	Phase              string                         `json:"phase"`
-	ThemeSubmitted     bool                           `json:"themeSubmitted"`
-	ThemeCandidates    []string                       `json:"themeCandidates,omitempty"`
-	ThemeRanked        bool                           `json:"themeRanked"`
-	SelectedThemes     []string                       `json:"selectedThemes,omitempty"`
-	RoundNumber        int                            `json:"roundNumber,omitempty"`
-	TotalRounds        int                            `json:"totalRounds,omitempty"`
-	RoundPhase         string                         `json:"roundPhase,omitempty"`
-	ThemeLabel         string                         `json:"themeLabel,omitempty"`
-	SubmissionDeadline *time.Time                     `json:"submissionDeadline,omitempty"`
-	Nominees           []zeroToHundredNomineeView     `json:"nominees,omitempty"`
-	IsNominee          bool                           `json:"isNominee,omitempty"`
-	Submitted          bool                           `json:"submitted"`
-	Reveal             []zeroToHundredRevealEntryView `json:"reveal,omitempty"`
-	RoundScore         int                            `json:"roundScore,omitempty"`
-	Leaderboard        []fastBioLeaderboardEntryView  `json:"leaderboard,omitempty"`
+	ID                    string                         `json:"id"`
+	Phase                 string                         `json:"phase"`
+	ThemeSubmitted        bool                           `json:"themeSubmitted"`
+	ThemeCandidates       []string                       `json:"themeCandidates,omitempty"`
+	ThemeRanked           bool                           `json:"themeRanked"`
+	ThemeDeadline         *time.Time                     `json:"themeDeadline,omitempty"`
+	ThemeProgressCount    int                            `json:"themeProgressCount,omitempty"`
+	ThemeProgressRequired int                            `json:"themeProgressRequired,omitempty"`
+	SelectedThemes        []string                       `json:"selectedThemes,omitempty"`
+	RoundNumber           int                            `json:"roundNumber,omitempty"`
+	TotalRounds           int                            `json:"totalRounds,omitempty"`
+	RoundPhase            string                         `json:"roundPhase,omitempty"`
+	ThemeLabel            string                         `json:"themeLabel,omitempty"`
+	SubmissionDeadline    *time.Time                     `json:"submissionDeadline,omitempty"`
+	Nominees              []zeroToHundredNomineeView     `json:"nominees,omitempty"`
+	IsNominee             bool                           `json:"isNominee,omitempty"`
+	Submitted             bool                           `json:"submitted"`
+	Reveal                []zeroToHundredRevealEntryView `json:"reveal,omitempty"`
+	RoundScore            int                            `json:"roundScore,omitempty"`
+	Leaderboard           []fastBioLeaderboardEntryView  `json:"leaderboard,omitempty"`
 }
 
 type zeroToHundredNomineeView struct {
@@ -286,27 +297,30 @@ type zeroToHundredRevealEntryView struct {
 }
 
 type situationStateView struct {
-	ID                string                        `json:"id"`
-	Phase             string                        `json:"phase"`
-	ThemeSubmitted    bool                          `json:"themeSubmitted"`
-	ThemeCandidates   []string                      `json:"themeCandidates,omitempty"`
-	ThemeRanked       bool                          `json:"themeRanked"`
-	SelectedThemes    []string                      `json:"selectedThemes,omitempty"`
-	RoundNumber       int                           `json:"roundNumber,omitempty"`
-	TotalRounds       int                           `json:"totalRounds,omitempty"`
-	RoundPhase        string                        `json:"roundPhase,omitempty"`
-	ThemeLabel        string                        `json:"themeLabel,omitempty"`
-	ProposalDeadline  *time.Time                    `json:"proposalDeadline,omitempty"`
-	Submitted         bool                          `json:"submitted"`
-	CurrentDuel       *situationDuelView            `json:"currentDuel,omitempty"`
-	ProposalCount     int                           `json:"proposalCount,omitempty"`
-	ReviewIndex       int                           `json:"reviewIndex,omitempty"`
-	IsHostReview      bool                          `json:"isHostReview,omitempty"`
-	CurrentProposal   *situationProposalView        `json:"currentProposal,omitempty"`
-	RankingCandidates []situationProposalView       `json:"rankingCandidates,omitempty"`
-	RankingSubmitted  bool                          `json:"rankingSubmitted,omitempty"`
-	RoundScore        int                           `json:"roundScore,omitempty"`
-	Leaderboard       []fastBioLeaderboardEntryView `json:"leaderboard,omitempty"`
+	ID                    string                        `json:"id"`
+	Phase                 string                        `json:"phase"`
+	ThemeSubmitted        bool                          `json:"themeSubmitted"`
+	ThemeCandidates       []string                      `json:"themeCandidates,omitempty"`
+	ThemeRanked           bool                          `json:"themeRanked"`
+	ThemeDeadline         *time.Time                    `json:"themeDeadline,omitempty"`
+	ThemeProgressCount    int                           `json:"themeProgressCount,omitempty"`
+	ThemeProgressRequired int                           `json:"themeProgressRequired,omitempty"`
+	SelectedThemes        []string                      `json:"selectedThemes,omitempty"`
+	RoundNumber           int                           `json:"roundNumber,omitempty"`
+	TotalRounds           int                           `json:"totalRounds,omitempty"`
+	RoundPhase            string                        `json:"roundPhase,omitempty"`
+	ThemeLabel            string                        `json:"themeLabel,omitempty"`
+	ProposalDeadline      *time.Time                    `json:"proposalDeadline,omitempty"`
+	Submitted             bool                          `json:"submitted"`
+	CurrentDuel           *situationDuelView            `json:"currentDuel,omitempty"`
+	ProposalCount         int                           `json:"proposalCount,omitempty"`
+	ReviewIndex           int                           `json:"reviewIndex,omitempty"`
+	IsHostReview          bool                          `json:"isHostReview,omitempty"`
+	CurrentProposal       *situationProposalView        `json:"currentProposal,omitempty"`
+	RankingCandidates     []situationProposalView       `json:"rankingCandidates,omitempty"`
+	RankingSubmitted      bool                          `json:"rankingSubmitted,omitempty"`
+	RoundScore            int                           `json:"roundScore,omitempty"`
+	Leaderboard           []fastBioLeaderboardEntryView `json:"leaderboard,omitempty"`
 }
 
 type situationProposalView struct {

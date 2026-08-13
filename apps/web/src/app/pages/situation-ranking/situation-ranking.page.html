@@ -16,13 +16,17 @@
               {{ gameState.situationGame()?.themeLabel }}
             </p>
             <h1 class="mt-2 text-2xl font-extrabold text-ink-900">Classe les propositions</h1>
-            <p class="mt-2 text-sm text-ink-600">De la meilleure (en haut) à la moins bonne.</p>
+            <p class="mt-2 text-sm text-ink-600">Glisse pour réordonner, de la meilleure (en haut) à la moins bonne.</p>
           </header>
 
-          <ol class="surface-card divide-y divide-peach-100 overflow-hidden">
+          <ol
+            class="surface-card divide-y divide-peach-100 overflow-hidden"
+            cdkDropList
+            (cdkDropListDropped)="onDropRanking($event)"
+          >
             @for (proposalId of ranking(); track proposalId; let index = $index) {
               @let candidate = candidateFor(proposalId);
-              <li class="flex items-center gap-3 px-4 py-3">
+              <li class="ranking-row flex items-center gap-3 px-4 py-3" cdkDrag [cdkDragData]="proposalId">
                 <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">
                   {{ index + 1 }}
                 </span>
@@ -30,24 +34,7 @@
                   <p class="truncate text-sm font-extrabold text-ink-900">{{ candidate?.chosenDisplayName }}</p>
                   <p class="truncate text-xs text-ink-500">{{ candidate?.reason }}</p>
                 </div>
-                <button
-                  class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-50 text-brand-600 disabled:opacity-30"
-                  type="button"
-                  [disabled]="index === 0"
-                  (click)="moveUp(index)"
-                  aria-label="Monter cette proposition"
-                >
-                  <ion-icon name="chevron-up" aria-hidden="true" />
-                </button>
-                <button
-                  class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-50 text-brand-600 disabled:opacity-30"
-                  type="button"
-                  [disabled]="index === ranking().length - 1"
-                  (click)="moveDown(index)"
-                  aria-label="Descendre cette proposition"
-                >
-                  <ion-icon name="chevron-down" aria-hidden="true" />
-                </button>
+                <ion-icon class="shrink-0 text-lg text-ink-500" name="reorder-two-outline" cdkDragHandle aria-hidden="true" />
               </li>
             }
           </ol>
