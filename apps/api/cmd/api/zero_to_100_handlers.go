@@ -85,8 +85,12 @@ func (a *api) handleStartZeroToHundredGame(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if _, err := tx.Exec(r.Context(), `
-		UPDATE lobbies SET status = 'in_game', revision = revision + 1, updated_at = now() WHERE id = $1
+		UPDATE lobbies SET status = 'in_game' WHERE id = $1
 	`, player.LobbyID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
@@ -150,6 +154,10 @@ func (a *api) handleSubmitZeroToHundredTheme(w http.ResponseWriter, r *http.Requ
 	}
 	advanced, err := a.tryAdvanceZeroToHundredThemeCollection(r.Context(), tx, gameID, player.LobbyID, false)
 	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
@@ -244,6 +252,10 @@ func (a *api) handleRankZeroToHundredThemes(w http.ResponseWriter, r *http.Reque
 
 	nextRoundID, shouldScheduleNext, err := a.tryConcludeZeroToHundredRanking(r.Context(), tx, gameID, player.LobbyID, candidates, false)
 	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
@@ -350,6 +362,10 @@ func (a *api) forceZeroToHundredThemeSubmissionDeadline(code, gameID string) {
 		a.logger.Error("unable to force zero to 100 theme collection deadline", "game_id", gameID, "error", err)
 		return
 	}
+	if err := bumpLobbyRevision(ctx, tx, lobbyID); err != nil {
+		a.logger.Error("unable to bump lobby revision for zero to 100 theme submission deadline", "game_id", gameID, "error", err)
+		return
+	}
 	if err := tx.Commit(ctx); err != nil {
 		a.logger.Error("unable to commit zero to 100 theme submission deadline transition", "game_id", gameID, "error", err)
 		return
@@ -393,6 +409,10 @@ func (a *api) forceZeroToHundredThemeRankingDeadline(code, gameID string) {
 	nextRoundID, shouldScheduleNext, err := a.tryConcludeZeroToHundredRanking(ctx, tx, gameID, lobbyID, candidates, true)
 	if err != nil {
 		a.logger.Error("unable to force zero to 100 theme ranking deadline", "game_id", gameID, "error", err)
+		return
+	}
+	if err := bumpLobbyRevision(ctx, tx, lobbyID); err != nil {
+		a.logger.Error("unable to bump lobby revision for zero to 100 theme ranking deadline", "game_id", gameID, "error", err)
 		return
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -510,8 +530,14 @@ func (a *api) forceZeroToHundredGuessDeadline(code, roundID string) {
 	}
 	defer tx.Rollback(ctx)
 
-	var phase string
-	if err := tx.QueryRow(ctx, `SELECT phase FROM zero_to_100_rounds WHERE id = $1 FOR UPDATE`, roundID).Scan(&phase); err != nil {
+	var phase, lobbyID string
+	if err := tx.QueryRow(ctx, `
+		SELECT round.phase, game.lobby_id
+		FROM zero_to_100_rounds AS round
+		JOIN zero_to_100_games AS game ON game.id = round.game_id
+		WHERE round.id = $1
+		FOR UPDATE OF round
+	`, roundID).Scan(&phase, &lobbyID); err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			a.logger.Error("unable to load zero to 100 round for deadline", "round_id", roundID, "error", err)
 		}
@@ -522,6 +548,10 @@ func (a *api) forceZeroToHundredGuessDeadline(code, roundID string) {
 	}
 	if err := a.closeZeroToHundredGuessing(ctx, tx, roundID); err != nil {
 		a.logger.Error("unable to close zero to 100 guessing window", "round_id", roundID, "error", err)
+		return
+	}
+	if err := bumpLobbyRevision(ctx, tx, lobbyID); err != nil {
+		a.logger.Error("unable to bump lobby revision for zero to 100 guess deadline", "round_id", roundID, "error", err)
 		return
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -625,6 +655,10 @@ func (a *api) handleSubmitZeroToHundredGuess(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		a.internalError(w, r, err)
 		return
@@ -809,6 +843,10 @@ func (a *api) handleStartNextZeroToHundredRound(w http.ResponseWriter, r *http.R
 		shouldScheduleNext = true
 	}
 
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		a.internalError(w, r, err)
 		return
@@ -854,8 +892,12 @@ func (a *api) handleReplayZeroToHundred(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if _, err := tx.Exec(r.Context(), `
-		UPDATE lobbies SET status = 'in_game', revision = revision + 1, updated_at = now() WHERE id = $1
+		UPDATE lobbies SET status = 'in_game' WHERE id = $1
 	`, player.LobbyID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}

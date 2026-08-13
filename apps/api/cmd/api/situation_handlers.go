@@ -84,8 +84,12 @@ func (a *api) handleStartSituationGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := tx.Exec(r.Context(), `
-		UPDATE lobbies SET status = 'in_game', revision = revision + 1, updated_at = now() WHERE id = $1
+		UPDATE lobbies SET status = 'in_game' WHERE id = $1
 	`, player.LobbyID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
@@ -149,6 +153,10 @@ func (a *api) handleSubmitSituationTheme(w http.ResponseWriter, r *http.Request)
 	}
 	advanced, err := a.tryAdvanceSituationThemeCollection(r.Context(), tx, gameID, player.LobbyID, false)
 	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
@@ -243,6 +251,10 @@ func (a *api) handleRankSituationThemes(w http.ResponseWriter, r *http.Request) 
 
 	nextRoundID, shouldScheduleNext, err := a.tryConcludeSituationRanking(r.Context(), tx, gameID, player.LobbyID, candidates, false)
 	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
@@ -349,6 +361,10 @@ func (a *api) forceSituationThemeSubmissionDeadline(code, gameID string) {
 		a.logger.Error("unable to force situation theme collection deadline", "game_id", gameID, "error", err)
 		return
 	}
+	if err := bumpLobbyRevision(ctx, tx, lobbyID); err != nil {
+		a.logger.Error("unable to bump lobby revision for situation theme submission deadline", "game_id", gameID, "error", err)
+		return
+	}
 	if err := tx.Commit(ctx); err != nil {
 		a.logger.Error("unable to commit situation theme submission deadline transition", "game_id", gameID, "error", err)
 		return
@@ -392,6 +408,10 @@ func (a *api) forceSituationThemeRankingDeadline(code, gameID string) {
 	nextRoundID, shouldScheduleNext, err := a.tryConcludeSituationRanking(ctx, tx, gameID, lobbyID, candidates, true)
 	if err != nil {
 		a.logger.Error("unable to force situation theme ranking deadline", "game_id", gameID, "error", err)
+		return
+	}
+	if err := bumpLobbyRevision(ctx, tx, lobbyID); err != nil {
+		a.logger.Error("unable to bump lobby revision for situation theme ranking deadline", "game_id", gameID, "error", err)
 		return
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -476,8 +496,14 @@ func (a *api) forceSituationProposalDeadline(code, roundID string) {
 	}
 	defer tx.Rollback(ctx)
 
-	var phase string
-	if err := tx.QueryRow(ctx, `SELECT phase FROM situation_rounds WHERE id = $1 FOR UPDATE`, roundID).Scan(&phase); err != nil {
+	var phase, lobbyID string
+	if err := tx.QueryRow(ctx, `
+		SELECT round.phase, game.lobby_id
+		FROM situation_rounds AS round
+		JOIN situation_games AS game ON game.id = round.game_id
+		WHERE round.id = $1
+		FOR UPDATE OF round
+	`, roundID).Scan(&phase, &lobbyID); err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			a.logger.Error("unable to load situation round for proposal deadline", "round_id", roundID, "error", err)
 		}
@@ -489,6 +515,10 @@ func (a *api) forceSituationProposalDeadline(code, roundID string) {
 	duelIDs, err := advanceSituationBracket(ctx, tx, roundID)
 	if err != nil {
 		a.logger.Error("unable to close situation proposal window", "round_id", roundID, "error", err)
+		return
+	}
+	if err := bumpLobbyRevision(ctx, tx, lobbyID); err != nil {
+		a.logger.Error("unable to bump lobby revision for situation proposal deadline", "round_id", roundID, "error", err)
 		return
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -604,6 +634,10 @@ func (a *api) handleSubmitSituationProposal(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		a.internalError(w, r, err)
 		return
@@ -836,6 +870,10 @@ func (a *api) handleVoteSituationDuel(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		a.internalError(w, r, err)
 		return
@@ -861,11 +899,16 @@ func (a *api) forceSituationDuelDeadline(code, duelID string) {
 	}
 	defer tx.Rollback(ctx)
 
-	var proposalA, proposalB string
+	var proposalA, proposalB, lobbyID string
 	var resolved bool
 	err = tx.QueryRow(ctx, `
-		SELECT proposal_a_id, proposal_b_id, resolved_at IS NOT NULL FROM situation_duels WHERE id = $1 FOR UPDATE
-	`, duelID).Scan(&proposalA, &proposalB, &resolved)
+		SELECT duel.proposal_a_id, duel.proposal_b_id, duel.resolved_at IS NOT NULL, game.lobby_id
+		FROM situation_duels AS duel
+		JOIN situation_rounds AS round ON round.id = duel.round_id
+		JOIN situation_games AS game ON game.id = round.game_id
+		WHERE duel.id = $1
+		FOR UPDATE OF duel
+	`, duelID).Scan(&proposalA, &proposalB, &resolved, &lobbyID)
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			a.logger.Error("unable to load situation duel for deadline", "duel_id", duelID, "error", err)
@@ -887,6 +930,10 @@ func (a *api) forceSituationDuelDeadline(code, duelID string) {
 	duelIDs, err := tryAdvanceSituationWave(ctx, tx, roundID)
 	if err != nil {
 		a.logger.Error("unable to advance situation bracket after duel deadline", "duel_id", duelID, "error", err)
+		return
+	}
+	if err := bumpLobbyRevision(ctx, tx, lobbyID); err != nil {
+		a.logger.Error("unable to bump lobby revision for situation duel deadline", "duel_id", duelID, "error", err)
 		return
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -950,6 +997,7 @@ func (a *api) handleAdvanceSituationReview(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	changed := false
 	switch {
 	case input.Direction == "previous":
 		if round.ReviewIndex > 0 {
@@ -959,12 +1007,14 @@ func (a *api) handleAdvanceSituationReview(w http.ResponseWriter, r *http.Reques
 				a.internalError(w, r, err)
 				return
 			}
+			changed = true
 		}
 	case round.ReviewIndex >= finalistCount-1:
 		if _, err := tx.Exec(r.Context(), `UPDATE situation_rounds SET phase = 'ranking' WHERE id = $1`, round.ID); err != nil {
 			a.internalError(w, r, err)
 			return
 		}
+		changed = true
 	default:
 		if _, err := tx.Exec(r.Context(), `
 			UPDATE situation_rounds SET review_index = review_index + 1 WHERE id = $1
@@ -972,8 +1022,15 @@ func (a *api) handleAdvanceSituationReview(w http.ResponseWriter, r *http.Reques
 			a.internalError(w, r, err)
 			return
 		}
+		changed = true
 	}
 
+	if changed {
+		if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		a.internalError(w, r, err)
 		return
@@ -1065,6 +1122,10 @@ func (a *api) handleSubmitSituationRanking(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		a.internalError(w, r, err)
 		return
@@ -1225,6 +1286,10 @@ func (a *api) handleStartNextSituationRound(w http.ResponseWriter, r *http.Reque
 		shouldScheduleNext = true
 	}
 
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		a.internalError(w, r, err)
 		return
@@ -1270,8 +1335,12 @@ func (a *api) handleReplaySituation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := tx.Exec(r.Context(), `
-		UPDATE lobbies SET status = 'in_game', revision = revision + 1, updated_at = now() WHERE id = $1
+		UPDATE lobbies SET status = 'in_game' WHERE id = $1
 	`, player.LobbyID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
 		a.internalError(w, r, err)
 		return
 	}

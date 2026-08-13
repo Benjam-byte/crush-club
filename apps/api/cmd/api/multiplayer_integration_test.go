@@ -101,6 +101,14 @@ func integrationRequestJSON[T any](
 }
 
 func createIntegrationLobby(t *testing.T, baseURL, displayName string, maxPlayers int) (integrationSession, playerSessionResponse) {
+	return createIntegrationModeLobby(t, baseURL, displayName, lobbyModeClassic, maxPlayers)
+}
+
+func createIntegrationModeLobby(
+	t *testing.T,
+	baseURL, displayName, mode string,
+	maxPlayers int,
+) (integrationSession, playerSessionResponse) {
 	t.Helper()
 	host := newIntegrationHost(t, baseURL)
 	configList := integrationRequestJSON[[]gameConfig](
@@ -117,12 +125,26 @@ func createIntegrationLobby(t *testing.T, baseURL, displayName string, maxPlayer
 		"",
 		map[string]any{
 			"displayName":  displayName,
+			"mode":         mode,
 			"maxPlayers":   maxPlayers,
 			"gameConfigId": configList[0].ID,
 		},
 		http.StatusCreated,
 	)
 	return host, created
+}
+
+func joinIntegrationLobby(t *testing.T, baseURL, code, displayName string) playerSessionResponse {
+	t.Helper()
+	return integrationRequestJSON[playerSessionResponse](
+		t,
+		integrationSession{client: &http.Client{Timeout: 10 * time.Second}},
+		http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/players",
+		"",
+		map[string]string{"displayName": displayName},
+		http.StatusCreated,
+	)
 }
 
 func TestIntegrationLegacyCatalogReferencesBecomeIndependentPersonalCopies(t *testing.T) {
@@ -251,6 +273,57 @@ func uploadIntegrationPhotos(
 	if response.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
 		t.Fatalf("photo upload status = %d: %s", response.StatusCode, responseBody)
+	}
+	var state lobbyStateResponse
+	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
+		t.Fatal(err)
+	}
+	return state
+}
+
+func submitIntegrationFastBioProposal(
+	t *testing.T,
+	baseURL, code, token string,
+	client *http.Client,
+) lobbyStateResponse {
+	t.Helper()
+	pngData, err := base64.StdEncoding.DecodeString(onePixelPNG)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var requestBody bytes.Buffer
+	writer := multipart.NewWriter(&requestBody)
+	part, err := writer.CreateFormFile("photo", "proposal.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(pngData); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.WriteField("bio", "Une bio de test synchronisée"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	request, err := http.NewRequest(
+		http.MethodPost,
+		baseURL+"/api/v1/lobbies/"+code+"/fast-bio/proposal",
+		&requestBody,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	request.Header.Set("Authorization", "Bearer "+token)
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusCreated {
+		responseBody, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		t.Fatalf("fast bio proposal status = %d: %s", response.StatusCode, responseBody)
 	}
 	var state lobbyStateResponse
 	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {

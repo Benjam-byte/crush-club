@@ -57,6 +57,23 @@ type dbQuerier interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
+// bumpLobbyRevision marks a committed lobby mutation as a new realtime
+// snapshot. Clients intentionally ignore snapshots whose revision is not
+// newer than the state they already hold, so every player-visible mutation
+// must call this exactly once in the same transaction as the mutation.
+func bumpLobbyRevision(ctx context.Context, db dbQuerier, lobbyID string) error {
+	tag, err := db.Exec(ctx, `
+		UPDATE lobbies SET revision = revision + 1, updated_at = now() WHERE id = $1
+	`, lobbyID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return fmt.Errorf("bump lobby revision: updated %d rows for lobby %s", tag.RowsAffected(), lobbyID)
+	}
+	return nil
+}
+
 type rowScanner interface {
 	Scan(...any) error
 }
