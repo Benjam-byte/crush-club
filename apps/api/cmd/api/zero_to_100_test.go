@@ -2,52 +2,49 @@ package main
 
 import "testing"
 
-func TestSelectZeroToHundredNomineesReturnsThreeDistinctPlayers(t *testing.T) {
-	playerIDs := []string{"p1", "p2", "p3", "p4", "p5", "p6"}
-	for attempt := 0; attempt < 20; attempt++ {
-		nominees, err := selectZeroToHundredNominees(playerIDs)
-		if err != nil {
-			t.Fatalf("selectZeroToHundredNominees() error = %v", err)
-		}
-		if len(nominees) != zeroToHundredNomineeCount {
-			t.Fatalf("selectZeroToHundredNominees() returned %d nominees, want %d", len(nominees), zeroToHundredNomineeCount)
-		}
-		seen := make(map[string]bool, len(nominees))
-		for _, id := range nominees {
-			if seen[id] {
-				t.Fatalf("selectZeroToHundredNominees() returned a duplicate nominee: %v", nominees)
+func TestSelectZeroToHundredNomineesReturnsDistinctPlayers(t *testing.T) {
+	testCases := []struct {
+		name      string
+		playerIDs []string
+		want      int
+	}{
+		{name: "caps at five", playerIDs: []string{"p1", "p2", "p3", "p4", "p5", "p6"}, want: zeroToHundredNomineeCount},
+		{name: "everyone when fewer than five", playerIDs: []string{"p1", "p2", "p3"}, want: 3},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			for attempt := 0; attempt < 20; attempt++ {
+				nominees, err := selectZeroToHundredNominees(testCase.playerIDs)
+				if err != nil {
+					t.Fatalf("selectZeroToHundredNominees() error = %v", err)
+				}
+				if len(nominees) != testCase.want {
+					t.Fatalf("selectZeroToHundredNominees() returned %d nominees, want %d", len(nominees), testCase.want)
+				}
+				seen := make(map[string]bool, len(nominees))
+				for _, id := range nominees {
+					if seen[id] {
+						t.Fatalf("selectZeroToHundredNominees() returned a duplicate nominee: %v", nominees)
+					}
+					seen[id] = true
+				}
 			}
-			seen[id] = true
-		}
+		})
 	}
 }
 
-func TestSelectZeroToHundredNomineesRejectsFewerThanThreePlayers(t *testing.T) {
+func TestSelectZeroToHundredNomineesRejectsFewerThanMinimumPlayers(t *testing.T) {
 	if _, err := selectZeroToHundredNominees([]string{"p1", "p2"}); err == nil {
 		t.Fatal("selectZeroToHundredNominees() expected an error for two players, got nil")
 	}
 }
 
-func TestSortNomineesByPositionOrdersAscendingWithStableTieBreak(t *testing.T) {
-	positions := map[string]int{"b": 50, "a": 50, "c": 10}
-	got := sortNomineesByPosition(positions)
-	want := []string{"c", "a", "b"} // c=10 first, then a/b tie at 50 broken alphabetically
-	if len(got) != len(want) {
-		t.Fatalf("sortNomineesByPosition() = %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("sortNomineesByPosition() = %v, want %v", got, want)
-		}
-	}
-}
-
 func TestGuessOrderMatchesTruth(t *testing.T) {
 	truth := map[string]int{"a": 10, "b": 50, "c": 90}
-	trueOrder := sortNomineesByPosition(truth)
 
 	testCases := []struct {
 		name    string
+		truth   map[string]int
 		guesses map[string]int
 		want    bool
 	}{
@@ -71,10 +68,47 @@ func TestGuessOrderMatchesTruth(t *testing.T) {
 			guesses: map[string]int{"a": 5, "b": 40},
 			want:    false,
 		},
+		{
+			name:    "tied guesses where the truth is strict",
+			guesses: map[string]int{"a": 5, "b": 40, "c": 40},
+			want:    false,
+		},
+		{
+			name:    "nominee's own self-placement counts toward the order",
+			guesses: map[string]int{"a": 10, "b": 30, "c": 70}, // guesser "a" is a nominee: their own position equals the truth
+			want:    true,
+		},
+		{
+			name:    "guess for a nominee who never placed themselves is ignored",
+			guesses: map[string]int{"a": 5, "b": 40, "c": 99, "d": 1},
+			want:    true,
+		},
+		{
+			name:    "truth tie accepts one guessed order",
+			truth:   map[string]int{"a": 10, "b": 50, "c": 50},
+			guesses: map[string]int{"a": 5, "b": 40, "c": 60},
+			want:    true,
+		},
+		{
+			name:    "truth tie accepts the other guessed order",
+			truth:   map[string]int{"a": 10, "b": 50, "c": 50},
+			guesses: map[string]int{"a": 5, "b": 60, "c": 40},
+			want:    true,
+		},
+		{
+			name:    "a single self-placement has no order to guess",
+			truth:   map[string]int{"a": 10},
+			guesses: map[string]int{"a": 10, "b": 40},
+			want:    false,
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			if got := guessOrderMatchesTruth(testCase.guesses, truth, trueOrder); got != testCase.want {
+			caseTruth := truth
+			if testCase.truth != nil {
+				caseTruth = testCase.truth
+			}
+			if got := guessOrderMatchesTruth(testCase.guesses, caseTruth); got != testCase.want {
 				t.Fatalf("guessOrderMatchesTruth() = %v, want %v", got, testCase.want)
 			}
 		})

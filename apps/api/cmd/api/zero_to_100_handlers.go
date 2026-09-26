@@ -6,7 +6,6 @@ import (
 	"errors"
 	"math/rand"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -65,7 +64,7 @@ func (a *api) handleStartZeroToHundredGame(w http.ResponseWriter, r *http.Reques
 		a.internalError(w, r, err)
 		return
 	}
-	if len(playerIDs) < zeroToHundredNomineeCount {
+	if len(playerIDs) < zeroToHundredMinPlayerCount {
 		writeError(w, http.StatusConflict, "invalid_player_count", "0 à 100 needs at least three players")
 		return
 	}
@@ -471,10 +470,11 @@ func zeroToHundredThemeCandidates(ctx context.Context, db dbQuerier, gameID stri
 
 // --- rounds: nominees, guesses, scoring, progression ------------------------
 
-// selectZeroToHundredNominees draws three distinct active players at random.
-// The draw is independent each round: someone can be nominated again.
+// selectZeroToHundredNominees draws up to five distinct active players at
+// random (everyone when fewer are active). The draw is independent each
+// round: someone can be nominated again.
 func selectZeroToHundredNominees(playerIDs []string) ([]string, error) {
-	if len(playerIDs) < zeroToHundredNomineeCount {
+	if len(playerIDs) < zeroToHundredMinPlayerCount {
 		return nil, errors.New("zero to 100 requires at least three players")
 	}
 	shuffled := make([]string, len(playerIDs))
@@ -482,7 +482,7 @@ func selectZeroToHundredNominees(playerIDs []string) ([]string, error) {
 	rand.Shuffle(len(shuffled), func(i, j int) {
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 	})
-	return shuffled[:zeroToHundredNomineeCount], nil
+	return shuffled[:min(len(shuffled), zeroToHundredNomineeCount)], nil
 }
 
 func (a *api) startZeroToHundredRound(
@@ -669,8 +669,9 @@ func (a *api) handleSubmitZeroToHundredGuess(w http.ResponseWriter, r *http.Requ
 // scoreZeroToHundredRound computes and persists every guesser's points for
 // the round: up to zeroToHundredProximityMaximumScore per nominee based on
 // distance to that nominee's self-placed truth, plus zeroToHundredOrderBonus
-// once (per guesser) if the relative order of their three guesses exactly
-// matches the true relative order.
+// once (per guesser) if the relative order of their positions matches the
+// true relative order. A nominee's own self-placement counts toward their
+// order but never earns proximity points.
 func scoreZeroToHundredRound(ctx context.Context, tx pgx.Tx, roundID string) error {
 	rows, err := tx.Query(ctx, `
 		SELECT guesser_player_id, nominee_player_id, position
@@ -699,29 +700,30 @@ func scoreZeroToHundredRound(ctx context.Context, tx pgx.Tx, roundID string) err
 	rows.Close()
 
 	truthByNominee := make(map[string]int)
-	guessesByGuesser := make(map[string]map[string]int)
+	positionsByGuesser := make(map[string]map[string]int)
 	for _, row := range allGuesses {
 		if row.guesser == row.nominee {
 			truthByNominee[row.nominee] = row.position
-			continue
 		}
-		if guessesByGuesser[row.guesser] == nil {
-			guessesByGuesser[row.guesser] = make(map[string]int)
+		if positionsByGuesser[row.guesser] == nil {
+			positionsByGuesser[row.guesser] = make(map[string]int)
 		}
-		guessesByGuesser[row.guesser][row.nominee] = row.position
+		positionsByGuesser[row.guesser][row.nominee] = row.position
 	}
 	if len(truthByNominee) == 0 {
 		return nil
 	}
-	trueOrder := sortNomineesByPosition(truthByNominee)
 
-	for guesser, nomineeGuesses := range guessesByGuesser {
+	for guesser, positions := range positionsByGuesser {
 		orderBonus := 0
-		if guessOrderMatchesTruth(nomineeGuesses, truthByNominee, trueOrder) {
+		if guessOrderMatchesTruth(positions, truthByNominee) {
 			orderBonus = zeroToHundredOrderBonus
 		}
 		bonusApplied := false
-		for nominee, guessedPosition := range nomineeGuesses {
+		for nominee, guessedPosition := range positions {
+			if nominee == guesser {
+				continue
+			}
 			truth, hasTruth := truthByNominee[nominee]
 			if !hasTruth {
 				continue
@@ -742,36 +744,24 @@ func scoreZeroToHundredRound(ctx context.Context, tx pgx.Tx, roundID string) err
 	return nil
 }
 
-func sortNomineesByPosition(positionByNominee map[string]int) []string {
-	nominees := make([]string, 0, len(positionByNominee))
-	for id := range positionByNominee {
-		nominees = append(nominees, id)
-	}
-	sort.Slice(nominees, func(i, j int) bool {
-		if positionByNominee[nominees[i]] != positionByNominee[nominees[j]] {
-			return positionByNominee[nominees[i]] < positionByNominee[nominees[j]]
-		}
-		return nominees[i] < nominees[j]
-	})
-	return nominees
-}
-
-func guessOrderMatchesTruth(guesses, truth map[string]int, trueOrder []string) bool {
-	if len(guesses) != len(truth) {
+// guessOrderMatchesTruth reports whether guesses rank every nominee who placed
+// themselves in the same relative order as their self-placements. Nominees
+// tied in the truth may be guessed in any order; guesses for nominees without
+// a truth are ignored.
+func guessOrderMatchesTruth(guesses, truth map[string]int) bool {
+	if len(truth) < 2 {
 		return false
 	}
-	guessedPositions := make(map[string]int, len(truth))
 	for nominee := range truth {
-		value, hasGuess := guesses[nominee]
-		if !hasGuess {
+		if _, hasGuess := guesses[nominee]; !hasGuess {
 			return false
 		}
-		guessedPositions[nominee] = value
 	}
-	guessedOrder := sortNomineesByPosition(guessedPositions)
-	for index := range trueOrder {
-		if trueOrder[index] != guessedOrder[index] {
-			return false
+	for lower, lowerTruth := range truth {
+		for higher, higherTruth := range truth {
+			if lowerTruth < higherTruth && guesses[lower] >= guesses[higher] {
+				return false
+			}
 		}
 	}
 	return true

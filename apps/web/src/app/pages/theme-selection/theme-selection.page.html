@@ -74,6 +74,9 @@
                 <p class="mt-1 text-sm text-ink-600">Tu as passé ton tour.</p>
               }
             </app-phase-confirmation>
+            @if (gameState.isZeroToHundredMode()) {
+              <app-zero-to-100-scoring-rules />
+            }
           }
         }
 
@@ -116,6 +119,9 @@
               progressLabel="joueurs ont validé leur classement"
               message="La première manche démarrera automatiquement."
             />
+            @if (gameState.isZeroToHundredMode()) {
+              <app-zero-to-100-scoring-rules />
+            }
           }
         }
 

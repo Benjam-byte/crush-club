@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import type { OnDestroy, OnInit } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -8,6 +8,7 @@ import { IonButton, IonContent, IonIcon, IonInput } from '@ionic/angular/standal
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
+import { ZeroToHundredScoringRulesComponent } from '@core/components/zero-to-100-scoring-rules/zero-to-100-scoring-rules.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 /** Shared theme-collection-and-ranking screen, reused by every uncapped mode (Fast Bio, 0 à 100, Situation). */
@@ -24,6 +25,7 @@ import { GameStateService } from '@core/services/game-state.service';
     PhaseConfirmationComponent,
     PhaseTimerComponent,
     ReactiveFormsModule,
+    ZeroToHundredScoringRulesComponent,
   ],
   templateUrl: './theme-selection.page.html',
   styleUrl: './theme-selection.page.scss',
@@ -37,7 +39,6 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
   protected readonly isSubmittingTheme = signal(false);
   protected readonly isSubmittingRanking = signal(false);
   protected readonly ranking = signal<readonly string[]>([]);
-  private rankingInitializedForCandidates: readonly string[] | null = null;
   /** What the current player just proposed, kept locally since the server only tracks a yes/no flag. Empty string means "passed". */
   protected readonly mySubmittedTheme = signal<string | null>(null);
 
@@ -63,13 +64,20 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
   });
 
   constructor() {
+    // Every realtime push carries a fresh candidates array: reconcile by content so
+    // another player's validation never resets the order this player is building.
     effect(() => {
       const candidates = this.gameState.themeSelectionState()?.themeCandidates;
-      if (!candidates || candidates === this.rankingInitializedForCandidates) {
+      if (!candidates) {
         return;
       }
-      this.rankingInitializedForCandidates = candidates;
-      this.ranking.set(candidates);
+      const current = untracked(this.ranking);
+      const kept = current.filter((theme) => candidates.includes(theme));
+      const added = candidates.filter((theme) => !kept.includes(theme));
+      if (added.length === 0 && kept.length === current.length) {
+        return;
+      }
+      this.ranking.set([...kept, ...added]);
     });
   }
 

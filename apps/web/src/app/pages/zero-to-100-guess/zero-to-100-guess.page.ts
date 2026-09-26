@@ -5,11 +5,21 @@ import { IonButton, IonContent, IonIcon, IonRange } from '@ionic/angular/standal
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
+import { ZeroToHundredScoringRulesComponent } from '@core/components/zero-to-100-scoring-rules/zero-to-100-scoring-rules.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 @Component({
   selector: 'app-zero-to-100-guess-page',
-  imports: [IonButton, IonContent, IonIcon, IonRange, PageHeaderComponent, PhaseConfirmationComponent, PhaseTimerComponent],
+  imports: [
+    IonButton,
+    IonContent,
+    IonIcon,
+    IonRange,
+    PageHeaderComponent,
+    PhaseConfirmationComponent,
+    PhaseTimerComponent,
+    ZeroToHundredScoringRulesComponent,
+  ],
   templateUrl: './zero-to-100-guess.page.html',
   styleUrl: './zero-to-100-guess.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
