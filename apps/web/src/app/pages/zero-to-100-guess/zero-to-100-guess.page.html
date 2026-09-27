@@ -29,27 +29,19 @@
             }
           </div>
 
-          <div class="surface-card space-y-6 p-5">
-            @for (nominee of nominees(); track nominee.playerId) {
-              <div>
-                <div class="mb-1 flex items-center justify-between">
-                  <span class="text-sm font-extrabold text-ink-900">
-                    {{ nominee.displayName }}
-                    @if (nominee.isCurrentPlayer) { <span class="text-[10px] font-bold text-ink-500">· toi</span> }
-                  </span>
-                  <span class="range-value">{{ positionFor(nominee.playerId) }}</span>
-                </div>
-                <ion-range
-                  [min]="0"
-                  [max]="100"
-                  [value]="positionFor(nominee.playerId)"
-                  (ionInput)="onPositionChange(nominee.playerId, $event)"
-                >
-                  <ion-icon slot="start" name="remove-outline" aria-hidden="true" />
-                  <ion-icon slot="end" name="add-outline" aria-hidden="true" />
-                </ion-range>
-              </div>
-            }
+          <div class="surface-card p-5">
+            <p class="text-sm font-extrabold text-ink-900">Place chaque nominé sur l’échelle</p>
+            <p class="mt-1 text-xs leading-5 text-ink-500">
+              Glisse les points de 0 à 100. L’ordre compte : +30 pts si tu trouves le bon.
+            </p>
+            <app-zero-to-100-scale
+              class="mt-4"
+              ariaLabel="Tes positions"
+              [points]="scalePoints()"
+              [reservedNames]="nominees().length"
+              [editable]="true"
+              (valueChange)="onPositionChange($event)"
+            />
           </div>
 
           @if (gameState.errorMessage(); as errorMessage) {

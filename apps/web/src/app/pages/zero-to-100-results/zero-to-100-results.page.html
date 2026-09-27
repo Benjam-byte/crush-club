@@ -17,35 +17,156 @@
           <h1 class="mt-2 text-xl font-extrabold text-ink-900">{{ gameState.zeroToHundredGame()?.themeLabel }}</h1>
         </header>
 
-        <div class="surface-card p-6 text-center">
-          <p class="text-xs font-bold uppercase tracking-[0.14em] text-ink-500">Ton score cette manche</p>
-          <p class="mt-2 text-4xl font-extrabold text-brand-600">{{ gameState.zeroToHundredGame()?.roundScore ?? 0 }}</p>
-          <p class="mt-1 text-xs text-ink-500">points</p>
-        </div>
-
-        <div class="surface-card space-y-6 p-5">
-          @for (entry of reveal(); track entry.playerId) {
+        <section class="surface-card p-5">
+          <!-- Equal rows: every bar takes the height of the tallest one. -->
+          <div class="grid auto-rows-fr gap-6">
             <div>
-              <div class="mb-2 flex items-center justify-between">
-                <span class="text-sm font-extrabold text-ink-900">{{ entry.displayName }}</span>
-                <span class="text-xs text-ink-500">
-                  Vérité <strong class="text-ink-900">{{ entry.truePosition }}</strong>
-                  · Moyenne <strong class="text-ink-900">{{ entry.averagePosition | number: '1.0-0' }}</strong>
-                  @if (entry.myGuess !== undefined) {
-                    · Ta réponse <strong class="text-ink-900">{{ entry.myGuess }}</strong>
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">Ta réponse</p>
+                <!-- Ionic's unlayered normalize.css resets button padding, border and radius: the dot is an inner span.
+                     The negative margin keeps the 28px tap targets from making this row taller than the other labels. -->
+                <fieldset class="-my-1.5 flex items-center">
+                  <legend class="sr-only">N’afficher qu’une personne sur les barres</legend>
+                  @for (option of focusOptions(); track option.id) {
+                    <button
+                      class="grid size-7 place-items-center"
+                      type="button"
+                      [title]="option.label"
+                      [attr.aria-label]="option.label"
+                      [attr.aria-pressed]="activeFocusId() === option.id"
+                      (click)="toggleFocus(option.id)"
+                    >
+                      <span
+                        class="size-4 rounded-full transition"
+                        [class.opacity-30]="activeFocusId() !== null && activeFocusId() !== option.id"
+                        [style.background]="option.color"
+                        [style.box-shadow]="activeFocusId() === option.id ? '0 0 0 2px white, 0 0 0 4px ' + option.color : null"
+                      ></span>
+                    </button>
+                  }
+                </fieldset>
+              </div>
+              @if (showsMyBar()) {
+                <app-zero-to-100-scale
+                  class="mt-2"
+                  ariaLabel="Ta réponse"
+                  [points]="myBar()"
+                  [focusId]="activeFocusId()"
+                  [reservedNames]="reveal().length"
+                />
+              } @else {
+                <p class="mt-2 text-xs text-ink-500">Tu n’as pas envoyé tes positions à temps.</p>
+              }
+            </div>
+
+            <div>
+              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">Cible</p>
+              @if (showsTargetBar()) {
+                <app-zero-to-100-scale
+                  class="mt-2"
+                  ariaLabel="Cible"
+                  [points]="targetBar()"
+                  [focusId]="activeFocusId()"
+                  [reservedNames]="reveal().length"
+                />
+              } @else {
+                <p class="mt-2 text-xs text-ink-500">{{ targetBarNote() }}</p>
+              }
+            </div>
+          </div>
+
+          <p class="mt-6 text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">Selon les concerné·es</p>
+          <ul class="mt-2 space-y-1.5 text-xs leading-5 text-ink-700">
+            @for (line of selfPlacementLines(); track line.playerId) {
+              <li class="flex items-start gap-2">
+                <span class="mt-1.5 size-2.5 shrink-0 rounded-full" [style.background]="line.color" aria-hidden="true"></span>
+                <span>
+                  <strong class="font-extrabold text-ink-900">{{ line.name }}</strong>
+                  @if (line.value === undefined) {
+                    {{ line.isCurrentPlayer ? 'ne t’es pas placé·e à temps' : 'ne s’est pas placé·e à temps' }}
+                  } @else {
+                    {{ line.isCurrentPlayer ? 't’es mis·e' : 's’est mis·e' }}
+                    <strong class="font-extrabold" [style.color]="line.textColor">{{ line.value }}</strong>
+                    en «&nbsp;{{ themeLabel() }}&nbsp;»
                   }
                 </span>
-              </div>
-              <div class="reveal-track">
-                <span class="reveal-marker reveal-marker--average" [style.left.%]="entry.averagePosition" title="Moyenne du groupe"></span>
-                @if (entry.myGuess !== undefined) {
-                  <span class="reveal-marker reveal-marker--guess" [style.left.%]="entry.myGuess" title="Ta réponse"></span>
-                }
-                <span class="reveal-marker reveal-marker--truth" [style.left.%]="entry.truePosition" title="Vérité"></span>
-              </div>
-            </div>
-          }
-        </div>
+              </li>
+            }
+          </ul>
+        </section>
+
+        <section class="surface-card overflow-hidden">
+          <!-- Ionic's unlayered normalize.css zeroes td/th padding, hence the ! on cell paddings. -->
+          <table class="w-full table-fixed text-xs">
+            <caption class="px-4 pt-4 pb-2 text-left text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">
+              Détail de tes points
+              <span class="mt-1 block text-[10px] font-semibold normal-case tracking-normal">
+                Cible = ⅓ selon les concerné·es + ⅔ moyenne du groupe
+              </span>
+            </caption>
+            <colgroup>
+              <col />
+              <col class="w-12" />
+              <col class="w-14" />
+              <col class="w-14" />
+            </colgroup>
+            <thead>
+              <tr class="text-[10px] font-bold uppercase tracking-wide text-ink-500">
+                <th class="pb-1! pl-4! text-left" scope="col"><span class="sr-only">Nominé</span></th>
+                <th class="pb-1! text-right" scope="col">Toi</th>
+                <th class="pb-1! text-right" scope="col">Cible</th>
+                <th class="pr-4! pb-1! text-right" scope="col">Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of pointRows(); track row.playerId) {
+                <tr class="border-t border-peach-100">
+                  <th class="py-1.5! pl-4! text-left font-extrabold text-ink-900" scope="row">
+                    <span class="flex min-w-0 items-center gap-2">
+                      <span class="size-2.5 shrink-0 rounded-full" [style.background]="row.color" aria-hidden="true"></span>
+                      <span class="truncate">{{ row.label }}</span>
+                    </span>
+                  </th>
+                  <td class="py-1.5! text-right tabular-nums text-ink-700">{{ row.myPositionLabel }}</td>
+                  <td class="py-1.5! text-right tabular-nums text-ink-700">{{ row.targetLabel }}</td>
+                  <td
+                    class="py-1.5! pr-4! text-right font-extrabold tabular-nums"
+                    [class.text-brand-600]="row.hasPoints"
+                    [class.text-ink-500]="!row.hasPoints"
+                  >
+                    {{ row.pointsLabel }}
+                  </td>
+                </tr>
+              }
+              <tr class="border-t border-peach-100">
+                <th class="py-1.5! pl-4! text-left font-extrabold text-ink-900" scope="row">
+                  <span class="flex min-w-0 items-center gap-2">
+                    <ion-icon
+                      class="size-2.5 shrink-0"
+                      [class.text-success-500]="orderBonus() > 0"
+                      [class.text-ink-500]="orderBonus() === 0"
+                      name="sparkles"
+                      aria-hidden="true"
+                    />
+                    <span class="truncate">Bonus d’ordre</span>
+                  </span>
+                </th>
+                <td class="py-1.5! text-right text-ink-500" colspan="2">{{ orderBonusReason() }}</td>
+                <td
+                  class="py-1.5! pr-4! text-right font-extrabold tabular-nums"
+                  [class.text-brand-600]="orderBonus() > 0"
+                  [class.text-ink-500]="orderBonus() === 0"
+                >
+                  {{ orderBonusLabel() }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <footer class="flex items-center justify-between gap-3 border-t border-peach-100 bg-peach-50 px-4 py-2.5">
+            <span class="text-xs font-extrabold text-ink-900">Total de la manche</span>
+            <span class="text-sm font-extrabold text-brand-600">{{ roundScoreLabel() }}</span>
+          </footer>
+        </section>
 
         @if (gameState.isHost()) {
           <ion-button

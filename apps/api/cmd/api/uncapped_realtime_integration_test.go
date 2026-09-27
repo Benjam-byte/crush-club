@@ -76,7 +76,7 @@ func TestUncappedModeRealtimeRevisionFlow(t *testing.T) {
 		apiSegment  string
 	}{
 		{mode: lobbyModeFastBio, playerCount: 2, apiSegment: "fast-bio"},
-		{mode: lobbyModeZeroToHundred, playerCount: 3, apiSegment: "zero-to-100"},
+		{mode: lobbyModeZeroToHundred, playerCount: zeroToHundredNomineeCount, apiSegment: "zero-to-100"},
 		{mode: lobbyModeSituation, playerCount: 2, apiSegment: "situation"},
 	}
 

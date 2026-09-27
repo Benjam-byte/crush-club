@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -562,7 +563,7 @@ func (a *api) forceZeroToHundredGuessDeadline(code, roundID string) {
 }
 
 // closeZeroToHundredGuessing scores every submitted guess against each
-// nominee's own self-placed truth, then opens the shared results screen.
+// nominee's target, then opens the shared results screen.
 func (a *api) closeZeroToHundredGuessing(ctx context.Context, tx pgx.Tx, roundID string) error {
 	if err := scoreZeroToHundredRound(ctx, tx, roundID); err != nil {
 		return err
@@ -668,67 +669,25 @@ func (a *api) handleSubmitZeroToHundredGuess(w http.ResponseWriter, r *http.Requ
 
 // scoreZeroToHundredRound computes and persists every guesser's points for
 // the round: up to zeroToHundredProximityMaximumScore per nominee based on
-// distance to that nominee's self-placed truth, plus zeroToHundredOrderBonus
-// once (per guesser) if the relative order of their positions matches the
-// true relative order. A nominee's own self-placement counts toward their
-// order but never earns proximity points.
+// distance to that nominee's target, plus zeroToHundredOrderBonus once (per
+// guesser) if the relative order of their positions matches the order of the
+// targets. A nominee's own self-placement counts toward their order but never
+// earns proximity points.
 func scoreZeroToHundredRound(ctx context.Context, tx pgx.Tx, roundID string) error {
-	rows, err := tx.Query(ctx, `
-		SELECT guesser_player_id, nominee_player_id, position
-		FROM zero_to_100_guesses WHERE round_id = $1
-	`, roundID)
+	guesses, err := loadZeroToHundredRoundGuesses(ctx, tx, roundID)
 	if err != nil {
 		return err
 	}
-	type guessRow struct {
-		guesser, nominee string
-		position         int
-	}
-	allGuesses := make([]guessRow, 0)
-	for rows.Next() {
-		var row guessRow
-		if err := rows.Scan(&row.guesser, &row.nominee, &row.position); err != nil {
-			rows.Close()
-			return err
-		}
-		allGuesses = append(allGuesses, row)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return err
-	}
-	rows.Close()
-
-	truthByNominee := make(map[string]int)
-	positionsByGuesser := make(map[string]map[string]int)
-	for _, row := range allGuesses {
-		if row.guesser == row.nominee {
-			truthByNominee[row.nominee] = row.position
-		}
-		if positionsByGuesser[row.guesser] == nil {
-			positionsByGuesser[row.guesser] = make(map[string]int)
-		}
-		positionsByGuesser[row.guesser][row.nominee] = row.position
-	}
-	if len(truthByNominee) == 0 {
+	truthByNominee, positionsByGuesser := groupZeroToHundredGuesses(guesses)
+	targets := zeroToHundredTargets(truthByNominee, zeroToHundredAverages(guesses))
+	if len(targets) == 0 {
 		return nil
 	}
 
 	for guesser, positions := range positionsByGuesser {
-		orderBonus := 0
-		if guessOrderMatchesTruth(positions, truthByNominee) {
-			orderBonus = zeroToHundredOrderBonus
-		}
+		proximity, orderBonus := zeroToHundredGuesserPoints(guesser, positions, targets)
 		bonusApplied := false
-		for nominee, guessedPosition := range positions {
-			if nominee == guesser {
-				continue
-			}
-			truth, hasTruth := truthByNominee[nominee]
-			if !hasTruth {
-				continue
-			}
-			points := scoring.IntegerRangeScore(truth, guessedPosition, 0, 100, zeroToHundredProximityMaximumScore)
+		for nominee, points := range proximity {
 			if !bonusApplied {
 				points += orderBonus
 				bonusApplied = true
@@ -744,22 +703,96 @@ func scoreZeroToHundredRound(ctx context.Context, tx pgx.Tx, roundID string) err
 	return nil
 }
 
-// guessOrderMatchesTruth reports whether guesses rank every nominee who placed
-// themselves in the same relative order as their self-placements. Nominees
-// tied in the truth may be guessed in any order; guesses for nominees without
-// a truth are ignored.
-func guessOrderMatchesTruth(guesses, truth map[string]int) bool {
-	if len(truth) < 2 {
+// zeroToHundredGuesserPoints splits one guesser's round score into proximity
+// points per nominee and the order bonus. Proximity is only earned on
+// nominees who have a target, never on the guesser's own self-placement,
+// which still counts toward the order.
+func zeroToHundredGuesserPoints(guesser string, positions, targets map[string]int) (proximity map[string]int, orderBonus int) {
+	proximity = make(map[string]int, len(positions))
+	for nominee, position := range positions {
+		if nominee == guesser {
+			continue
+		}
+		target, hasTarget := targets[nominee]
+		if !hasTarget {
+			continue
+		}
+		proximity[nominee] = scoring.IntegerRangeScore(target, position, 0, 100, zeroToHundredProximityMaximumScore)
+	}
+	if guessOrderMatches(positions, targets) {
+		orderBonus = zeroToHundredOrderBonus
+	}
+	return proximity, orderBonus
+}
+
+// groupZeroToHundredGuesses indexes a round's guesses by nominee self-placement
+// (the truth) and by guesser (every position they submitted, their own
+// self-placement included).
+func groupZeroToHundredGuesses(guesses []zeroToHundredGuessRow) (truthByNominee map[string]int, positionsByGuesser map[string]map[string]int) {
+	truthByNominee = make(map[string]int)
+	positionsByGuesser = make(map[string]map[string]int)
+	for _, guess := range guesses {
+		if guess.Guesser == guess.Nominee {
+			truthByNominee[guess.Nominee] = guess.Position
+		}
+		if positionsByGuesser[guess.Guesser] == nil {
+			positionsByGuesser[guess.Guesser] = make(map[string]int)
+		}
+		positionsByGuesser[guess.Guesser][guess.Nominee] = guess.Position
+	}
+	return truthByNominee, positionsByGuesser
+}
+
+// zeroToHundredAverages averages the positions every player gave each nominee,
+// self-placements excluded.
+func zeroToHundredAverages(guesses []zeroToHundredGuessRow) map[string]float64 {
+	sumByNominee := make(map[string]int)
+	countByNominee := make(map[string]int)
+	for _, guess := range guesses {
+		if guess.Guesser == guess.Nominee {
+			continue
+		}
+		sumByNominee[guess.Nominee] += guess.Position
+		countByNominee[guess.Nominee]++
+	}
+	averages := make(map[string]float64, len(countByNominee))
+	for nominee, count := range countByNominee {
+		averages[nominee] = float64(sumByNominee[nominee]) / float64(count)
+	}
+	return averages
+}
+
+// zeroToHundredTargets blends each nominee's self-placement
+// (zeroToHundredSelfPlacementWeight) with the group's average position for
+// them, rounded to the displayed integer. A nominee nobody else placed keeps
+// their self-placement; one who never placed themselves gets no target.
+func zeroToHundredTargets(truthByNominee map[string]int, averages map[string]float64) map[string]int {
+	targets := make(map[string]int, len(truthByNominee))
+	for nominee, selfPlacement := range truthByNominee {
+		target := float64(selfPlacement)
+		if average, hasAverage := averages[nominee]; hasAverage {
+			target = zeroToHundredSelfPlacementWeight*target + (1-zeroToHundredSelfPlacementWeight)*average
+		}
+		targets[nominee] = int(math.Round(target))
+	}
+	return targets
+}
+
+// guessOrderMatches reports whether guesses rank every nominee of reference in
+// the same relative order. Nominees tied in the reference may be guessed in
+// any order; guesses for nominees outside the reference are ignored.
+func guessOrderMatches(guesses, reference map[string]int) bool {
+	if len(reference) < 2 {
 		return false
 	}
-	for nominee := range truth {
+	for nominee := range reference {
 		if _, hasGuess := guesses[nominee]; !hasGuess {
 			return false
 		}
 	}
-	for lower, lowerTruth := range truth {
-		for higher, higherTruth := range truth {
-			if lowerTruth < higherTruth && guesses[lower] >= guesses[higher] {
+	for lower, lowerReference := range reference {
+		for higher, higherReference := range reference {
+			if lowerReference < higherReference && guesses[lower] >= guesses[higher] {
 				return false
 			}
 		}
@@ -994,43 +1027,68 @@ func loadZeroToHundredSelectedThemes(ctx context.Context, db dbQuerier, gameID s
 	return themes, rows.Err()
 }
 
-func loadZeroToHundredReveal(ctx context.Context, db dbQuerier, roundID, currentPlayerID string) ([]zeroToHundredRevealEntryView, error) {
+type zeroToHundredGuessRow struct {
+	Guesser  string
+	Nominee  string
+	Position int
+}
+
+func loadZeroToHundredRoundGuesses(ctx context.Context, db dbQuerier, roundID string) ([]zeroToHundredGuessRow, error) {
 	rows, err := db.Query(ctx, `
-		SELECT nominee.player_id, player.display_name,
-		       COALESCE(truth.position, 0),
-		       COALESCE((
-		         SELECT avg(guess.position) FROM zero_to_100_guesses AS guess
-		         WHERE guess.round_id = nominee.round_id AND guess.nominee_player_id = nominee.player_id
-		           AND guess.guesser_player_id <> guess.nominee_player_id
-		       ), 0),
-		       (
-		         SELECT position FROM zero_to_100_guesses
-		         WHERE round_id = nominee.round_id AND guesser_player_id = $2 AND nominee_player_id = nominee.player_id
-		           AND guesser_player_id <> nominee_player_id
-		       )
-		FROM zero_to_100_nominees AS nominee
-		JOIN players AS player ON player.id = nominee.player_id
-		LEFT JOIN zero_to_100_guesses AS truth
-		  ON truth.round_id = nominee.round_id AND truth.guesser_player_id = nominee.player_id
-		     AND truth.nominee_player_id = nominee.player_id
-		WHERE nominee.round_id = $1
-		ORDER BY nominee.seat
-	`, roundID, currentPlayerID)
+		SELECT guesser_player_id, nominee_player_id, position
+		FROM zero_to_100_guesses WHERE round_id = $1
+	`, roundID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	reveal := make([]zeroToHundredRevealEntryView, 0, zeroToHundredNomineeCount)
+	guesses := make([]zeroToHundredGuessRow, 0)
 	for rows.Next() {
-		var entry zeroToHundredRevealEntryView
-		var myGuess *int
-		if err := rows.Scan(&entry.PlayerID, &entry.DisplayName, &entry.TruePosition, &entry.AveragePosition, &myGuess); err != nil {
+		var guess zeroToHundredGuessRow
+		if err := rows.Scan(&guess.Guesser, &guess.Nominee, &guess.Position); err != nil {
 			return nil, err
 		}
-		entry.MyGuess = myGuess
+		guesses = append(guesses, guess)
+	}
+	return guesses, rows.Err()
+}
+
+// buildZeroToHundredReveal lays out the round results for the current player,
+// in seat order: each nominee's self-placement, the group's average position,
+// the target both make up, the current player's own position and the
+// proximity points it earned, plus the order bonus the current player earned.
+func buildZeroToHundredReveal(
+	nominees []zeroToHundredNomineeRow, guesses []zeroToHundredGuessRow, currentPlayerID string,
+) (reveal []zeroToHundredRevealEntryView, orderBonus int) {
+	truthByNominee, positionsByGuesser := groupZeroToHundredGuesses(guesses)
+	averages := zeroToHundredAverages(guesses)
+	targets := zeroToHundredTargets(truthByNominee, averages)
+	myPositions := positionsByGuesser[currentPlayerID]
+	proximity, orderBonus := zeroToHundredGuesserPoints(currentPlayerID, myPositions, targets)
+
+	reveal = make([]zeroToHundredRevealEntryView, 0, len(nominees))
+	for _, nominee := range nominees {
+		entry := zeroToHundredRevealEntryView{
+			PlayerID:        nominee.PlayerID,
+			DisplayName:     nominee.DisplayName,
+			IsCurrentPlayer: nominee.PlayerID == currentPlayerID,
+			Points:          proximity[nominee.PlayerID],
+		}
+		if truth, hasTruth := truthByNominee[nominee.PlayerID]; hasTruth {
+			entry.TruePosition = &truth
+		}
+		if average, hasAverage := averages[nominee.PlayerID]; hasAverage {
+			entry.AveragePosition = &average
+		}
+		if target, hasTarget := targets[nominee.PlayerID]; hasTarget {
+			entry.TargetPosition = &target
+		}
+		if position, hasPosition := myPositions[nominee.PlayerID]; hasPosition {
+			entry.MyPosition = &position
+		}
 		reveal = append(reveal, entry)
 	}
-	return reveal, rows.Err()
+	return reveal, orderBonus
 }
 
 func loadZeroToHundredLeaderboard(ctx context.Context, db dbQuerier, gameID string) ([]fastBioLeaderboardEntryView, error) {
@@ -1185,11 +1243,11 @@ func (a *api) loadZeroToHundredState(ctx context.Context, currentPlayer authenti
 		view.Submitted = len(nominees) > 0 && submittedCount >= len(nominees)
 
 		if round.Phase == "results" || round.Phase == "completed" {
-			reveal, err := loadZeroToHundredReveal(ctx, a.pool, round.ID, currentPlayer.ID)
+			guesses, err := loadZeroToHundredRoundGuesses(ctx, a.pool, round.ID)
 			if err != nil {
 				return zeroToHundredStateView{}, err
 			}
-			view.Reveal = reveal
+			view.Reveal, view.OrderBonus = buildZeroToHundredReveal(nominees, guesses, currentPlayer.ID)
 			var roundScore int
 			if err := a.pool.QueryRow(ctx, `
 				SELECT COALESCE(sum(points), 0) FROM zero_to_100_guesses

@@ -2,15 +2,3 @@
   background: linear-gradient(135deg, var(--color-brand-600), var(--color-coral-400));
   box-shadow: 0 18px 42px rgb(242 83 106 / 0.24);
 }
-
-.range-value {
-  min-width: 36px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--color-layer-soft);
-  color: var(--color-brand-600);
-  font-size: 13px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}

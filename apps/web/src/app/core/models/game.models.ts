@@ -301,9 +301,17 @@ export interface ZeroToHundredNomineeView {
 export interface ZeroToHundredRevealEntryView {
   playerId: string
   displayName: string
-  truePosition: number
-  averagePosition: number
-  myGuess?: number
+  isCurrentPlayer: boolean
+  /** Absent when the nominee did not place themselves. */
+  truePosition?: number
+  /** Absent when no other player placed this nominee. */
+  averagePosition?: number
+  /** What everyone is scored against: ⅓ self-placement + ⅔ group average. Absent when the nominee did not place themselves. */
+  targetPosition?: number
+  /** The current player's position, their own self-placement included. */
+  myPosition?: number
+  /** Proximity points the current player earned on this nominee, order bonus excluded. */
+  points: number
 }
 
 export interface ZeroToHundredStateView extends ThemeSelectionState {
@@ -322,6 +330,7 @@ export interface ZeroToHundredStateView extends ThemeSelectionState {
   submissionProgressRequired?: number
   reveal?: readonly ZeroToHundredRevealEntryView[]
   roundScore?: number
+  orderBonus?: number
   leaderboard?: readonly FastBioLeaderboardEntryView[]
 }
 

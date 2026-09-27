@@ -39,7 +39,10 @@ const (
 	zeroToHundredNomineeCount          = 5
 	zeroToHundredMinPlayerCount        = 3
 	zeroToHundredProximityMaximumScore = 10
-	zeroToHundredOrderBonus            = 15
+	zeroToHundredOrderBonus            = 30
+	// zeroToHundredSelfPlacementWeight is the share of a nominee's own placement
+	// in their target; the group's average position makes up the rest.
+	zeroToHundredSelfPlacementWeight = 1.0 / 3
 
 	situationRoundCount     = 3
 	situationProposalWindow = 2 * time.Minute
@@ -286,6 +289,7 @@ type zeroToHundredStateView struct {
 	SubmissionProgressRequired int                            `json:"submissionProgressRequired"`
 	Reveal                     []zeroToHundredRevealEntryView `json:"reveal,omitempty"`
 	RoundScore                 int                            `json:"roundScore,omitempty"`
+	OrderBonus                 int                            `json:"orderBonus,omitempty"`
 	Leaderboard                []fastBioLeaderboardEntryView  `json:"leaderboard,omitempty"`
 }
 
@@ -295,12 +299,21 @@ type zeroToHundredNomineeView struct {
 	IsCurrentPlayer bool   `json:"isCurrentPlayer"`
 }
 
+// zeroToHundredRevealEntryView describes one nominee from the current
+// player's point of view. TruePosition (the nominee's own placement) and
+// TargetPosition (what everyone is scored against) are nil when the nominee
+// did not place themselves; AveragePosition is nil when no other player
+// placed them. MyPosition includes the current player's own self-placement;
+// Points are the proximity points it earned, order bonus excluded.
 type zeroToHundredRevealEntryView struct {
-	PlayerID        string  `json:"playerId"`
-	DisplayName     string  `json:"displayName"`
-	TruePosition    int     `json:"truePosition"`
-	AveragePosition float64 `json:"averagePosition"`
-	MyGuess         *int    `json:"myGuess,omitempty"`
+	PlayerID        string   `json:"playerId"`
+	DisplayName     string   `json:"displayName"`
+	IsCurrentPlayer bool     `json:"isCurrentPlayer"`
+	TruePosition    *int     `json:"truePosition,omitempty"`
+	AveragePosition *float64 `json:"averagePosition,omitempty"`
+	TargetPosition  *int     `json:"targetPosition,omitempty"`
+	MyPosition      *int     `json:"myPosition,omitempty"`
+	Points          int      `json:"points"`
 }
 
 type situationStateView struct {

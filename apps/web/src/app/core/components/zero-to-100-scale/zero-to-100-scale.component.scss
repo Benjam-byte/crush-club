@@ -1,0 +1,166 @@
+:host {
+  display: block;
+}
+
+// Inset so the dots at 0 and 100 stay inside the card.
+.scale {
+  position: relative;
+  margin-inline: 12px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.scale--editable {
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+.scale__track {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-layer-soft);
+  box-shadow: inset 0 0 0 1px var(--color-layer-border);
+  transform: translateY(-50%);
+}
+
+// Midpoint notch.
+.scale__track::after {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: 50%;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--color-layer-border);
+  content: '';
+  transform: translateX(-50%);
+}
+
+.scale__end,
+.scale__value {
+  position: absolute;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.scale__end {
+  color: var(--color-ink-500);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.scale__end--start {
+  left: 0;
+}
+
+.scale__end--end {
+  right: 0;
+}
+
+.scale__value {
+  z-index: 2;
+  color: var(--color-text-secondary);
+  font-weight: 800;
+}
+
+.scale__stem {
+  position: absolute;
+  z-index: 1;
+  width: 2px;
+  border-radius: 1px;
+  opacity: 0.6;
+  transform: translateX(-50%);
+}
+
+.scale__name {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  max-width: 120px;
+  height: 20px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border: 1px solid var(--color-layer-border);
+  border-radius: 999px;
+  background: white;
+  color: var(--color-text-primary);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.scale__name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scale__rank {
+  flex-shrink: 0;
+  color: var(--color-ink-500);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.scale__swatch {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.scale__dot {
+  position: absolute;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  border: 3px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
+  transform: translate(-50%, -50%);
+  transition: transform 120ms ease;
+}
+
+.scale__dot:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+.scale--editable .scale__dot,
+.scale--editable .scale__name,
+.scale--editable .scale__value {
+  cursor: grab;
+  touch-action: none;
+}
+
+// 44px touch target around the 22px dot.
+.scale--editable .scale__dot::before {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  content: '';
+}
+
+.scale--editable .scale__dot.is-active {
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+// The last moved dot stays on top of the others.
+.scale__stem.is-active {
+  z-index: 11;
+}
+
+.scale__name.is-active,
+.scale__value.is-active {
+  z-index: 12;
+}
+
+.scale__dot.is-active {
+  z-index: 13;
+}

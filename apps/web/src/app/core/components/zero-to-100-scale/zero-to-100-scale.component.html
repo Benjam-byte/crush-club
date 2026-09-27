@@ -1,0 +1,68 @@
+<div
+  #rail
+  class="scale"
+  [class.scale--editable]="editable()"
+  [style.height.px]="layout().height"
+  [attr.role]="editable() ? 'group' : 'img'"
+  [attr.aria-label]="editable() ? ariaLabel() : summary()"
+  (pointerdown)="onPointerDown($event)"
+  (pointermove)="onPointerMove($event)"
+  (pointerup)="onPointerEnd($event)"
+  (pointercancel)="onPointerEnd($event)"
+  (click)="onTrackClick($event)"
+>
+  <div class="scale__track" [style.top.px]="layout().trackCenter" aria-hidden="true"></div>
+  <span class="scale__end scale__end--start" [style.top.px]="layout().valuesTop" aria-hidden="true">0</span>
+  <span class="scale__end scale__end--end" [style.top.px]="layout().valuesTop" aria-hidden="true">100</span>
+
+  @for (point of layout().points; track point.id) {
+    <span
+      class="scale__stem"
+      [class.is-active]="point.id === activeId()"
+      [style.left.%]="point.value"
+      [style.top.px]="point.stemTop"
+      [style.height.px]="layout().trackCenter - point.stemTop"
+      [style.background]="point.color"
+      aria-hidden="true"
+    ></span>
+    <span
+      class="scale__name"
+      [class.is-active]="point.id === activeId()"
+      [attr.data-point-id]="point.id"
+      [style.left.%]="point.value"
+      [style.top.px]="point.nameTop"
+      [style.transform]="point.labelShift"
+      aria-hidden="true"
+    >
+      <span class="scale__swatch" [style.background]="point.color"></span>
+      <span class="scale__rank">{{ point.rankLabel }}</span>
+      <span class="scale__name-text">{{ point.label }}</span>
+    </span>
+    <span
+      class="scale__dot"
+      [class.is-active]="point.id === activeId()"
+      [attr.data-point-id]="point.id"
+      [style.left.%]="point.value"
+      [style.top.px]="layout().trackCenter"
+      [style.background]="point.color"
+      [attr.role]="editable() ? 'slider' : null"
+      [attr.tabindex]="editable() ? 0 : null"
+      [attr.aria-label]="editable() ? 'Position de ' + point.label : null"
+      [attr.aria-valuemin]="editable() ? 0 : null"
+      [attr.aria-valuemax]="editable() ? 100 : null"
+      [attr.aria-valuenow]="editable() ? point.displayValue : null"
+      [attr.aria-valuetext]="editable() ? point.displayValue + ', ' + point.rankLabel : null"
+      (keydown)="onKeydown($event, point)"
+    ></span>
+    <span
+      class="scale__value"
+      [class.is-active]="point.id === activeId()"
+      [attr.data-point-id]="point.id"
+      [style.left.%]="point.value"
+      [style.top.px]="point.valueTop"
+      [style.transform]="point.labelShift"
+      [style.color]="point.textColor"
+      aria-hidden="true"
+    >{{ point.displayValue }}</span>
+  }
+</div>
