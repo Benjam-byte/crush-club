@@ -22,6 +22,7 @@ import { LobbyApiService } from './lobby-api.service';
 import { filterBioAnswers, restoredPrimaryPhotoId } from './game-state-draft';
 import { canHostExcludePlayer, PlayerExclusionController } from './player-exclusion';
 import { RealtimeLobbyService } from './realtime-lobby.service';
+import type { LobbyApiProbeData } from '../models/realtime-diagnostics.models';
 
 interface StoredDraft {
   primaryPhotoId: string | null
@@ -86,6 +87,7 @@ export class GameStateService {
 
   readonly state = this.realtime.state;
   readonly connectionStatus = this.realtime.connectionStatus;
+  readonly sessionPlayerId = computed(() => this.storedSessionState()?.playerId ?? null);
   readonly isRealtimeConnected = computed(() => this.connectionStatus() === 'connected');
   readonly lobbyCode = computed(() => this.state()?.code ?? this.storedSessionState()?.lobbyCode ?? '');
   readonly lobbyStatus = computed<LobbyStatus>(() => this.state()?.status ?? 'waiting_for_players');
@@ -218,6 +220,11 @@ export class GameStateService {
 
   constructor() {
     effect(() => {
+      if (this.realtime.connectionStatus() === 'rejected') {
+        this.errorMessageState.set('Ta session a été refusée. Rejoins à nouveau le lobby pour continuer.');
+      }
+    });
+    effect(() => {
       const state = this.state();
       if (state) {
         this.pruneRemovedPhotoUrls(state);
@@ -280,6 +287,17 @@ export class GameStateService {
       this.captureError(error, 'Ta session joueur a expiré. Rejoins à nouveau le lobby.');
       throw error;
     }
+  }
+
+  probeLobbyConnection(): Promise<LobbyApiProbeData> {
+    const session = this.storedSessionState();
+    if (!session) throw new Error('No player session');
+    return this.lobbyApi.probeConnection(session.lobbyCode, session.reconnectToken);
+  }
+
+  reconnectRealtime(): void {
+    const session = this.storedSessionState();
+    if (session) this.realtime.connect(session.lobbyCode, session.reconnectToken, true);
   }
 
   async changeLobbyConfig(gameConfigId: string): Promise<void> {

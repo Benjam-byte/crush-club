@@ -44,6 +44,7 @@ func (e validationError) Error() string {
 type api struct {
 	pool             *pgxpool.Pool
 	logger           *slog.Logger
+	instanceID       string
 	secureCookies    bool
 	hub              *realtimeHub
 	photoStoragePath string
@@ -155,9 +156,14 @@ type lobbyResponse struct {
 }
 
 func newAPI(pool *pgxpool.Pool, logger *slog.Logger, secureCookies bool) *api {
+	instanceID, err := randomToken(12)
+	if err != nil {
+		instanceID = fmt.Sprintf("process-%d-%d", os.Getpid(), time.Now().UnixNano())
+	}
 	a := &api{
 		pool:             pool,
 		logger:           logger,
+		instanceID:       instanceID,
 		secureCookies:    secureCookies,
 		photoStoragePath: envOr("PHOTO_STORAGE_PATH", "./data/photos"),
 		photoRetention:   positiveEnvDuration(logger, "PHOTO_RETENTION_HOURS", time.Hour, 24*time.Hour),

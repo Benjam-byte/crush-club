@@ -15,6 +15,14 @@ export const routes: Routes = [
     title: "Rejoindre Crush Club",
   },
   {
+    path: "diagnostics",
+    loadComponent: () =>
+      import("./pages/diagnostics/diagnostics.page").then(
+        (module) => module.DiagnosticsPage,
+      ),
+    title: "Diagnostic Crush Club",
+  },
+  {
     path: "game-configs/new",
     loadComponent: () =>
       import("./pages/game-configs/game-config-form.page").then(

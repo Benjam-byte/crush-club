@@ -1,6 +1,7 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom, timeout } from 'rxjs';
+import type { LobbyApiProbeData } from '../models/realtime-diagnostics.models';
 import type {
   LobbyMode,
   LobbyResponse,
@@ -42,6 +43,21 @@ export class LobbyApiService {
         headers: this.authorizationHeaders(reconnectToken),
       }),
     );
+  }
+
+  async probeConnection(code: string, reconnectToken: string): Promise<LobbyApiProbeData> {
+    const response = await firstValueFrom(
+      this.http.get<LobbyStateResponse>(`/api/v1/lobbies/${code}/state`, {
+        headers: this.authorizationHeaders(reconnectToken).set('Cache-Control', 'no-cache'),
+        observe: 'response',
+      }).pipe(timeout(5000)),
+    );
+    if (!response.body) throw new Error('Missing lobby state');
+    return {
+      serverInstanceId: response.headers.get('X-Crush-Club-Server'),
+      playerId: response.body.currentPlayerId,
+      revision: response.body.revision,
+    };
   }
 
   changeConfig(code: string, reconnectToken: string, gameConfigId: string): Promise<LobbyStateResponse> {

@@ -65,6 +65,8 @@ func (a *api) requirePlayer(w http.ResponseWriter, r *http.Request) (authenticat
 }
 
 func (a *api) handleGetLobbyState(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Crush-Club-Server", a.instanceID)
 	player, ok := a.requirePlayer(w, r)
 	if !ok {
 		return
