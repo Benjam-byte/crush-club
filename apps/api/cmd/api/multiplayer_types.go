@@ -37,7 +37,7 @@ const (
 
 	zeroToHundredRoundCount            = 3
 	zeroToHundredGuessWindow           = 2 * time.Minute
-	zeroToHundredNomineeCount          = 5
+	zeroToHundredNomineeCount          = 5 // bounded by zero_to_100_nominees_seat_check (seats 0-4)
 	zeroToHundredMinPlayerCount        = 3
 	zeroToHundredProximityMaximumScore = 10
 	zeroToHundredOrderBonus            = 15
