@@ -19,6 +19,7 @@ const (
 	lobbyModeFastBio       = "fast_bio"
 	lobbyModeZeroToHundred = "zero_to_100"
 	lobbyModeSituation     = "situation"
+	lobbyModeWavelength    = "wavelength"
 
 	// classicLobbyMinPlayers matches the system-wide floor (minimumPlayerCount)
 	// rather than a stricter 3: the create-lobby UI only ever offers 3-5, this
@@ -46,9 +47,24 @@ const (
 	situationDuelWindow     = 1 * time.Minute
 	situationFinalistCount  = 4
 
+	wavelengthClueWindow  = 90 * time.Second
+	wavelengthGuessWindow = 90 * time.Second
+	// The secret target is drawn far enough from the edges for the
+	// bullseye band to always fit on the dial.
+	wavelengthTargetMin = 3
+	wavelengthTargetMax = 97
+	// Scoring bands, by distance between a needle and the target.
+	wavelengthBullseyeRadius = 3
+	wavelengthInnerRadius    = 9
+	wavelengthOuterRadius    = 15
+	wavelengthBullseyePoints = 4
+	wavelengthInnerPoints    = 3
+	wavelengthOuterPoints    = 2
+	wavelengthPoleMaxLength  = 40
+
 	// themePhaseWindow bounds both sub-phases of the shared theme/situation
 	// selection step (collecting_themes, ranking_themes) across Fast Bio,
-	// 0 à 100 and Situation, mirroring the existing round-level windows.
+	// 0 à 100, Situation and Wavelength, mirroring the existing round-level windows.
 	themePhaseWindow = 2 * time.Minute
 )
 
@@ -152,6 +168,7 @@ type lobbyStateResponse struct {
 	FastBioGame       *fastBioStateView       `json:"fastBioGame,omitempty"`
 	ZeroToHundredGame *zeroToHundredStateView `json:"zeroToHundredGame,omitempty"`
 	SituationGame     *situationStateView     `json:"situationGame,omitempty"`
+	WavelengthGame    *wavelengthStateView    `json:"wavelengthGame,omitempty"`
 }
 
 type lobbyGameConfigSummary struct {
@@ -322,14 +339,26 @@ type situationStateView struct {
 	SubmissionProgressCount    int                           `json:"submissionProgressCount"`
 	SubmissionProgressRequired int                           `json:"submissionProgressRequired"`
 	CurrentDuel                *situationDuelView            `json:"currentDuel,omitempty"`
-	ProposalCount              int                           `json:"proposalCount,omitempty"`
-	ReviewIndex                int                           `json:"reviewIndex,omitempty"`
-	IsHostReview               bool                          `json:"isHostReview,omitempty"`
-	CurrentProposal            *situationProposalView        `json:"currentProposal,omitempty"`
 	RankingCandidates          []situationProposalView       `json:"rankingCandidates,omitempty"`
 	RankingSubmitted           bool                          `json:"rankingSubmitted,omitempty"`
 	RoundScore                 int                           `json:"roundScore,omitempty"`
+	RoundResults               []situationRoundResultView    `json:"roundResults,omitempty"`
 	Leaderboard                []fastBioLeaderboardEntryView `json:"leaderboard,omitempty"`
+}
+
+// situationRoundResultView is one finalist's line on the results screen:
+// every member of its group earns its Points.
+type situationRoundResultView struct {
+	Proposal situationProposalView      `json:"proposal"`
+	Rank     int                        `json:"rank"`
+	Points   int                        `json:"points"`
+	Members  []situationGroupMemberView `json:"members"`
+	IsMine   bool                       `json:"isMine"`
+}
+
+type situationGroupMemberView struct {
+	PlayerID    string `json:"playerId"`
+	DisplayName string `json:"displayName"`
 }
 
 type situationProposalView struct {
@@ -349,6 +378,46 @@ type situationDuelView struct {
 	MyVoteProposalID    string                `json:"myVoteProposalId,omitempty"`
 	OpponentHasVoted    bool                  `json:"opponentHasVoted"`
 	Deadline            time.Time             `json:"deadline"`
+}
+
+// wavelengthStateView is personalized: Target is only filled in for the
+// psychic until the round reaches its results, and the other players'
+// needles (Reveal) are only sent once the round is scored.
+type wavelengthStateView struct {
+	ID                         string                        `json:"id"`
+	Phase                      string                        `json:"phase"`
+	ThemeSubmitted             bool                          `json:"themeSubmitted"`
+	ThemeCandidates            []string                      `json:"themeCandidates,omitempty"`
+	ThemeRanked                bool                          `json:"themeRanked"`
+	ThemeDeadline              *time.Time                    `json:"themeDeadline,omitempty"`
+	ThemeProgressCount         int                           `json:"themeProgressCount"`
+	ThemeProgressRequired      int                           `json:"themeProgressRequired"`
+	RoundNumber                int                           `json:"roundNumber,omitempty"`
+	TotalRounds                int                           `json:"totalRounds,omitempty"`
+	IsLastRound                bool                          `json:"isLastRound,omitempty"`
+	RoundPhase                 string                        `json:"roundPhase,omitempty"`
+	LeftLabel                  string                        `json:"leftLabel,omitempty"`
+	RightLabel                 string                        `json:"rightLabel,omitempty"`
+	PsychicPlayerID            string                        `json:"psychicPlayerId,omitempty"`
+	PsychicDisplayName         string                        `json:"psychicDisplayName,omitempty"`
+	IsPsychic                  bool                          `json:"isPsychic,omitempty"`
+	Target                     *int                          `json:"target,omitempty"`
+	PhaseDeadline              *time.Time                    `json:"phaseDeadline,omitempty"`
+	Submitted                  bool                          `json:"submitted"`
+	MyPosition                 *int                          `json:"myPosition,omitempty"`
+	SubmissionProgressCount    int                           `json:"submissionProgressCount"`
+	SubmissionProgressRequired int                           `json:"submissionProgressRequired"`
+	Reveal                     []wavelengthRevealEntryView   `json:"reveal,omitempty"`
+	PsychicPoints              int                           `json:"psychicPoints,omitempty"`
+	RoundScore                 int                           `json:"roundScore,omitempty"`
+	Leaderboard                []fastBioLeaderboardEntryView `json:"leaderboard,omitempty"`
+}
+
+type wavelengthRevealEntryView struct {
+	PlayerID    string `json:"playerId"`
+	DisplayName string `json:"displayName"`
+	Position    int    `json:"position"`
+	Points      int    `json:"points"`
 }
 
 type roundSubmissionInput struct {

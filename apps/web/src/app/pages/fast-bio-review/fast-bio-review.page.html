@@ -82,10 +82,7 @@
             <p class="text-center text-xs text-ink-500">L’hôte contrôle le passage à la proposition suivante.</p>
           }
         } @else {
-          <div class="surface-card p-6 text-center">
-            <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
-            <p class="mt-2 text-sm font-extrabold text-ink-900">En attente de la revue…</p>
-          </div>
+          <app-waiting-card title="En attente de la revue…" />
         }
 
         @if (gameState.errorMessage(); as errorMessage) {

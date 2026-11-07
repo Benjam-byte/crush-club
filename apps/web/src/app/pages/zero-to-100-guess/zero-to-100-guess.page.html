@@ -67,8 +67,10 @@
             [progressRequired]="gameState.zeroToHundredGame()?.submissionProgressRequired ?? 0"
             progressLabel="joueurs ont validé leurs positions"
             message="Les résultats de la manche s’ouvriront automatiquement."
+            [hasWaitingGame]="false"
           />
           <app-zero-to-100-scoring-rules />
+          <app-waiting-game />
         }
       </section>
     </main>

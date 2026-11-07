@@ -1,21 +1,23 @@
 import {
   ApplicationRef,
   Injectable,
-  InjectionToken,
-  Injector,
   NgModule,
   NgZone,
+  provideAppInitializer,
+  setClassMetadata,
+  ɵɵdefineNgModule
+} from "./chunk-ORKJTB33.js";
+import {
+  InjectionToken,
+  Injector,
   RuntimeError,
   formatRuntimeError,
   inject,
   makeEnvironmentProviders,
-  provideAppInitializer,
-  setClassMetadata,
   ɵɵdefineInjectable,
   ɵɵdefineInjector,
-  ɵɵdefineNgModule,
   ɵɵinject
-} from "./chunk-L7WJRXMB.js";
+} from "./chunk-MYY3BFRC.js";
 import {
   NEVER,
   Observable,

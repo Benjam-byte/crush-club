@@ -66,11 +66,7 @@
             <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
           </ion-button>
         } @else {
-          <div class="surface-card p-5 text-center">
-            <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
-            <p class="mt-2 text-sm font-extrabold text-ink-900">En attente de l’hôte</p>
-            <p class="mt-1 text-xs text-ink-500">Le prochain écran s’ouvrira automatiquement.</p>
-          </div>
+          <app-waiting-card title="En attente de l’hôte" message="Le prochain écran s’ouvrira automatiquement." />
         }
 
         @if (gameState.errorMessage(); as errorMessage) {
@@ -78,7 +74,7 @@
         }
 
         <div>
-          <ion-button class="action-button action-button--secondary w-full" expand="block" [disabled]="isLeaving()" (click)="onQuitGame()">
+          <ion-button class="action-button action-button--secondary w-full" expand="block" (click)="onQuitGame()">
             Quitter la partie
           </ion-button>
         </div>

@@ -89,12 +89,9 @@
               {{ canStartUncappedGame() ? 'Lancer la partie' : ('En attente de joueurs (' + uncappedModeMinPlayers() + ' joueurs minimum)') }}
               <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
             </ion-button>
+            <app-waiting-game />
           } @else {
-            <div class="surface-card p-5 text-center">
-              <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
-              <p class="mt-2 text-sm font-extrabold text-ink-900">En attente de l’hôte</p>
-              <p class="mt-1 text-xs text-ink-500">La partie démarre dès que l’hôte la lance.</p>
-            </div>
+            <app-waiting-card title="En attente de l’hôte" message="La partie démarre dès que l’hôte la lance." />
           }
 
           @if (gameState.errorMessage(); as errorMessage) {
@@ -186,12 +183,9 @@
               {{ isStartingNextRound() ? 'Lancement…' : (gameState.canStartNextRound() ? 'Lancer la manche suivante' : 'En attente du groupe') }}
               <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
             </ion-button>
+            <app-waiting-game />
           } @else {
-            <div class="surface-card p-5 text-center">
-              <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
-              <p class="mt-2 text-sm font-extrabold text-ink-900">En attente de l’hôte</p>
-              <p class="mt-1 text-xs text-ink-500">La nouvelle manche s’ouvrira automatiquement.</p>
-            </div>
+            <app-waiting-card title="En attente de l’hôte" message="La nouvelle manche s’ouvrira automatiquement." />
           }
 
           @if (gameState.errorMessage(); as errorMessage) {
@@ -370,6 +364,10 @@
         <p class="text-center text-[11px] leading-5 text-ink-500">
           Le démarrage devient disponible dès que tout le monde a validé ses quatre photos.
         </p>
+
+        @if (gameState.currentPlayer().readyStatus === 'ready') {
+          <app-waiting-game />
+        }
         }
         }
       </section>

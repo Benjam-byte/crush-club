@@ -1,0 +1,89 @@
+<div class="wavelength-dial">
+  <svg
+    class="wavelength-dial__svg"
+    [class.wavelength-dial__svg--interactive]="interactive()"
+    [attr.viewBox]="viewBox"
+    [attr.role]="interactive() ? 'slider' : 'img'"
+    [attr.tabindex]="interactive() ? 0 : null"
+    [attr.aria-label]="ariaLabel()"
+    [attr.aria-valuemin]="interactive() ? 0 : null"
+    [attr.aria-valuemax]="interactive() ? 100 : null"
+    [attr.aria-valuenow]="interactive() ? value() : null"
+    (pointerdown)="onPointerDown($event)"
+    (pointermove)="onPointerMove($event)"
+    (pointerup)="onPointerUp()"
+    (pointercancel)="onPointerUp()"
+    (keydown)="onKeydown($event)"
+  >
+    <defs>
+      <clipPath [attr.id]="clipId">
+        <path [attr.d]="facePath" />
+      </clipPath>
+      <linearGradient [attr.id]="shutterGradientId" x1="0" y1="0" x2="1" y2="1">
+        <stop class="wavelength-dial__shutter-stop-start" offset="0%" />
+        <stop class="wavelength-dial__shutter-stop-end" offset="100%" />
+      </linearGradient>
+    </defs>
+
+    <path class="wavelength-dial__face" [attr.d]="facePath" />
+
+    <g [attr.clip-path]="'url(#' + clipId + ')'">
+      @for (band of bands(); track band.points) {
+        <path class="wavelength-dial__band" [attr.data-points]="band.points" [attr.d]="band.path" />
+      }
+      @for (label of bandLabels(); track $index) {
+        <text
+          class="wavelength-dial__band-label"
+          [attr.data-points]="label.points"
+          [attr.x]="label.x"
+          [attr.y]="label.y"
+          text-anchor="middle"
+          dominant-baseline="central"
+        >{{ label.points }}</text>
+      }
+      @if (showShutter()) {
+        <g class="wavelength-dial__shutter" [class.wavelength-dial__shutter--opening]="animateReveal()">
+          <path [attr.d]="facePath" [attr.fill]="'url(#' + shutterGradientId + ')'" />
+          <text class="wavelength-dial__shutter-mark" [attr.x]="pivot.x" [attr.y]="pivot.y - 44" text-anchor="middle">?</text>
+        </g>
+      }
+    </g>
+
+    @for (tick of ticks; track $index) {
+      <line class="wavelength-dial__tick" [attr.x1]="tick.x1" [attr.y1]="tick.y1" [attr.x2]="tick.x2" [attr.y2]="tick.y2" />
+    }
+
+    @for (needle of needleLines(); track needle.id) {
+      <g
+        class="wavelength-dial__needle"
+        [class.wavelength-dial__needle--mine]="needle.isCurrentPlayer"
+        [class.wavelength-dial__needle--reveal]="animateReveal()"
+        [style.animation-delay.ms]="needle.delayMs"
+      >
+        <line [attr.x1]="pivot.x" [attr.y1]="pivot.y" [attr.x2]="needle.tip.x" [attr.y2]="needle.tip.y" />
+        <circle [attr.cx]="needle.tip.x" [attr.cy]="needle.tip.y" r="7.5" />
+        <text [attr.x]="needle.tip.x" [attr.y]="needle.tip.y" text-anchor="middle" dominant-baseline="central">{{ needle.label }}</text>
+      </g>
+    }
+
+    @if (ownNeedle(); as needle) {
+      <g class="wavelength-dial__own-needle">
+        <line [attr.x1]="pivot.x" [attr.y1]="pivot.y" [attr.x2]="needle.shaftEnd.x" [attr.y2]="needle.shaftEnd.y" />
+        <circle [attr.cx]="needle.tip.x" [attr.cy]="needle.tip.y" r="7" />
+      </g>
+    }
+
+    <circle class="wavelength-dial__pivot" [attr.cx]="pivot.x" [attr.cy]="pivot.y" r="7" />
+  </svg>
+
+  <div class="mt-2 flex items-start justify-between gap-4 text-sm font-extrabold text-ink-900">
+    <span class="flex min-w-0 items-start gap-1">
+      <span class="text-brand-600" aria-hidden="true">←</span>
+      <span class="break-words">{{ leftLabel() }}</span>
+    </span>
+    <span class="flex min-w-0 items-start gap-1 text-right">
+      <span class="break-words">{{ rightLabel() }}</span>
+      <span class="text-brand-600" aria-hidden="true">→</span>
+    </span>
+  </div>
+</div>

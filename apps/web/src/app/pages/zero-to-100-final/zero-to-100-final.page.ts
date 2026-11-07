@@ -3,11 +3,12 @@ import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
+import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 @Component({
   selector: 'app-zero-to-100-final-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent],
+  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent],
   templateUrl: './zero-to-100-final.page.html',
   styleUrl: './zero-to-100-final.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -20,7 +21,6 @@ export class ZeroToHundredFinalPage implements OnInit {
   protected readonly leaderboard = computed(() => this.gameState.zeroToHundredGame()?.leaderboard ?? []);
   protected readonly winner = computed(() => this.leaderboard()[0]);
   protected readonly isReplaying = signal(false);
-  protected readonly isLeaving = signal(false);
 
   async ngOnInit(): Promise<void> {
     try {
@@ -44,17 +44,9 @@ export class ZeroToHundredFinalPage implements OnInit {
     }
   }
 
-  protected async onLeave(): Promise<void> {
-    if (this.isLeaving()) {
-      return;
-    }
-    this.isLeaving.set(true);
-    try {
-      await this.gameState.leaveGame();
-      await this.router.navigate(['/']);
-    } finally {
-      this.isLeaving.set(false);
-    }
+  protected onLeave(): void {
+    // The lobby exit guard asks for confirmation, then releases the player's place.
+    void this.router.navigate(['/']);
   }
 
   protected initials(displayName: string): string {

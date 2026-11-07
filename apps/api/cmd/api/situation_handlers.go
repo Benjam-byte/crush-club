@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math/rand"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -649,7 +650,7 @@ func (a *api) handleSubmitSituationProposal(w http.ResponseWriter, r *http.Reque
 }
 
 // advanceSituationBracket looks at the currently alive proposals for a round
-// and either opens the reveal carousel (4 or fewer remain) or schedules the
+// and either opens the finalist ranking (4 or fewer remain) or schedules the
 // next wave of the elimination tree: every duel in a wave is created at once
 // and runs in parallel (not one after another), and any group left over
 // (odd count, or the wave doesn't need to use every group to reach exactly
@@ -678,7 +679,7 @@ func advanceSituationBracket(ctx context.Context, tx pgx.Tx, roundID string) ([]
 	}
 	if len(aliveProposalIDs) <= situationFinalistCount {
 		_, err := tx.Exec(ctx, `
-			UPDATE situation_rounds SET phase = 'revealing', review_index = 0 WHERE id = $1
+			UPDATE situation_rounds SET phase = 'ranking' WHERE id = $1
 		`, roundID)
 		return nil, err
 	}
@@ -745,7 +746,7 @@ func randomSituationGroupMember(ctx context.Context, tx pgx.Tx, roundID, proposa
 
 // tryAdvanceSituationWave checks whether every duel of the round's current
 // wave has been resolved (or was never created, i.e. a fresh round) and, if
-// so, advances the bracket (next wave, or the reveal carousel).
+// so, advances the bracket (next wave, or the finalist ranking).
 func tryAdvanceSituationWave(ctx context.Context, tx pgx.Tx, roundID string) ([]string, error) {
 	var currentWave int
 	if err := tx.QueryRow(ctx, `
@@ -946,98 +947,6 @@ func (a *api) forceSituationDuelDeadline(code, duelID string) {
 	}
 }
 
-func (a *api) handleAdvanceSituationReview(w http.ResponseWriter, r *http.Request) {
-	player, ok := a.requirePlayer(w, r)
-	if !ok {
-		return
-	}
-	if !player.IsHost {
-		writeError(w, http.StatusForbidden, "host_required", "Only the host can navigate the review")
-		return
-	}
-	var input struct {
-		Direction string `json:"direction"`
-	}
-	if !decodeRequest(w, r, &input) {
-		return
-	}
-	if input.Direction != "next" && input.Direction != "previous" {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_direction", "direction must be next or previous")
-		return
-	}
-
-	tx, err := a.pool.Begin(r.Context())
-	if err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	defer tx.Rollback(r.Context())
-
-	gameID, gamePhase, err := loadActiveSituationGame(r.Context(), tx, player.LobbyID)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && gamePhase != "playing") {
-		writeError(w, http.StatusConflict, "situation_not_playing", "No situation round is currently being reviewed")
-		return
-	}
-	if err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	round, err := loadCurrentSituationRound(r.Context(), tx, gameID)
-	if err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	if round.Phase != "revealing" {
-		writeError(w, http.StatusConflict, "situation_round_locked", "This round is not being reviewed")
-		return
-	}
-	finalistCount, err := countAliveSituationProposals(r.Context(), tx, round.ID)
-	if err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-
-	changed := false
-	switch {
-	case input.Direction == "previous":
-		if round.ReviewIndex > 0 {
-			if _, err := tx.Exec(r.Context(), `
-				UPDATE situation_rounds SET review_index = review_index - 1 WHERE id = $1
-			`, round.ID); err != nil {
-				a.internalError(w, r, err)
-				return
-			}
-			changed = true
-		}
-	case round.ReviewIndex >= finalistCount-1:
-		if _, err := tx.Exec(r.Context(), `UPDATE situation_rounds SET phase = 'ranking' WHERE id = $1`, round.ID); err != nil {
-			a.internalError(w, r, err)
-			return
-		}
-		changed = true
-	default:
-		if _, err := tx.Exec(r.Context(), `
-			UPDATE situation_rounds SET review_index = review_index + 1 WHERE id = $1
-		`, round.ID); err != nil {
-			a.internalError(w, r, err)
-			return
-		}
-		changed = true
-	}
-
-	if changed {
-		if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
-			a.internalError(w, r, err)
-			return
-		}
-	}
-	if err := tx.Commit(r.Context()); err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
-}
-
 func (a *api) handleSubmitSituationRanking(w http.ResponseWriter, r *http.Request) {
 	player, ok := a.requirePlayer(w, r)
 	if !ok {
@@ -1139,29 +1048,10 @@ func (a *api) handleSubmitSituationRanking(w http.ResponseWriter, r *http.Reques
 // anyone absorbed into its group by winning duels) with that finalist's
 // total points for the round.
 func scoreSituationRound(ctx context.Context, tx pgx.Tx, roundID string, candidateIDs []string) error {
-	rows, err := tx.Query(ctx, `SELECT ranking FROM situation_final_rankings WHERE round_id = $1`, roundID)
+	rankings, err := loadSituationFinalRankings(ctx, tx, roundID)
 	if err != nil {
 		return err
 	}
-	rankings := make([][]string, 0)
-	for rows.Next() {
-		var rankingJSON []byte
-		if err := rows.Scan(&rankingJSON); err != nil {
-			rows.Close()
-			return err
-		}
-		var ranking []string
-		if err := json.Unmarshal(rankingJSON, &ranking); err != nil {
-			rows.Close()
-			return err
-		}
-		rankings = append(rankings, ranking)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return err
-	}
-	rows.Close()
 
 	pointsByProposal := tallyProposalPoints(candidateIDs, rankings)
 	for proposalID, points := range pointsByProposal {
@@ -1218,6 +1108,108 @@ func tallyProposalPoints(candidates []string, rankings [][]string) map[string]in
 		}
 	}
 	return points
+}
+
+// rankSituationResults orders finalists by points (ties keep their submission
+// order) and gives tied finalists the same rank, e.g. 1, 2, 2, 4.
+func rankSituationResults(results []situationRoundResultView) {
+	sort.SliceStable(results, func(i, j int) bool {
+		return results[i].Points > results[j].Points
+	})
+	for index := range results {
+		if index > 0 && results[index].Points == results[index-1].Points {
+			results[index].Rank = results[index-1].Rank
+			continue
+		}
+		results[index].Rank = index + 1
+	}
+}
+
+func loadSituationFinalRankings(ctx context.Context, db dbQuerier, roundID string) ([][]string, error) {
+	rows, err := db.Query(ctx, `SELECT ranking FROM situation_final_rankings WHERE round_id = $1`, roundID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	rankings := make([][]string, 0)
+	for rows.Next() {
+		var rankingJSON []byte
+		if err := rows.Scan(&rankingJSON); err != nil {
+			return nil, err
+		}
+		var ranking []string
+		if err := json.Unmarshal(rankingJSON, &ranking); err != nil {
+			return nil, err
+		}
+		rankings = append(rankings, ranking)
+	}
+	return rankings, rows.Err()
+}
+
+// loadSituationRoundResults explains a scored round: every finalist with its
+// rank, points, and the players sharing those points (its author plus
+// everyone absorbed into its group by winning duels).
+func loadSituationRoundResults(ctx context.Context, db dbQuerier, roundID, playerID string) ([]situationRoundResultView, error) {
+	finalists, err := loadAliveSituationProposalViews(ctx, db, roundID)
+	if err != nil {
+		return nil, err
+	}
+	candidateIDs := make([]string, len(finalists))
+	for index, finalist := range finalists {
+		candidateIDs[index] = finalist.ID
+	}
+	rankings, err := loadSituationFinalRankings(ctx, db, roundID)
+	if err != nil {
+		return nil, err
+	}
+	points := tallyProposalPoints(candidateIDs, rankings)
+
+	rows, err := db.Query(ctx, `
+		SELECT member.proposal_id, member.player_id, player.display_name
+		FROM situation_group_members AS member
+		JOIN players AS player ON player.id = member.player_id
+		WHERE member.round_id = $1
+		ORDER BY player.display_name
+	`, roundID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	membersByProposal := make(map[string][]situationGroupMemberView, len(finalists))
+	for rows.Next() {
+		var proposalID string
+		var member situationGroupMemberView
+		if err := rows.Scan(&proposalID, &member.PlayerID, &member.DisplayName); err != nil {
+			return nil, err
+		}
+		membersByProposal[proposalID] = append(membersByProposal[proposalID], member)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	results := make([]situationRoundResultView, len(finalists))
+	for index, finalist := range finalists {
+		members := membersByProposal[finalist.ID]
+		if members == nil {
+			members = []situationGroupMemberView{}
+		}
+		isMine := false
+		for _, member := range members {
+			if member.PlayerID == playerID {
+				isMine = true
+				break
+			}
+		}
+		results[index] = situationRoundResultView{
+			Proposal: finalist,
+			Points:   points[finalist.ID],
+			Members:  members,
+			IsMine:   isMine,
+		}
+	}
+	rankSituationResults(results)
+	return results, nil
 }
 
 func (a *api) handleStartNextSituationRound(w http.ResponseWriter, r *http.Request) {
@@ -1367,18 +1359,17 @@ type situationRoundRow struct {
 	ThemeLabel       string
 	Phase            string
 	ProposalDeadline time.Time
-	ReviewIndex      int
 }
 
 func loadCurrentSituationRound(ctx context.Context, db dbQuerier, gameID string) (situationRoundRow, error) {
 	var round situationRoundRow
 	err := db.QueryRow(ctx, `
-		SELECT id, round_number, theme_label, phase, proposal_deadline, review_index
+		SELECT id, round_number, theme_label, phase, proposal_deadline
 		FROM situation_rounds
 		WHERE game_id = $1
 		ORDER BY round_number DESC
 		LIMIT 1
-	`, gameID).Scan(&round.ID, &round.RoundNumber, &round.ThemeLabel, &round.Phase, &round.ProposalDeadline, &round.ReviewIndex)
+	`, gameID).Scan(&round.ID, &round.RoundNumber, &round.ThemeLabel, &round.Phase, &round.ProposalDeadline)
 	return round, err
 }
 
@@ -1399,14 +1390,6 @@ func loadSituationSelectedThemes(ctx context.Context, db dbQuerier, gameID strin
 		themes = append(themes, label)
 	}
 	return themes, rows.Err()
-}
-
-func countAliveSituationProposals(ctx context.Context, db dbQuerier, roundID string) (int, error) {
-	var count int
-	err := db.QueryRow(ctx, `
-		SELECT count(*) FROM situation_proposals WHERE round_id = $1 AND eliminated_at IS NULL
-	`, roundID).Scan(&count)
-	return count, err
 }
 
 func loadAliveSituationProposalIDs(ctx context.Context, db dbQuerier, roundID string) ([]string, error) {
@@ -1438,23 +1421,6 @@ func loadSituationProposalByID(ctx context.Context, db dbQuerier, proposalID str
 		JOIN players AS chosen ON chosen.id = proposal.chosen_player_id
 		WHERE proposal.id = $1
 	`, proposalID).Scan(
-		&view.ID, &view.AuthorPlayerID, &view.AuthorDisplayName, &view.ChosenPlayerID, &view.ChosenDisplayName, &view.Reason,
-	)
-	return view, err
-}
-
-func loadSituationProposalAt(ctx context.Context, db dbQuerier, roundID string, index int) (situationProposalView, error) {
-	var view situationProposalView
-	err := db.QueryRow(ctx, `
-		SELECT proposal.id, proposal.author_player_id, author.display_name,
-		       proposal.chosen_player_id, chosen.display_name, proposal.reason
-		FROM situation_proposals AS proposal
-		JOIN players AS author ON author.id = proposal.author_player_id
-		JOIN players AS chosen ON chosen.id = proposal.chosen_player_id
-		WHERE proposal.round_id = $1 AND proposal.eliminated_at IS NULL
-		ORDER BY proposal.submitted_at, proposal.id
-		OFFSET $2 LIMIT 1
-	`, roundID, index).Scan(
 		&view.ID, &view.AuthorPlayerID, &view.AuthorDisplayName, &view.ChosenPlayerID, &view.ChosenDisplayName, &view.Reason,
 	)
 	return view, err
@@ -1684,22 +1650,6 @@ func (a *api) loadSituationState(ctx context.Context, currentPlayer authenticate
 			}
 			view.CurrentDuel = duel
 
-		case "revealing":
-			proposalCount, err := countAliveSituationProposals(ctx, a.pool, round.ID)
-			if err != nil {
-				return situationStateView{}, err
-			}
-			view.ProposalCount = proposalCount
-			view.ReviewIndex = round.ReviewIndex
-			view.IsHostReview = currentPlayer.IsHost
-			if proposalCount > 0 && round.ReviewIndex < proposalCount {
-				proposal, err := loadSituationProposalAt(ctx, a.pool, round.ID, round.ReviewIndex)
-				if err != nil {
-					return situationStateView{}, err
-				}
-				view.CurrentProposal = &proposal
-			}
-
 		case "ranking":
 			candidates, err := loadAliveSituationProposalViews(ctx, a.pool, round.ID)
 			if err != nil {
@@ -1732,6 +1682,11 @@ func (a *api) loadSituationState(ctx context.Context, currentPlayer authenticate
 				return situationStateView{}, err
 			}
 			view.RoundScore = roundScore
+			results, err := loadSituationRoundResults(ctx, a.pool, round.ID, currentPlayer.ID)
+			if err != nil {
+				return situationStateView{}, err
+			}
+			view.RoundResults = results
 		}
 
 	case "completed":

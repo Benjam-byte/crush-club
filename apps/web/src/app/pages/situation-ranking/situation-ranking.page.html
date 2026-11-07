@@ -1,7 +1,7 @@
 <div class="ion-page">
   <ion-content>
     <main class="app-shell min-h-full pb-8">
-      <app-page-header title="Classe les propositions" backLink="/" />
+      <app-page-header title="Classe les réponses" backLink="/" />
 
       <section class="space-y-4 px-5 pt-3">
         @if (!gameState.isRealtimeConnected()) {
@@ -20,29 +20,89 @@
             <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
               {{ gameState.situationGame()?.themeLabel }}
             </p>
-            <h1 class="mt-2 text-2xl font-extrabold text-ink-900">Classe les propositions</h1>
-            <p class="mt-2 text-sm text-ink-600">Glisse pour réordonner, de la meilleure (en haut) à la moins bonne.</p>
+            <h1 class="mt-2 text-2xl font-extrabold text-ink-900">Classe les réponses</h1>
+            <p class="mt-2 text-sm text-ink-600">
+              Touche les réponses de ta préférée à la moins bonne. Chaque place rapporte des points à l’équipe qui l’a écrite.
+            </p>
           </header>
 
-          <ol
-            class="surface-card divide-y divide-peach-100 overflow-hidden"
-            cdkDropList
-            (cdkDropListDropped)="onDropRanking($event)"
-          >
-            @for (proposalId of ranking(); track proposalId; let index = $index) {
-              @let candidate = candidateFor(proposalId);
-              <li class="ranking-row flex items-center gap-3 px-4 py-3" cdkDrag [cdkDragData]="proposalId">
-                <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">
-                  {{ index + 1 }}
-                </span>
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-extrabold text-ink-900">{{ candidate?.chosenDisplayName }}</p>
-                  <p class="truncate text-xs text-ink-500">{{ candidate?.reason }}</p>
-                </div>
-                <ion-icon class="shrink-0 text-lg text-ink-500" name="reorder-two-outline" cdkDragHandle aria-hidden="true" />
-              </li>
-            }
-          </ol>
+          <section class="surface-card overflow-hidden" aria-label="Ton podium">
+            <header class="flex items-center justify-between border-b border-peach-100 px-5 py-4">
+              <h2 class="text-base font-extrabold text-ink-900">Ton podium</h2>
+              <span class="rounded-full bg-peach-100 px-3 py-1.5 text-xs font-extrabold text-brand-600">
+                {{ placedCount() }}/{{ slotList().length }} placées
+              </span>
+            </header>
+            <ol class="divide-y divide-peach-100">
+              @for (place of podiumPlaceList(); track place.slotIndex) {
+                <li class="flex items-center gap-3 py-3 pl-4 pr-2">
+                  <span class="grid size-10 shrink-0 place-items-center rounded-2xl text-sm font-extrabold" [class]="place.badgeClass">
+                    @if (place.hasTrophy) {
+                      <ion-icon class="text-xl" name="trophy" aria-hidden="true" />
+                    } @else {
+                      {{ place.slotIndex + 1 }}
+                    }
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="flex items-center gap-2">
+                      <span class="text-[11px] font-extrabold text-ink-500">{{ place.placeLabel }} place</span>
+                      <span class="rounded-full px-2 py-0.5 text-[11px] font-extrabold text-ink-900" [class]="place.pointsClass">
+                        {{ place.pointsText }}
+                      </span>
+                    </span>
+                    @if (place.candidate; as candidate) {
+                      <span class="block text-sm font-extrabold text-ink-900">{{ candidate.chosenDisplayName }}</span>
+                      <span class="block wrap-break-word text-xs text-ink-600">« {{ candidate.reason }} »</span>
+                    } @else {
+                      <span class="mt-1 block rounded-xl border border-dashed border-peach-200 px-3 py-2 text-xs font-semibold text-ink-500">
+                        {{ place.slotIndex === nextFreeSlotIndex() ? 'Touche une réponse ci-dessous' : 'Place libre' }}
+                      </span>
+                    }
+                  </span>
+                  @if (place.candidate) {
+                    <button
+                      class="grid size-11 shrink-0 place-items-center rounded-2xl text-ink-500 transition active:bg-peach-50 focus-visible:outline-2 focus-visible:outline-brand-500"
+                      type="button"
+                      [attr.aria-label]="'Retirer de la ' + place.placeLabel + ' place'"
+                      (click)="onClearSlot(place.slotIndex)"
+                    >
+                      <ion-icon class="text-lg" name="close" aria-hidden="true" />
+                    </button>
+                  } @else {
+                    <span class="size-11 shrink-0" aria-hidden="true"></span>
+                  }
+                </li>
+              }
+            </ol>
+          </section>
+
+          @if (unplacedCandidateList().length > 0) {
+            <section class="space-y-2" aria-label="Réponses à placer">
+              <p class="px-1 text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">Réponses à placer</p>
+              @for (candidate of unplacedCandidateList(); track candidate.id) {
+                <!-- Ionic's normalize.css resets button padding and radius outside Tailwind's layer, so the card is an inner span. -->
+                <button
+                  class="block w-full text-left transition active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-brand-500"
+                  type="button"
+                  (click)="onPlaceCandidate(candidate.id)"
+                >
+                  <span class="surface-card flex items-center gap-3 px-4 py-3">
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-sm font-extrabold text-ink-900">{{ candidate.chosenDisplayName }}</span>
+                      <span class="block wrap-break-word text-xs leading-5 text-ink-600">« {{ candidate.reason }} »</span>
+                    </span>
+                    <span class="shrink-0 rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-extrabold text-brand-600">
+                      {{ nextPlaceHint() }}
+                    </span>
+                  </span>
+                </button>
+              }
+            </section>
+          }
+
+          <p class="text-center text-[11px] leading-5 text-ink-500">
+            Les points de tous les votes s’additionnent : l’équipe qui en totalise le plus gagne la manche.
+          </p>
 
           @if (gameState.errorMessage(); as errorMessage) {
             <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
@@ -51,10 +111,10 @@
           <ion-button
             class="action-button w-full"
             expand="block"
-            [disabled]="isSubmittingRanking()"
+            [disabled]="isSubmittingRanking() || !isComplete()"
             (click)="onSubmitRanking()"
           >
-            {{ isSubmittingRanking() ? 'Envoi…' : 'Valider mon classement' }}
+            {{ submitLabel() }}
             <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
           </ion-button>
         } @else {

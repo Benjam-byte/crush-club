@@ -417,20 +417,6 @@ export class LobbyApiService {
     );
   }
 
-  advanceSituationReview(
-    code: string,
-    reconnectToken: string,
-    direction: 'next' | 'previous',
-  ): Promise<LobbyStateResponse> {
-    return firstValueFrom(
-      this.http.post<LobbyStateResponse>(
-        `/api/v1/lobbies/${code}/situation/review/advance`,
-        { direction },
-        { headers: this.authorizationHeaders(reconnectToken) },
-      ),
-    );
-  }
-
   submitSituationRanking(
     code: string,
     reconnectToken: string,
@@ -456,6 +442,73 @@ export class LobbyApiService {
   replaySituation(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
     return firstValueFrom(
       this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/situation/replay`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  startWavelength(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/wavelength/start`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  /** Empty poles pass on this round's proposal. */
+  submitWavelengthTheme(code: string, reconnectToken: string, left: string, right: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/wavelength/themes`,
+        { left, right },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  rankWavelengthThemes(
+    code: string,
+    reconnectToken: string,
+    ranking: readonly string[],
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/wavelength/themes/rank`,
+        { ranking },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  confirmWavelengthClue(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/wavelength/clue`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  submitWavelengthGuess(code: string, reconnectToken: string, position: number): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/wavelength/guess`,
+        { position },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  startNextWavelengthRound(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/wavelength/rounds/next`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  replayWavelength(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/wavelength/replay`, null, {
         headers: this.authorizationHeaders(reconnectToken),
       }),
     );

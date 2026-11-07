@@ -4,11 +4,12 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { IonContent, IonIcon } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
+import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 @Component({
   selector: 'app-situation-duel-page',
-  imports: [IonContent, IonIcon, PageHeaderComponent, PhaseTimerComponent],
+  imports: [IonContent, IonIcon, PageHeaderComponent, PhaseTimerComponent, WaitingCardComponent],
   templateUrl: './situation-duel.page.html',
   styleUrl: './situation-duel.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

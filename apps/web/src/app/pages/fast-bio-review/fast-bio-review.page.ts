@@ -5,12 +5,13 @@ import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import { fastBioReactionEmojis, fastBioReactionPoints } from '@core/models/game.models';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { ReactionBurstComponent } from '@core/components/reaction-burst/reaction-burst.component';
+import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { GameStateService } from '@core/services/game-state.service';
 import { RealtimeLobbyService } from '@core/services/realtime-lobby.service';
 
 @Component({
   selector: 'app-fast-bio-review-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, ReactionBurstComponent],
+  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, ReactionBurstComponent, WaitingCardComponent],
   templateUrl: './fast-bio-review.page.html',
   styleUrl: './fast-bio-review.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

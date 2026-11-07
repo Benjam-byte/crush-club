@@ -191,6 +191,18 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 		return state, nil
 	}
 
+	if state.Mode == lobbyModeWavelength {
+		wavelengthGame, err := a.loadWavelengthState(ctx, currentPlayer)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return state, nil
+		}
+		if err != nil {
+			return lobbyStateResponse{}, err
+		}
+		state.WavelengthGame = &wavelengthGame
+		return state, nil
+	}
+
 	game, err := a.loadGameState(ctx, currentPlayer)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return state, nil

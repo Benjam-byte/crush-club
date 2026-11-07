@@ -76,6 +76,7 @@
                   <ion-select-option value="fast_bio">Fast Bio · dès 2 joueurs (5+ recommandé)</ion-select-option>
                   <ion-select-option value="zero_to_100">0 à 100 · dès 3 joueurs (5+ recommandé)</ion-select-option>
                   <ion-select-option value="situation">Situation · dès 2 joueurs, pensé pour un grand groupe</ion-select-option>
+                  <ion-select-option value="wavelength">Wavelength · dès 2 joueurs (4+ recommandé)</ion-select-option>
                 </ion-select>
                 <p class="mt-2 text-xs leading-5 text-ink-500">
                   @if (selectedMode() === 'fast_bio') {
@@ -84,6 +85,8 @@
                     Le groupe choisit 3 thèmes, puis à chaque manche jusqu’à 5 nominés sont tirés au sort et tout le monde les place sur une échelle de 0 à 100.
                   } @else if (selectedMode() === 'situation') {
                     Le groupe choisit 3 situations, chacun désigne qui s’en sortirait le mieux et pourquoi. En grand groupe, des duels en face-à-face réduisent les propositions à 4 avant le classement final.
+                  } @else if (selectedMode() === 'wavelength') {
+                    À chaque manche, le groupe vote un spectre (« Froid ↔ Chaud »). Le médium voit une cible secrète et donne un indice à voix haute, puis tout le monde place son aiguille. Chacun est médium une fois.
                   } @else {
                     Chacun uploade 4 photos, puis devine les réponses de l’Amoureux à chaque manche.
                   }

@@ -1,0 +1,8 @@
+<div class="surface-card p-5 text-center">
+  <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
+  <p class="mt-2 text-sm font-extrabold text-ink-900">{{ title() }}</p>
+  @if (message(); as messageText) {
+    <p class="mt-1 text-xs text-ink-500">{{ messageText }}</p>
+  }
+</div>
+<app-waiting-game class="mt-4" />

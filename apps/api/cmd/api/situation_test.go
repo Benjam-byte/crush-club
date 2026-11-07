@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -83,5 +84,23 @@ func TestTallyProposalPointsIgnoresUnknownEntriesAndMissingVoters(t *testing.T) 
 	got := tallyProposalPoints(candidates, rankings)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("tallyProposalPoints() = %v, want %v", got, want)
+	}
+}
+
+func TestRankSituationResultsSharesRankOnTies(t *testing.T) {
+	results := []situationRoundResultView{
+		{Proposal: situationProposalView{ID: "first-submitted"}, Points: 5},
+		{Proposal: situationProposalView{ID: "winner"}, Points: 8},
+		{Proposal: situationProposalView{ID: "second-submitted"}, Points: 5},
+		{Proposal: situationProposalView{ID: "last"}, Points: 2},
+	}
+	rankSituationResults(results)
+	got := make([]string, len(results))
+	for index, result := range results {
+		got[index] = fmt.Sprintf("%d:%s", result.Rank, result.Proposal.ID)
+	}
+	want := []string{"1:winner", "2:first-submitted", "2:second-submitted", "4:last"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("rankSituationResults() = %v, want %v", got, want)
 	}
 }

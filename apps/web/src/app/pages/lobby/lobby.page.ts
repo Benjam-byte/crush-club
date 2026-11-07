@@ -10,6 +10,8 @@ import {
   IonToast,
 } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
+import { WaitingCardComponent } from '../../core/components/waiting-card/waiting-card.component';
+import { WaitingGameComponent } from '../../core/components/waiting-game/waiting-game.component';
 import { GameStateService } from '../../core/services/game-state.service';
 import { GameConfigService } from '../../core/services/game-config.service';
 
@@ -23,6 +25,8 @@ import { GameConfigService } from '../../core/services/game-config.service';
     IonSelectOption,
     IonToast,
     PageHeaderComponent,
+    WaitingCardComponent,
+    WaitingGameComponent,
   ],
   templateUrl: './lobby.page.html',
   styleUrl: './lobby.page.scss',
@@ -109,6 +113,8 @@ export class LobbyPage implements OnInit {
         await this.gameState.startZeroToHundredGame();
       } else if (this.gameState.isSituationMode()) {
         await this.gameState.startSituationGame();
+      } else if (this.gameState.isWavelengthMode()) {
+        await this.gameState.startWavelengthGame();
       } else {
         await this.gameState.startFastBioGame();
       }
@@ -124,6 +130,9 @@ export class LobbyPage implements OnInit {
     if (this.gameState.isSituationMode()) {
       return this.gameState.canStartSituationGame();
     }
+    if (this.gameState.isWavelengthMode()) {
+      return this.gameState.canStartWavelengthGame();
+    }
     return this.gameState.canStartFastBioGame();
   }
 
@@ -133,6 +142,9 @@ export class LobbyPage implements OnInit {
     }
     if (this.gameState.isSituationMode()) {
       return 'Situation';
+    }
+    if (this.gameState.isWavelengthMode()) {
+      return 'Wavelength';
     }
     return 'Fast Bio';
   }

@@ -220,10 +220,16 @@ func (a *api) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/themes/rank", a.handleRankSituationThemes)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/proposal", a.handleSubmitSituationProposal)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/duels/{duelID}/vote", a.handleVoteSituationDuel)
-	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/review/advance", a.handleAdvanceSituationReview)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/ranking", a.handleSubmitSituationRanking)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/rounds/next", a.handleStartNextSituationRound)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/situation/replay", a.handleReplaySituation)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/wavelength/start", a.handleStartWavelengthGame)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/wavelength/themes", a.handleSubmitWavelengthTheme)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/wavelength/themes/rank", a.handleRankWavelengthThemes)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/wavelength/clue", a.handleConfirmWavelengthClue)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/wavelength/guess", a.handleSubmitWavelengthGuess)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/wavelength/rounds/next", a.handleStartNextWavelengthRound)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/wavelength/replay", a.handleReplayWavelength)
 	mux.HandleFunc("GET /ws/lobbies/{code}", a.handleLobbyWebSocket)
 	return mux
 }
@@ -583,8 +589,9 @@ func (a *api) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 		input.Mode = lobbyModeClassic
 	}
 	if input.Mode != lobbyModeClassic && input.Mode != lobbyModeFastBio &&
-		input.Mode != lobbyModeZeroToHundred && input.Mode != lobbyModeSituation {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "mode must be classic, fast_bio, zero_to_100, or situation")
+		input.Mode != lobbyModeZeroToHundred && input.Mode != lobbyModeSituation &&
+		input.Mode != lobbyModeWavelength {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "mode must be classic, fast_bio, zero_to_100, situation, or wavelength")
 		return
 	}
 	var maxPlayers *int

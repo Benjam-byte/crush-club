@@ -1,10 +1,7 @@
 <div class="ion-page">
   <ion-content>
     <main class="app-shell min-h-full pb-8">
-      <app-page-header
-        [title]="gameState.isZeroToHundredMode() ? 'Thèmes 0 à 100' : (gameState.isSituationMode() ? 'Situations' : 'Thèmes Fast Bio')"
-        backLink="/"
-      />
+      <app-page-header [title]="pageTitle()" backLink="/" />
 
       <section class="space-y-4 px-5 pt-3">
         @if (!gameState.isRealtimeConnected()) {
@@ -24,49 +21,96 @@
               joueurs ont proposé
             </p>
             <header class="text-center">
-              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">Étape 1</p>
-              <h1 class="mt-2 text-2xl font-extrabold text-ink-900">Propose un thème</h1>
+              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
+                @if (wavelengthRoundLabel(); as roundLabel) { {{ roundLabel }} · }Étape 1
+              </p>
+              <h1 class="mt-2 text-2xl font-extrabold text-ink-900">
+                {{ gameState.isWavelengthMode() ? 'Propose un spectre' : 'Propose un thème' }}
+              </h1>
               <p class="mt-2 text-sm text-ink-600">
                 @if (gameState.isZeroToHundredMode()) {
                   Facultatif : une question à placer sur une échelle de 0 à 100, ex. « Mettre le plus de nourriture dans sa bouche ».
                 } @else if (gameState.isSituationMode()) {
                   Facultatif : une situation, ex. « En entretien d’embauche avec le Père Fouettard ».
+                } @else if (gameState.isWavelengthMode()) {
+                  Facultatif : deux extrêmes opposés, ex. « Red flag ↔ Green flag ». Le médium donnera un indice entre les deux.
                 } @else {
                   Facultatif : un mot ou une expression, ex. « Mode mystérieux ».
                 }
               </p>
             </header>
-            <form class="surface-card space-y-4 p-5" [formGroup]="themeForm" (ngSubmit)="onSubmitTheme()">
-              <ion-input
-                class="form-input"
-                formControlName="theme"
-                label="Ton thème"
-                labelPlacement="stacked"
-                maxlength="80"
-                placeholder="Résister à un fou rire…"
-              />
-              <ion-button class="action-button w-full" expand="block" type="submit" [disabled]="isSubmittingTheme()">
-                {{ isSubmittingTheme() ? 'Envoi…' : 'Proposer ce thème' }}
-                <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-              </ion-button>
-              <ion-button
-                class="w-full"
-                expand="block"
-                fill="clear"
-                type="button"
-                [disabled]="isSubmittingTheme()"
-                (click)="onSkipTheme()"
-              >
-                Passer
-              </ion-button>
-            </form>
+            @if (gameState.isWavelengthMode()) {
+              <form class="surface-card space-y-4 p-5" [formGroup]="spectrumForm" (ngSubmit)="onSubmitSpectrum()">
+                <ion-input
+                  class="form-input"
+                  formControlName="left"
+                  label="Pôle gauche"
+                  labelPlacement="stacked"
+                  maxlength="40"
+                  placeholder="Red flag"
+                />
+                <ion-input
+                  class="form-input"
+                  formControlName="right"
+                  label="Pôle droit"
+                  labelPlacement="stacked"
+                  maxlength="40"
+                  placeholder="Green flag"
+                />
+                <ion-button
+                  class="action-button w-full"
+                  expand="block"
+                  type="submit"
+                  [disabled]="isSubmittingTheme() || !isSpectrumComplete()"
+                >
+                  {{ isSubmittingTheme() ? 'Envoi…' : 'Proposer ce spectre' }}
+                  <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+                </ion-button>
+                <ion-button
+                  class="w-full"
+                  expand="block"
+                  fill="clear"
+                  type="button"
+                  [disabled]="isSubmittingTheme()"
+                  (click)="onSkipTheme()"
+                >
+                  Passer
+                </ion-button>
+              </form>
+            } @else {
+              <form class="surface-card space-y-4 p-5" [formGroup]="themeForm" (ngSubmit)="onSubmitTheme()">
+                <ion-input
+                  class="form-input"
+                  formControlName="theme"
+                  label="Ton thème"
+                  labelPlacement="stacked"
+                  maxlength="80"
+                  placeholder="Résister à un fou rire…"
+                />
+                <ion-button class="action-button w-full" expand="block" type="submit" [disabled]="isSubmittingTheme()">
+                  {{ isSubmittingTheme() ? 'Envoi…' : 'Proposer ce thème' }}
+                  <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+                </ion-button>
+                <ion-button
+                  class="w-full"
+                  expand="block"
+                  fill="clear"
+                  type="button"
+                  [disabled]="isSubmittingTheme()"
+                  (click)="onSkipTheme()"
+                >
+                  Passer
+                </ion-button>
+              </form>
+            }
           } @else {
             <app-phase-confirmation
               title="Proposition envoyée !"
               [progressCount]="gameState.themeSelectionState()?.themeProgressCount ?? 0"
               [progressRequired]="gameState.themeSelectionState()?.themeProgressRequired ?? 0"
               progressLabel="joueurs ont proposé"
-              message="Le classement des thèmes s’ouvrira automatiquement."
+              [message]="gameState.isWavelengthMode() ? 'Le vote des spectres s’ouvrira automatiquement.' : 'Le classement des thèmes s’ouvrira automatiquement.'"
+              [hasWaitingGame]="!gameState.isZeroToHundredMode()"
             >
               @if (mySubmittedTheme()) {
                 <p class="mt-1 text-sm text-ink-600">« {{ mySubmittedTheme() }} »</p>
@@ -76,6 +120,7 @@
             </app-phase-confirmation>
             @if (gameState.isZeroToHundredMode()) {
               <app-zero-to-100-scoring-rules />
+              <app-waiting-game />
             }
           }
         }
@@ -83,9 +128,16 @@
         @if (gameState.themeSelectionState()?.phase === 'ranking_themes') {
           @if (!gameState.themeSelectionState()?.themeRanked) {
             <header class="text-center">
-              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">Étape 2</p>
-              <h1 class="mt-2 text-2xl font-extrabold text-ink-900">Classe les thèmes</h1>
-              <p class="mt-2 text-sm text-ink-600">Glisse pour réordonner, du meilleur (en haut) au moins bon. Les 3 premiers seront joués.</p>
+              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
+                @if (wavelengthRoundLabel(); as roundLabel) { {{ roundLabel }} · }Étape 2
+              </p>
+              <h1 class="mt-2 text-2xl font-extrabold text-ink-900">
+                {{ gameState.isWavelengthMode() ? 'Classe les spectres' : 'Classe les thèmes' }}
+              </h1>
+              <p class="mt-2 text-sm text-ink-600">
+                Glisse pour réordonner, du meilleur (en haut) au moins bon.
+                {{ gameState.isWavelengthMode() ? 'Seul le n°1 sera joué cette manche.' : 'Les 3 premiers seront joués.' }}
+              </p>
             </header>
             <ol
               class="surface-card divide-y divide-peach-100 overflow-hidden"
@@ -117,10 +169,12 @@
               [progressCount]="gameState.themeSelectionState()?.themeProgressCount ?? 0"
               [progressRequired]="gameState.themeSelectionState()?.themeProgressRequired ?? 0"
               progressLabel="joueurs ont validé leur classement"
-              message="La première manche démarrera automatiquement."
+              [message]="gameState.isWavelengthMode() ? 'La manche démarrera automatiquement.' : 'La première manche démarrera automatiquement.'"
+              [hasWaitingGame]="!gameState.isZeroToHundredMode()"
             />
             @if (gameState.isZeroToHundredMode()) {
               <app-zero-to-100-scoring-rules />
+              <app-waiting-game />
             }
           }
         }

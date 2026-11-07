@@ -1,6 +1,22 @@
 import {
+  e as e4
+} from "./chunk-ANKM42VW.js";
+import {
+  i as i2
+} from "./chunk-AISI6A3O.js";
+import {
+  a,
+  c as c3,
+  o as o3
+} from "./chunk-EROUM453.js";
+import {
   o as o4
 } from "./chunk-PGMTTGZB.js";
+import {
+  h,
+  i as i3,
+  s as s4
+} from "./chunk-KNW56QNS.js";
 import {
   t as t5
 } from "./chunk-M26SFLOZ.js";
@@ -21,9 +37,6 @@ import {
   t as t3
 } from "./chunk-K3ICHH2B.js";
 import {
-  e as e4
-} from "./chunk-ANKM42VW.js";
-import {
   ActivatedRoute,
   ChildrenOutletContexts,
   NavigationCancel,
@@ -33,13 +46,10 @@ import {
   Router,
   RouterLink,
   UrlSerializer
-} from "./chunk-UPUMYFS4.js";
+} from "./chunk-5VJJM2XF.js";
 import {
   l as l2
-} from "./chunk-EQ4V22V7.js";
-import {
-  i as i2
-} from "./chunk-34S7YQGH.js";
+} from "./chunk-QO3LBYS4.js";
 import {
   A,
   D,
@@ -52,7 +62,11 @@ import {
   s as s3,
   t as t2,
   v as v2
-} from "./chunk-C7RNKPVO.js";
+} from "./chunk-YFYJSARB.js";
+import {
+  d,
+  o as o2
+} from "./chunk-5C4KPRKN.js";
 import {
   T,
   _,
@@ -74,20 +88,6 @@ import {
   y
 } from "./chunk-FVXWKLX3.js";
 import {
-  h,
-  i as i3,
-  s as s4
-} from "./chunk-KNW56QNS.js";
-import {
-  a,
-  c as c3,
-  o as o3
-} from "./chunk-EROUM453.js";
-import {
-  d,
-  o as o2
-} from "./chunk-5C4KPRKN.js";
-import {
   An,
   Ct,
   H,
@@ -108,19 +108,19 @@ import {
   s,
   u
 } from "./chunk-46NDEHKZ.js";
-import "./chunk-HQWL3IZM.js";
-import "./chunk-ETGWNNLN.js";
 import {
   NG_VALUE_ACCESSOR,
   NgControl
-} from "./chunk-R4AJX2WK.js";
+} from "./chunk-IHE5NDKU.js";
+import "./chunk-B7DHHGCF.js";
+import "./chunk-YZD3DPET.js";
 import {
   CommonModule,
   Location,
   LocationStrategy,
   NgIf,
   NgTemplateOutlet
-} from "./chunk-Q3BRRXUY.js";
+} from "./chunk-TMYB4BRI.js";
 import "./chunk-5QBOUJIN.js";
 import {
   APP_INITIALIZER,
@@ -131,16 +131,12 @@ import {
   Component,
   ContentChild,
   ContentChildren,
-  DOCUMENT,
   Directive,
   ElementRef,
-  EnvironmentInjector,
   EventEmitter,
   HostListener,
   Inject,
   Injectable,
-  InjectionToken,
-  Injector,
   Input,
   NgZone,
   Optional,
@@ -150,9 +146,6 @@ import {
   ViewChild,
   ViewContainerRef,
   createComponent,
-  forwardRef,
-  inject,
-  makeEnvironmentProviders,
   reflectComponentType,
   setClassMetadata,
   ɵɵInheritDefinitionFeature,
@@ -162,7 +155,6 @@ import {
   ɵɵcontentQuery,
   ɵɵdefineComponent,
   ɵɵdefineDirective,
-  ɵɵdefineInjectable,
   ɵɵdirectiveInject,
   ɵɵdomElementContainerEnd,
   ɵɵdomElementContainerStart,
@@ -171,7 +163,6 @@ import {
   ɵɵelementStart,
   ɵɵgetCurrentView,
   ɵɵgetInheritedFactory,
-  ɵɵinject,
   ɵɵinjectAttribute,
   ɵɵlistener,
   ɵɵloadQuery,
@@ -180,11 +171,22 @@ import {
   ɵɵprojectionDef,
   ɵɵproperty,
   ɵɵqueryRefresh,
-  ɵɵresetView,
-  ɵɵrestoreView,
   ɵɵtemplate,
   ɵɵviewQuery
-} from "./chunk-L7WJRXMB.js";
+} from "./chunk-ORKJTB33.js";
+import {
+  DOCUMENT,
+  EnvironmentInjector,
+  InjectionToken,
+  Injector,
+  forwardRef,
+  inject,
+  makeEnvironmentProviders,
+  ɵɵdefineInjectable,
+  ɵɵinject,
+  ɵɵresetView,
+  ɵɵrestoreView
+} from "./chunk-MYY3BFRC.js";
 import {
   BehaviorSubject,
   Subject,
@@ -3801,7 +3803,7 @@ var b5 = Vn(class extends I {
       const t17 = () => {
         this.gestureOrAnimationInProgress = true, this.swipeHandler && this.swipeHandler.onStart();
       };
-      this.gesture = (yield import("./p-Sh0ICmPV-7TTA6S2Q.js")).createSwipeBackGesture(this.el, (() => !this.gestureOrAnimationInProgress && !!this.swipeHandler && this.swipeHandler.canStart()), (() => t17()), ((t18) => {
+      this.gesture = (yield import("./p-Sh0ICmPV-627LJQMG.js")).createSwipeBackGesture(this.el, (() => !this.gestureOrAnimationInProgress && !!this.swipeHandler && this.swipeHandler.canStart()), (() => t17()), ((t18) => {
         var i17;
         return null === (i17 = this.ani) || void 0 === i17 ? void 0 : i17.progressStep(t18);
       }), ((t18, i17, s22) => {
@@ -5620,9 +5622,9 @@ var d7 = Vn(class extends I {
   componentDidLoad() {
     this.rIC((() => __async(this, null, function* () {
       const t17 = s5(window, "hybrid");
-      if (n.getBoolean("_testing") || import("./p-C4t5ymfq-SMNPHFZD.js").then(((t18) => t18.startTapClick(n))), n.getBoolean("statusTap", t17) && import("./p-D7bSXQD3-R4X2UL2P.js").then(((t18) => t18.startStatusTap())), n.getBoolean("inputShims", m9())) {
+      if (n.getBoolean("_testing") || import("./p-C4t5ymfq-JOLTDARO.js").then(((t18) => t18.startTapClick(n))), n.getBoolean("statusTap", t17) && import("./p-D7bSXQD3-R4X2UL2P.js").then(((t18) => t18.startStatusTap())), n.getBoolean("inputShims", m9())) {
         const t18 = s5(window, "ios") ? "ios" : "android";
-        import("./p-D5Ubpm7D-36IRCHD3.js").then(((e19) => e19.startInputShims(n, t18)));
+        import("./p-D5Ubpm7D-MDOEVUJZ.js").then(((e19) => e19.startInputShims(n, t18)));
       }
       const e18 = yield import("./p-Bz0dSlXZ-BHBIEPUR.js"), i17 = t17 || o3();
       n.getBoolean("hardwareBackButton", i17) ? e18.startHardwareBackButton() : (o3() && u("[ion-app] - experimentalCloseWatcher was set to `true`, but hardwareBackButton was set to `false`. Both config options must be `true` for the Close Watcher API to be used."), e18.blockHardwareBackButton()), "undefined" != typeof window && import("./p-D6Ynv7Xh-OXZWETEV.js").then(((t18) => t18.startKeyboardAssist(window))), import("./p-BmVRXR1y-G3OXLTFP.js").then(((t18) => this.focusVisible = t18.startFocusVisible()));
@@ -10354,7 +10356,7 @@ var C4 = Vn(class extends I {
   }
   componentDidLoad() {
     return __async(this, null, function* () {
-      this.didLoad = true, this.rootChanged(), this.gesture = (yield import("./p-Sh0ICmPV-7TTA6S2Q.js")).createSwipeBackGesture(this.el, this.canStart.bind(this), this.onStart.bind(this), this.onMove.bind(this), this.onEnd.bind(this)), this.swipeGestureChanged();
+      this.didLoad = true, this.rootChanged(), this.gesture = (yield import("./p-Sh0ICmPV-627LJQMG.js")).createSwipeBackGesture(this.el, this.canStart.bind(this), this.onStart.bind(this), this.onMove.bind(this), this.onEnd.bind(this)), this.swipeGestureChanged();
     });
   }
   connectedCallback() {

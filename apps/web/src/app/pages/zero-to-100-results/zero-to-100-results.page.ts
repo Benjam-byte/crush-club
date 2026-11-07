@@ -4,11 +4,12 @@ import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
+import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 @Component({
   selector: 'app-zero-to-100-results-page',
-  imports: [DecimalPipe, IonButton, IonContent, IonIcon, PageHeaderComponent],
+  imports: [DecimalPipe, IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent],
   templateUrl: './zero-to-100-results.page.html',
   styleUrl: './zero-to-100-results.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

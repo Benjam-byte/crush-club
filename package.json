@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "corepack pnpm --filter @crush-club/web start",
     "dev:full": "node scripts/dev-full.mjs",
+    "bots:situation": "node scripts/situation-bots.mjs",
     "build": "corepack pnpm --recursive build",
     "lint": "corepack pnpm --recursive lint",
     "typecheck": "corepack pnpm --recursive typecheck",
