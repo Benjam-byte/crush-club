@@ -1,3 +1,4 @@
+import { InfoSheetComponent } from '@core/components/info-sheet/info-sheet.component';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import type { OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -15,7 +16,7 @@ import { secretRankingQuestionEnd, secretRankingQuestionStart } from '@core/serv
 /** Screen A: the round's question, and the player's secret bet. */
 @Component({
   selector: 'app-secret-ranking-secret-page',
-  imports: [
+  imports: [InfoSheetComponent, 
     IonButton,
     IonContent,
     IonIcon,
