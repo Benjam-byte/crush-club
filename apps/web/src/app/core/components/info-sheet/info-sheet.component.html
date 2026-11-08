@@ -1,0 +1,14 @@
+<button class="min-h-10 text-xs font-extrabold text-brand-600 underline underline-offset-4" type="button" (click)="isOpen.set(true)">{{ label() }}</button>
+<ion-modal [isOpen]="isOpen()" [initialBreakpoint]="0.75" [breakpoints]="[0, 0.75, 1]" handleBehavior="cycle" (didDismiss)="isOpen.set(false)" [attr.aria-label]="label()">
+  <ng-template>
+    <ion-content>
+      <section class="safe-bottom px-5 pt-3">
+        <header class="mb-3 flex items-center justify-between gap-3">
+          <h2 class="text-lg font-extrabold">{{ label() }}</h2>
+          <ion-button fill="clear" (click)="isOpen.set(false)">Fermer</ion-button>
+        </header>
+        <ng-content />
+      </section>
+    </ion-content>
+  </ng-template>
+</ion-modal>

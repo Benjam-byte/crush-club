@@ -1,0 +1,29 @@
+<ol class="hero-card grid shrink-0 grid-cols-3 gap-2 text-center" [class.hero-card--lover]="accent() === 'lover'" aria-label="Podium">
+  @for (entry of podium(); track entry.id; let rank = $index) {
+    <li class="min-w-0">
+      <span class="text-xs font-bold">{{ rank + 1 }}{{ rank === 0 ? 'er' : 'e' }}</span>
+      <div class="mx-auto my-1 grid size-12 place-items-center overflow-hidden rounded-2xl bg-white/20 text-lg font-extrabold">
+        @if (entry.photo) { <img class="size-full object-cover" [src]="entry.photo" alt="" /> }
+        @else { {{ initials(entry.name) }} }
+      </div>
+      <p class="truncate text-sm font-extrabold" [title]="entry.name">{{ entry.name }}</p>
+      <p class="text-sm font-bold">{{ entry.score }} pts</p>
+      @if (entry.subtitle) { <p class="truncate text-[10px]" [title]="entry.subtitle">{{ entry.subtitle }}</p> }
+    </li>
+  }
+</ol>
+@if (remaining().length) {
+  <ol class="screen-scroll divide-y divide-peach-100" start="4" aria-label="Suite du classement">
+    @for (entry of remaining(); track entry.id; let rank = $index) {
+      <li class="flex min-h-12 items-center gap-3 px-2 py-1">
+        <span class="w-5 text-xs font-bold text-ink-500">{{ rank + 4 }}</span>
+        @if (entry.photo) { <img class="size-9 shrink-0 rounded-xl object-cover" [src]="entry.photo" alt="" /> }
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-sm font-extrabold">{{ entry.name }}</span>
+          @if (entry.subtitle) { <span class="block truncate text-[10px] text-ink-500">{{ entry.subtitle }}</span> }
+        </span>
+        <span class="shrink-0 text-sm font-extrabold text-brand-600">{{ entry.score }} pts</span>
+      </li>
+    }
+  </ol>
+}

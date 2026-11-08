@@ -13,7 +13,7 @@ import { BrandMarkComponent } from '../brand-mark/brand-mark.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PageHeaderComponent {
-  private readonly gameState = inject(GameStateService);
+  protected readonly gameState = inject(GameStateService);
   private readonly sessionMenu = inject(SessionMenuService);
   private readonly routeLobbyCode = inject(ActivatedRoute).snapshot.paramMap.get('code')?.toUpperCase() ?? null;
 

@@ -1,5 +1,9 @@
 :host {
   display: block;
+  flex-shrink: 0;
+  width: min(100%, 540px);
+  margin-inline: auto;
+  padding-top: env(safe-area-inset-top);
 }
 
 // Ionic's unlayered button reset beats Tailwind's layered utilities on a raw <button>.

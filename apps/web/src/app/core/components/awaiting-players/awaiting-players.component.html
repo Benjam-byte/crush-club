@@ -1,3 +1,10 @@
+@if (compact()) {
+  @if (players().length > 0) {
+    <p class="truncate text-xs text-ink-600" role="status">
+      On attend : @for (player of players().slice(0, 2); track player.id; let last = $last) {<span>{{ player.displayName }}{{ last ? '' : ', ' }}</span>}@if (players().length > 2) { <span> +{{ players().length - 2 }}</span>}
+    </p>
+  }
+} @else {
 @if (players().length > 0) {
   <div class="mt-3 rounded-2xl bg-warning-50 px-3 py-2.5 text-left" role="status" aria-live="polite">
     <p class="text-[11px] font-extrabold text-ink-700">On attend encore&nbsp;:</p>
@@ -15,4 +22,5 @@
       }
     </ul>
   </div>
+}
 }

@@ -11,10 +11,6 @@
   animation: questionnaire-step-enter 180ms ease-out;
 }
 
-.questionnaire-footer {
-  backdrop-filter: blur(16px);
-}
-
 .primary-photo-option--selected {
   border-color: var(--color-brand-500);
   box-shadow: 0 0 0 4px rgb(242 83 106 / 0.1);

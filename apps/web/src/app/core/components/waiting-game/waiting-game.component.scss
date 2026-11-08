@@ -1,8 +1,6 @@
-:host {
-  display: block;
-}
-
-// Stops iOS from opening the long-press callout while the player holds the canvas.
-.waiting-game-canvas {
-  -webkit-touch-callout: none;
-}
+:host { display: flex; min-height: 0; flex: 1 1 0; container-type: size; }
+section { display: flex; min-height: 0; width: 100%; flex-direction: column; }
+.waiting-game-space { min-height: 0; flex: 1 1 0; container-type: size; display: grid; place-items: center; }
+.waiting-game-board { position: relative; width: min(100cqw, 133.333cqh); aspect-ratio: 4 / 3; margin-inline: auto; }
+.waiting-game-canvas { -webkit-touch-callout: none; }
+@container (max-height: 160px) { section { display: none; } }

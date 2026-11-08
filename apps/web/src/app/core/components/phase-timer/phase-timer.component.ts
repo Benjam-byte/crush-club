@@ -15,6 +15,7 @@ export function formatPhaseCountdown(totalSeconds: number): string {
 })
 export class PhaseTimerComponent {
   readonly label = input('Temps restant');
+  readonly detail = input<string>();
   readonly remainingSeconds = input.required<number>();
   readonly warningAt = input(30);
 

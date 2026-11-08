@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { IonIcon } from '@ionic/angular/standalone';
 import { GameStateService } from '../../services/game-state.service';
 
@@ -10,5 +10,6 @@ import { GameStateService } from '../../services/game-state.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AwaitingPlayersComponent {
+  readonly compact = input(false);
   protected readonly players = inject(GameStateService).awaitingPlayers;
 }

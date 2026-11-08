@@ -1,0 +1,12 @@
+<button class="min-h-10 text-xs font-extrabold text-brand-600" type="button" (click)="isOpen.set(true)">Jouer en attendant</button>
+<ion-modal [isOpen]="isOpen()" [backdropDismiss]="false" (didDismiss)="isOpen.set(false)" aria-label="Mini-jeu pour patienter">
+  <ng-template>
+    <div class="game-modal-body">
+      <header class="flex shrink-0 items-center justify-between gap-3">
+        <h2 class="text-lg font-extrabold">Pour patienter</h2>
+        <ion-button fill="clear" (click)="isOpen.set(false)">Fermer</ion-button>
+      </header>
+      <app-waiting-game />
+    </div>
+  </ng-template>
+</ion-modal>
