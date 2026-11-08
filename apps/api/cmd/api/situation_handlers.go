@@ -77,7 +77,7 @@ func (a *api) handleStartSituationGame(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var gameID string
-	themeDeadline := time.Now().Add(themePhaseWindow)
+	themeDeadline := time.Now().Add(themeStepWindow(themeProposalStep, true))
 	if err := tx.QueryRow(r.Context(), `
 		INSERT INTO situation_games (lobby_id, theme_phase_deadline) VALUES ($1, $2) RETURNING id
 	`, player.LobbyID, themeDeadline).Scan(&gameID); err != nil {
@@ -98,7 +98,7 @@ func (a *api) handleStartSituationGame(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	a.scheduleSituationThemeSubmissionTimeout(player.Code, gameID)
+	a.scheduleSituationThemeSubmissionTimeout(player.Code, gameID, themeDeadline)
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
@@ -126,7 +126,7 @@ func (a *api) handleSubmitSituationTheme(w http.ResponseWriter, r *http.Request)
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, phase, err := loadActiveSituationGame(r.Context(), tx, player.LobbyID)
+	gameID, phase, err := lockActiveSituationGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusConflict, "situation_not_started", "The Situation game has not started yet")
 		return
@@ -152,7 +152,7 @@ func (a *api) handleSubmitSituationTheme(w http.ResponseWriter, r *http.Request)
 		a.internalError(w, r, err)
 		return
 	}
-	advanced, err := a.tryAdvanceSituationThemeCollection(r.Context(), tx, gameID, player.LobbyID, false)
+	rankingDeadline, err := a.tryAdvanceSituationThemeCollection(r.Context(), tx, gameID, player.LobbyID, false)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
@@ -165,33 +165,36 @@ func (a *api) handleSubmitSituationTheme(w http.ResponseWriter, r *http.Request)
 		a.internalError(w, r, err)
 		return
 	}
-	if advanced {
-		a.scheduleSituationThemeRankingTimeout(player.Code, gameID)
+	if rankingDeadline != nil {
+		a.scheduleSituationThemeRankingTimeout(player.Code, gameID, *rankingDeadline)
 	}
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
-func (a *api) tryAdvanceSituationThemeCollection(ctx context.Context, tx pgx.Tx, gameID, lobbyID string, force bool) (advanced bool, err error) {
-	activeCount, err := activeLobbyPlayerCount(ctx, tx, lobbyID)
+// tryAdvanceSituationThemeCollection moves the game into ranking_themes once
+// every active player has either proposed a theme or explicitly passed — or
+// unconditionally when force is true (the submission deadline expired). It
+// returns the ranking deadline it set, nil when the phase did not move.
+func (a *api) tryAdvanceSituationThemeCollection(ctx context.Context, tx pgx.Tx, gameID, lobbyID string, force bool) (*time.Time, error) {
+	if !force {
+		awaiting, err := themeStepAwaitingIDs(ctx, tx, lobbyID, situationThemeSubmissions, gameID, 0)
+		if err != nil {
+			return nil, err
+		}
+		if len(awaiting) > 0 {
+			return nil, nil
+		}
+	}
+	deadline, err := themeRankingDeadline(ctx, tx, "situation_games", lobbyID, gameID, false)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	var submittedCount int
-	if err := tx.QueryRow(ctx, `
-		SELECT count(*) FROM situation_theme_submissions WHERE game_id = $1
-	`, gameID).Scan(&submittedCount); err != nil {
-		return false, err
-	}
-	if !force && submittedCount < activeCount {
-		return false, nil
-	}
-	deadline := time.Now().Add(themePhaseWindow)
 	if _, err := tx.Exec(ctx, `
 		UPDATE situation_games SET phase = 'ranking_themes', theme_phase_deadline = $2 WHERE id = $1
 	`, gameID, deadline); err != nil {
-		return false, err
+		return nil, err
 	}
-	return true, nil
+	return &deadline, nil
 }
 
 func (a *api) handleRankSituationThemes(w http.ResponseWriter, r *http.Request) {
@@ -213,7 +216,7 @@ func (a *api) handleRankSituationThemes(w http.ResponseWriter, r *http.Request) 
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, phase, err := loadActiveSituationGame(r.Context(), tx, player.LobbyID)
+	gameID, phase, err := lockActiveSituationGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusConflict, "situation_not_started", "The Situation game has not started yet")
 		return
@@ -272,25 +275,21 @@ func (a *api) handleRankSituationThemes(w http.ResponseWriter, r *http.Request) 
 func (a *api) tryConcludeSituationRanking(
 	ctx context.Context, tx pgx.Tx, gameID, lobbyID string, candidates []string, force bool,
 ) (nextRoundID string, shouldScheduleNext bool, err error) {
-	activeCount, err := activeLobbyPlayerCount(ctx, tx, lobbyID)
-	if err != nil {
-		return "", false, err
-	}
-	var votedCount int
-	if err := tx.QueryRow(ctx, `
-		SELECT count(*) FROM situation_theme_rankings WHERE game_id = $1
-	`, gameID).Scan(&votedCount); err != nil {
-		return "", false, err
-	}
-	if !force && votedCount < activeCount {
-		return "", false, nil
+	if !force {
+		awaiting, err := themeStepAwaitingIDs(ctx, tx, lobbyID, situationThemeRankings, gameID, 0)
+		if err != nil {
+			return "", false, err
+		}
+		if len(awaiting) > 0 {
+			return "", false, nil
+		}
 	}
 
 	rows, err := tx.Query(ctx, `SELECT ranking FROM situation_theme_rankings WHERE game_id = $1`, gameID)
 	if err != nil {
 		return "", false, err
 	}
-	rankings := make([][]string, 0, activeCount)
+	rankings := make([][]string, 0)
 	for rows.Next() {
 		var rankingJSON []byte
 		if err := rows.Scan(&rankingJSON); err != nil {
@@ -332,8 +331,8 @@ func (a *api) tryConcludeSituationRanking(
 	return roundID, true, nil
 }
 
-func (a *api) scheduleSituationThemeSubmissionTimeout(code, gameID string) {
-	time.AfterFunc(themePhaseWindow, func() {
+func (a *api) scheduleSituationThemeSubmissionTimeout(code, gameID string, deadline time.Time) {
+	time.AfterFunc(time.Until(deadline), func() {
 		a.forceSituationThemeSubmissionDeadline(code, gameID)
 	})
 }
@@ -357,7 +356,7 @@ func (a *api) forceSituationThemeSubmissionDeadline(code, gameID string) {
 	if phase != "collecting_themes" {
 		return
 	}
-	advanced, err := a.tryAdvanceSituationThemeCollection(ctx, tx, gameID, lobbyID, true)
+	rankingDeadline, err := a.tryAdvanceSituationThemeCollection(ctx, tx, gameID, lobbyID, true)
 	if err != nil {
 		a.logger.Error("unable to force situation theme collection deadline", "game_id", gameID, "error", err)
 		return
@@ -371,13 +370,13 @@ func (a *api) forceSituationThemeSubmissionDeadline(code, gameID string) {
 		return
 	}
 	a.hub.publish(code)
-	if advanced {
-		a.scheduleSituationThemeRankingTimeout(code, gameID)
+	if rankingDeadline != nil {
+		a.scheduleSituationThemeRankingTimeout(code, gameID, *rankingDeadline)
 	}
 }
 
-func (a *api) scheduleSituationThemeRankingTimeout(code, gameID string) {
-	time.AfterFunc(themePhaseWindow, func() {
+func (a *api) scheduleSituationThemeRankingTimeout(code, gameID string, deadline time.Time) {
+	time.AfterFunc(time.Until(deadline), func() {
 		a.forceSituationThemeRankingDeadline(code, gameID)
 	})
 }
@@ -561,7 +560,7 @@ func (a *api) handleSubmitSituationProposal(w http.ResponseWriter, r *http.Reque
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, gamePhase, err := loadActiveSituationGame(r.Context(), tx, player.LobbyID)
+	gameID, gamePhase, err := lockActiveSituationGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && gamePhase != "playing") {
 		writeError(w, http.StatusConflict, "situation_not_playing", "No situation round is currently open for proposals")
 		return
@@ -582,7 +581,7 @@ func (a *api) handleSubmitSituationProposal(w http.ResponseWriter, r *http.Reque
 
 	var chosenIsActive bool
 	if err := tx.QueryRow(r.Context(), `
-		SELECT EXISTS(SELECT 1 FROM players WHERE id = $1 AND lobby_id = $2 AND excluded_at IS NULL)
+		SELECT EXISTS(SELECT 1 FROM players WHERE id = $1 AND lobby_id = $2 AND is_active)
 	`, input.ChosenPlayerID, player.LobbyID).Scan(&chosenIsActive); err != nil {
 		a.internalError(w, r, err)
 		return
@@ -614,20 +613,13 @@ func (a *api) handleSubmitSituationProposal(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	activeCount, err := activeLobbyPlayerCount(r.Context(), tx, player.LobbyID)
+	awaiting, err := situationProposalAwaitingIDs(r.Context(), tx, player.LobbyID, round.ID)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
 	}
-	var submittedCount int
-	if err := tx.QueryRow(r.Context(), `
-		SELECT count(*) FROM situation_proposals WHERE round_id = $1
-	`, round.ID).Scan(&submittedCount); err != nil {
-		a.internalError(w, r, err)
-		return
-	}
 	var duelIDs []string
-	if submittedCount >= activeCount {
+	if len(awaiting) == 0 {
 		duelIDs, err = advanceSituationBracket(r.Context(), tx, round.ID)
 		if err != nil {
 			a.internalError(w, r, err)
@@ -673,8 +665,28 @@ func situationDuelsForWave(aliveCount int) int {
 }
 
 func advanceSituationBracket(ctx context.Context, tx pgx.Tx, roundID string) ([]string, error) {
+	// A proposal whose backers all left the lobby has nobody left to defend
+	// it in a duel: it forfeits.
+	if _, err := tx.Exec(ctx, `
+		UPDATE situation_proposals AS proposal SET eliminated_at = now()
+		WHERE proposal.round_id = $1 AND proposal.eliminated_at IS NULL
+		  AND NOT EXISTS (
+		    SELECT 1 FROM situation_group_members AS member
+		    JOIN players AS player ON player.id = member.player_id
+		    WHERE member.round_id = $1 AND member.proposal_id = proposal.id AND player.is_active
+		  )
+	`, roundID); err != nil {
+		return nil, err
+	}
 	aliveProposalIDs, err := loadAliveSituationProposalIDs(ctx, tx, roundID)
 	if err != nil {
+		return nil, err
+	}
+	if len(aliveProposalIDs) == 0 {
+		// Nobody proposed anything (or every backer left): there is nothing
+		// to rank, so the round ends without points instead of waiting for a
+		// ranking nobody can submit.
+		_, err := tx.Exec(ctx, `UPDATE situation_rounds SET phase = 'results' WHERE id = $1`, roundID)
 		return nil, err
 	}
 	if len(aliveProposalIDs) <= situationFinalistCount {
@@ -733,11 +745,15 @@ func advanceSituationBracket(ctx context.Context, tx pgx.Tx, roundID string) ([]
 	return duelIDs, nil
 }
 
+// randomSituationGroupMember draws the active backer of a proposal who will
+// defend it in a duel.
 func randomSituationGroupMember(ctx context.Context, tx pgx.Tx, roundID, proposalID string) (string, error) {
 	var playerID string
 	err := tx.QueryRow(ctx, `
-		SELECT player_id FROM situation_group_members
-		WHERE round_id = $1 AND proposal_id = $2
+		SELECT member.player_id
+		FROM situation_group_members AS member
+		JOIN players AS player ON player.id = member.player_id
+		WHERE member.round_id = $1 AND member.proposal_id = $2 AND player.is_active
 		ORDER BY random()
 		LIMIT 1
 	`, roundID, proposalID).Scan(&playerID)
@@ -966,7 +982,7 @@ func (a *api) handleSubmitSituationRanking(w http.ResponseWriter, r *http.Reques
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, gamePhase, err := loadActiveSituationGame(r.Context(), tx, player.LobbyID)
+	gameID, gamePhase, err := lockActiveSituationGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && gamePhase != "playing") {
 		writeError(w, http.StatusConflict, "situation_not_playing", "No situation round is open for ranking")
 		return
@@ -1008,27 +1024,9 @@ func (a *api) handleSubmitSituationRanking(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	activeCount, err := activeLobbyPlayerCount(r.Context(), tx, player.LobbyID)
-	if err != nil {
+	if _, err := tryConcludeSituationFinalRanking(r.Context(), tx, player.LobbyID, round.ID); err != nil {
 		a.internalError(w, r, err)
 		return
-	}
-	var votedCount int
-	if err := tx.QueryRow(r.Context(), `
-		SELECT count(*) FROM situation_final_rankings WHERE round_id = $1
-	`, round.ID).Scan(&votedCount); err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	if votedCount >= activeCount {
-		if err := scoreSituationRound(r.Context(), tx, round.ID, candidateIDs); err != nil {
-			a.internalError(w, r, err)
-			return
-		}
-		if _, err := tx.Exec(r.Context(), `UPDATE situation_rounds SET phase = 'results' WHERE id = $1`, round.ID); err != nil {
-			a.internalError(w, r, err)
-			return
-		}
 	}
 
 	if err := bumpLobbyRevision(r.Context(), tx, player.LobbyID); err != nil {
@@ -1040,6 +1038,30 @@ func (a *api) handleSubmitSituationRanking(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
+}
+
+// tryConcludeSituationFinalRanking scores the round and opens its results
+// once every active player ranked the finalists. This step has no deadline,
+// so a departure must be able to conclude it too.
+func tryConcludeSituationFinalRanking(ctx context.Context, tx pgx.Tx, lobbyID, roundID string) (concluded bool, err error) {
+	awaiting, err := situationRankingAwaitingIDs(ctx, tx, lobbyID, roundID)
+	if err != nil {
+		return false, err
+	}
+	if len(awaiting) > 0 {
+		return false, nil
+	}
+	candidateIDs, err := loadAliveSituationProposalIDs(ctx, tx, roundID)
+	if err != nil {
+		return false, err
+	}
+	if err := scoreSituationRound(ctx, tx, roundID, candidateIDs); err != nil {
+		return false, err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE situation_rounds SET phase = 'results' WHERE id = $1`, roundID); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // scoreSituationRound runs a Borda count (same weighting as tallyThemeRanking:
@@ -1228,7 +1250,7 @@ func (a *api) handleStartNextSituationRound(w http.ResponseWriter, r *http.Reque
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, gamePhase, err := loadActiveSituationGame(r.Context(), tx, player.LobbyID)
+	gameID, gamePhase, err := lockActiveSituationGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && gamePhase != "playing") {
 		writeError(w, http.StatusConflict, "situation_not_playing", "No situation round is currently in progress")
 		return
@@ -1308,7 +1330,7 @@ func (a *api) handleReplaySituation(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
-	_, gamePhase, err := loadActiveSituationGame(r.Context(), tx, player.LobbyID)
+	_, gamePhase, err := lockActiveSituationGame(r.Context(), tx, player.LobbyID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		a.internalError(w, r, err)
 		return
@@ -1319,7 +1341,7 @@ func (a *api) handleReplaySituation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var gameID string
-	themeDeadline := time.Now().Add(themePhaseWindow)
+	themeDeadline := time.Now().Add(themeStepWindow(themeProposalStep, false))
 	if err := tx.QueryRow(r.Context(), `
 		INSERT INTO situation_games (lobby_id, theme_phase_deadline) VALUES ($1, $2) RETURNING id
 	`, player.LobbyID, themeDeadline).Scan(&gameID); err != nil {
@@ -1340,7 +1362,7 @@ func (a *api) handleReplaySituation(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	a.scheduleSituationThemeSubmissionTimeout(player.Code, gameID)
+	a.scheduleSituationThemeSubmissionTimeout(player.Code, gameID, themeDeadline)
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
@@ -1349,6 +1371,16 @@ func (a *api) handleReplaySituation(w http.ResponseWriter, r *http.Request) {
 func loadActiveSituationGame(ctx context.Context, db dbQuerier, lobbyID string) (id, phase string, err error) {
 	err = db.QueryRow(ctx, `
 		SELECT id, phase FROM situation_games WHERE lobby_id = $1 ORDER BY created_at DESC LIMIT 1
+	`, lobbyID).Scan(&id, &phase)
+	return id, phase, err
+}
+
+// lockActiveSituationGame is loadActiveSituationGame for write paths: the row lock
+// serializes every command, deadline and departure of a lobby, so "everyone
+// answered" checks never miss a concurrent answer or departure.
+func lockActiveSituationGame(ctx context.Context, tx pgx.Tx, lobbyID string) (id, phase string, err error) {
+	err = tx.QueryRow(ctx, `
+		SELECT id, phase FROM situation_games WHERE lobby_id = $1 ORDER BY created_at DESC LIMIT 1 FOR UPDATE
 	`, lobbyID).Scan(&id, &phase)
 	return id, phase, err
 }
@@ -1519,7 +1551,7 @@ func loadSituationLeaderboard(ctx context.Context, db dbQuerier, gameID string) 
 		LEFT JOIN situation_round_scores AS score ON score.player_id = author.id
 		LEFT JOIN situation_rounds AS round ON round.id = score.round_id AND round.game_id = $1
 		WHERE author.lobby_id = (SELECT lobby_id FROM situation_games WHERE id = $1)
-		  AND author.excluded_at IS NULL
+		  AND author.is_active
 		GROUP BY author.id, author.display_name
 		ORDER BY total_score DESC, author.display_name ASC
 	`, gameID, situationRoundCount)
@@ -1540,10 +1572,9 @@ func loadSituationLeaderboard(ctx context.Context, db dbQuerier, gameID string) 
 
 // loadSituationState builds the Situation view of the lobby state for the
 // current player, mirroring loadFastBioState/loadZeroToHundredState.
-// loadSituationThemeProgress populates the deadline and "X of Y" progress
-// counters shared by both theme sub-phases. progressTable is always one of
-// the two hardcoded table name constants below (never user input).
-func (a *api) loadSituationThemeProgress(ctx context.Context, gameID, lobbyID, progressTable string, view *situationStateView) error {
+// loadSituationThemeProgress populates the deadline, the "X of Y" progress
+// counters and the awaited players shared by both theme sub-phases.
+func (a *api) loadSituationThemeProgress(ctx context.Context, gameID, lobbyID string, table themeStepTable, view *situationStateView) error {
 	var deadline *time.Time
 	if err := a.pool.QueryRow(ctx, `
 		SELECT theme_phase_deadline FROM situation_games WHERE id = $1
@@ -1551,17 +1582,13 @@ func (a *api) loadSituationThemeProgress(ctx context.Context, gameID, lobbyID, p
 		return err
 	}
 	view.ThemeDeadline = deadline
-	requiredCount, err := activeLobbyPlayerCount(ctx, a.pool, lobbyID)
+	progress, err := loadThemeStepProgress(ctx, a.pool, lobbyID, table, gameID, 0)
 	if err != nil {
 		return err
 	}
-	view.ThemeProgressRequired = requiredCount
-	var progressCount int
-	query := "SELECT count(*) FROM " + progressTable + " WHERE game_id = $1"
-	if err := a.pool.QueryRow(ctx, query, gameID).Scan(&progressCount); err != nil {
-		return err
-	}
-	view.ThemeProgressCount = progressCount
+	view.ThemeProgressCount = progress.count
+	view.ThemeProgressRequired = progress.required
+	view.AwaitingPlayerIDs = progress.awaiting
 	return nil
 }
 
@@ -1581,7 +1608,7 @@ func (a *api) loadSituationState(ctx context.Context, currentPlayer authenticate
 			return situationStateView{}, err
 		}
 		view.ThemeSubmitted = exists
-		if err := a.loadSituationThemeProgress(ctx, gameID, currentPlayer.LobbyID, "situation_theme_submissions", &view); err != nil {
+		if err := a.loadSituationThemeProgress(ctx, gameID, currentPlayer.LobbyID, situationThemeSubmissions, &view); err != nil {
 			return situationStateView{}, err
 		}
 
@@ -1599,7 +1626,7 @@ func (a *api) loadSituationState(ctx context.Context, currentPlayer authenticate
 			return situationStateView{}, err
 		}
 		view.ThemeRanked = exists
-		if err := a.loadSituationThemeProgress(ctx, gameID, currentPlayer.LobbyID, "situation_theme_rankings", &view); err != nil {
+		if err := a.loadSituationThemeProgress(ctx, gameID, currentPlayer.LobbyID, situationThemeRankings, &view); err != nil {
 			return situationStateView{}, err
 		}
 
@@ -1636,12 +1663,14 @@ func (a *api) loadSituationState(ctx context.Context, currentPlayer authenticate
 			if err != nil {
 				return situationStateView{}, err
 			}
-			view.SubmissionProgressRequired = requiredCount
-			if err := a.pool.QueryRow(ctx, `
-				SELECT count(*) FROM situation_proposals WHERE round_id = $1
-			`, round.ID).Scan(&view.SubmissionProgressCount); err != nil {
+			awaiting, err := situationProposalAwaitingIDs(ctx, a.pool, currentPlayer.LobbyID, round.ID)
+			if err != nil {
 				return situationStateView{}, err
 			}
+			progress := newStepProgress(requiredCount, awaiting)
+			view.SubmissionProgressRequired = progress.required
+			view.SubmissionProgressCount = progress.count
+			view.AwaitingPlayerIDs = progress.awaiting
 
 		case "dueling":
 			duel, err := loadMySituationDuel(ctx, a.pool, round.ID, currentPlayer.ID)
@@ -1649,6 +1678,10 @@ func (a *api) loadSituationState(ctx context.Context, currentPlayer authenticate
 				return situationStateView{}, err
 			}
 			view.CurrentDuel = duel
+			view.AwaitingPlayerIDs, err = situationDuelAwaitingIDs(ctx, a.pool, round.ID)
+			if err != nil {
+				return situationStateView{}, err
+			}
 
 		case "ranking":
 			candidates, err := loadAliveSituationProposalViews(ctx, a.pool, round.ID)
@@ -1667,12 +1700,14 @@ func (a *api) loadSituationState(ctx context.Context, currentPlayer authenticate
 			if err != nil {
 				return situationStateView{}, err
 			}
-			view.SubmissionProgressRequired = requiredCount
-			if err := a.pool.QueryRow(ctx, `
-				SELECT count(*) FROM situation_final_rankings WHERE round_id = $1
-			`, round.ID).Scan(&view.SubmissionProgressCount); err != nil {
+			awaiting, err := situationRankingAwaitingIDs(ctx, a.pool, currentPlayer.LobbyID, round.ID)
+			if err != nil {
 				return situationStateView{}, err
 			}
+			progress := newStepProgress(requiredCount, awaiting)
+			view.SubmissionProgressRequired = progress.required
+			view.SubmissionProgressCount = progress.count
+			view.AwaitingPlayerIDs = progress.awaiting
 
 		case "results", "completed":
 			var roundScore int

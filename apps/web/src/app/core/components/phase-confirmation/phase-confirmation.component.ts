@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { IonIcon } from '@ionic/angular/standalone';
+import { AwaitingPlayersComponent } from '../awaiting-players/awaiting-players.component';
 import { WaitingGameComponent } from '../waiting-game/waiting-game.component';
 
 @Component({
   selector: 'app-phase-confirmation',
-  imports: [IonIcon, WaitingGameComponent],
+  imports: [AwaitingPlayersComponent, IonIcon, WaitingGameComponent],
   templateUrl: './phase-confirmation.component.html',
   styleUrl: './phase-confirmation.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

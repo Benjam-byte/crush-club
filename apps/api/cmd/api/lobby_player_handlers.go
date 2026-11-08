@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -122,14 +123,20 @@ func (a *api) handleJoinLobby(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Joining a game already in progress needs the host's approval; the
+	// lobby before the game stays open to anyone with the code.
+	admissionStatus := "admitted"
+	if status == "in_game" {
+		admissionStatus = "pending"
+	}
 	var playerID string
 	err = tx.QueryRow(r.Context(), `
 		INSERT INTO players (
-			lobby_id, display_name, is_host, adult_confirmed, reconnect_token_hash
+			lobby_id, display_name, is_host, adult_confirmed, reconnect_token_hash, admission_status
 		)
-		VALUES ($1, $2, false, true, $3)
+		VALUES ($1, $2, false, true, $3, $4)
 		RETURNING id
-	`, lobbyID, input.DisplayName, hex.EncodeToString(reconnectHash[:])).Scan(&playerID)
+	`, lobbyID, input.DisplayName, hex.EncodeToString(reconnectHash[:]), admissionStatus).Scan(&playerID)
 	if err != nil {
 		var postgresError *pgconn.PgError
 		if errors.As(err, &postgresError) && postgresError.Code == "23505" {
@@ -143,7 +150,7 @@ func (a *api) handleJoinLobby(w http.ResponseWriter, r *http.Request) {
 		UPDATE lobbies
 		SET status = CASE
 		      WHEN status = 'in_game' THEN status
-		      WHEN (SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL) < $2
+		      WHEN (SELECT count(*) FROM players WHERE lobby_id = $1 AND is_active) < $2
 		        THEN 'waiting_for_players'::lobby_status
 		      ELSE 'preparing_photos'::lobby_status
 		    END,
@@ -194,23 +201,14 @@ func (a *api) handleLeaveLobby(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
-	var playerID, lobbyID, lobbyStatus string
-	var playerIsHost, alreadyExcluded bool
+	var playerID, lobbyID string
 	err = tx.QueryRow(r.Context(), `
-		SELECT player.id, player.lobby_id, player.is_host, lobby.status,
-		       player.excluded_at IS NOT NULL
+		SELECT player.id, player.lobby_id
 		FROM players AS player
 		JOIN lobbies AS lobby ON lobby.id = player.lobby_id
-		WHERE lobby.code = $1 AND player.reconnect_token_hash = $2
-		FOR UPDATE OF player, lobby
-	`, strings.ToUpper(r.PathValue("code")), hex.EncodeToString(tokenHash[:])).Scan(
-		&playerID,
-		&lobbyID,
-		&playerIsHost,
-		&lobbyStatus,
-		&alreadyExcluded,
-	)
-	if errors.Is(err, pgx.ErrNoRows) || alreadyExcluded {
+		WHERE lobby.code = $1 AND player.reconnect_token_hash = $2 AND player.excluded_at IS NULL
+	`, strings.ToUpper(r.PathValue("code")), hex.EncodeToString(tokenHash[:])).Scan(&playerID, &lobbyID)
+	if errors.Is(err, pgx.ErrNoRows) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -218,92 +216,42 @@ func (a *api) handleLeaveLobby(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-
-	if _, err := tx.Exec(r.Context(), `
-		UPDATE players
-		SET excluded_at = now(), disconnected_at = COALESCE(disconnected_at, now()),
-		    is_host = false, updated_at = now()
-		WHERE id = $1
-	`, playerID); err != nil {
+	lobby, err := lockLobby(r.Context(), tx, lobbyID)
+	if err != nil {
 		a.internalError(w, r, err)
 		return
 	}
-
-	if playerIsHost {
-		var successorID string
-		err = tx.QueryRow(r.Context(), `
-			SELECT id
-			FROM players
-			WHERE lobby_id = $1 AND excluded_at IS NULL
-			ORDER BY (disconnected_at IS NULL) DESC, joined_at, id
-			LIMIT 1
-		`, lobbyID).Scan(&successorID)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			a.internalError(w, r, err)
-			return
-		}
-		if errors.Is(err, pgx.ErrNoRows) {
-			if _, err := tx.Exec(r.Context(), `UPDATE lobbies SET host_player_id = NULL WHERE id = $1`, lobbyID); err != nil {
-				a.internalError(w, r, err)
-				return
-			}
-		} else {
-			if _, err := tx.Exec(r.Context(), `UPDATE players SET is_host = true, updated_at = now() WHERE id = $1`, successorID); err != nil {
-				a.internalError(w, r, err)
-				return
-			}
-			if _, err := tx.Exec(r.Context(), `UPDATE lobbies SET host_player_id = $2 WHERE id = $1`, lobbyID, successorID); err != nil {
-				a.internalError(w, r, err)
-				return
-			}
-		}
+	member, err := lockLobbyMember(r.Context(), tx, lobby.ID, playerID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		w.WriteHeader(http.StatusNoContent)
+		return
 	}
-
-	switch lobbyStatus {
-	case "in_game":
-		if err := excludeGameParticipant(r.Context(), tx, lobbyID, playerID); err != nil {
-			a.internalError(w, r, err)
-			return
-		}
-	case "waiting_for_players", "preparing_photos", "ready_to_start":
-		if _, err := tx.Exec(r.Context(), `
-			UPDATE lobbies
-			SET status = CASE
-			      WHEN (SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL) < $2
-			        THEN 'waiting_for_players'::lobby_status
-			      WHEN NOT (SELECT bool_and(ready_status = 'ready') FROM players WHERE lobby_id = $1 AND excluded_at IS NULL)
-			        THEN 'preparing_photos'::lobby_status
-			      ELSE 'ready_to_start'::lobby_status
-			    END,
-			    revision = revision + 1, updated_at = now()
-			WHERE id = $1
-		`, lobbyID, minimumPlayerCount); err != nil {
-			a.internalError(w, r, err)
-			return
-		}
-	default:
-		if _, err := tx.Exec(r.Context(), `
-			UPDATE lobbies SET revision = revision + 1, updated_at = now() WHERE id = $1
-		`, lobbyID); err != nil {
-			a.internalError(w, r, err)
-			return
-		}
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	afterCommit, err := a.detachPlayer(r.Context(), tx, lobby, member, exclusionReasonLeft)
+	if err != nil {
+		a.internalError(w, r, err)
+		return
 	}
 
 	var remainingPlayerCount int
 	if err := tx.QueryRow(r.Context(), `
-		SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL
-	`, lobbyID).Scan(&remainingPlayerCount); err != nil {
+		SELECT count(*) FROM players WHERE lobby_id = $1 AND is_active
+	`, lobby.ID).Scan(&remainingPlayerCount); err != nil {
 		a.internalError(w, r, err)
 		return
 	}
+	// Nobody left to play, and nobody left to let the waiting players in:
+	// the lobby closes.
 	shouldPurge := remainingPlayerCount == 0
 	if shouldPurge {
 		if _, err := tx.Exec(r.Context(), `
 			UPDATE lobbies
 			SET status = 'expired', expires_at = now(), revision = revision + 1, updated_at = now()
 			WHERE id = $1
-		`, lobbyID); err != nil {
+		`, lobby.ID); err != nil {
 			a.internalError(w, r, err)
 			return
 		}
@@ -313,9 +261,273 @@ func (a *api) handleLeaveLobby(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	a.hub.publish(strings.ToUpper(r.PathValue("code")))
+	a.hub.closePlayer(lobby.Code, member.ID, closeInvalidSession, "left the lobby")
+	if afterCommit != nil && !shouldPurge {
+		afterCommit()
+	}
+	a.hub.publish(lobby.Code)
 	if shouldPurge {
-		a.purgeLobby(r.Context(), lobbyID)
+		a.purgeLobby(r.Context(), lobby.ID)
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- host moderation: kick, admit, refuse ------------------------------------
+
+func (a *api) handleExcludePlayer(w http.ResponseWriter, r *http.Request) {
+	a.moderatePlayer(w, r, func(member lobbyMember) (string, bool) {
+		// Removing someone who was still waiting for approval is refusing
+		// them, which their client reports differently.
+		if !member.Admitted {
+			return exclusionReasonRefused, true
+		}
+		return exclusionReasonKicked, true
+	})
+}
+
+func (a *api) handleRefusePlayer(w http.ResponseWriter, r *http.Request) {
+	a.moderatePlayer(w, r, func(member lobbyMember) (string, bool) {
+		if member.Admitted {
+			return "", false
+		}
+		return exclusionReasonRefused, true
+	})
+}
+
+// moderatePlayer removes another player on the host's behalf. reasonFor
+// picks the exclusion reason for the target, or refuses the action (ok
+// false) when the target is not in the expected admission state.
+func (a *api) moderatePlayer(w http.ResponseWriter, r *http.Request, reasonFor func(lobbyMember) (reason string, ok bool)) {
+	player, ok := a.requirePlayer(w, r)
+	if !ok {
+		return
+	}
+	if !player.IsHost {
+		writeError(w, http.StatusForbidden, "host_required", "Only the lobby host can do this")
+		return
+	}
+	targetPlayerID := r.PathValue("playerID")
+	if targetPlayerID == player.ID {
+		writeError(w, http.StatusUnprocessableEntity, "cannot_exclude_self", "The host cannot exclude themselves")
+		return
+	}
+	tx, err := a.pool.Begin(r.Context())
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	lobby, err := lockLobby(r.Context(), tx, player.LobbyID)
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	member, err := lockLobbyMember(r.Context(), tx, lobby.ID, targetPlayerID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "player_not_found", "Player not found")
+		return
+	}
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if member.IsHost {
+		writeError(w, http.StatusConflict, "cannot_exclude_host", "The lobby host cannot be excluded")
+		return
+	}
+	reason, ok := reasonFor(member)
+	if !ok {
+		writeError(w, http.StatusConflict, "player_not_pending", "This player is not waiting for approval")
+		return
+	}
+	afterCommit, err := a.detachPlayer(r.Context(), tx, lobby, member, reason)
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	a.hub.closePlayer(lobby.Code, member.ID, closeCodeForExclusion(reason), "removed by the host")
+	if afterCommit != nil {
+		afterCommit()
+	}
+	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
+}
+
+func (a *api) handleAdmitPlayer(w http.ResponseWriter, r *http.Request) {
+	player, ok := a.requirePlayer(w, r)
+	if !ok {
+		return
+	}
+	if !player.IsHost {
+		writeError(w, http.StatusForbidden, "host_required", "Only the lobby host can do this")
+		return
+	}
+	tx, err := a.pool.Begin(r.Context())
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	lobby, err := lockLobby(r.Context(), tx, player.LobbyID)
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	member, err := lockLobbyMember(r.Context(), tx, lobby.ID, r.PathValue("playerID"))
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "player_not_found", "Player not found")
+		return
+	}
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if member.Admitted {
+		writeError(w, http.StatusConflict, "player_not_pending", "This player is not waiting for approval")
+		return
+	}
+	// Letting someone in only adds work to the current phase, so nothing
+	// needs re-evaluating: classic newcomers still prepare their photos and
+	// join at the next round, the other modes count them from now on.
+	if _, err := tx.Exec(r.Context(), `
+		UPDATE players SET admission_status = 'admitted', updated_at = now() WHERE id = $1
+	`, member.ID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := bumpLobbyRevision(r.Context(), tx, lobby.ID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
+}
+
+// --- shared departure core ---------------------------------------------------
+
+type lobbyRef struct {
+	ID     string
+	Code   string
+	Mode   string
+	Status string
+}
+
+// lockLobby takes the lobby row lock every membership change starts with.
+func lockLobby(ctx context.Context, tx pgx.Tx, lobbyID string) (lobbyRef, error) {
+	lobby := lobbyRef{ID: lobbyID}
+	err := tx.QueryRow(ctx, `
+		SELECT code, mode, status FROM lobbies WHERE id = $1 FOR UPDATE
+	`, lobbyID).Scan(&lobby.Code, &lobby.Mode, &lobby.Status)
+	return lobby, err
+}
+
+type lobbyMember struct {
+	ID       string
+	IsHost   bool
+	Admitted bool
+}
+
+// lockLobbyMember locks a player still in the lobby, admitted or pending.
+func lockLobbyMember(ctx context.Context, tx pgx.Tx, lobbyID, playerID string) (lobbyMember, error) {
+	member := lobbyMember{ID: playerID}
+	err := tx.QueryRow(ctx, `
+		SELECT is_host, admission_status = 'admitted'
+		FROM players
+		WHERE id = $1 AND lobby_id = $2 AND excluded_at IS NULL
+		FOR UPDATE
+	`, playerID, lobbyID).Scan(&member.IsHost, &member.Admitted)
+	return member, err
+}
+
+// detachPlayer takes a player out of the lobby: they lose their seat, the
+// host role moves on if they held it, and their game stops waiting for them.
+// afterCommit, when not nil, must run once tx has committed.
+func (a *api) detachPlayer(ctx context.Context, tx pgx.Tx, lobby lobbyRef, member lobbyMember, reason string) (afterCommit func(), err error) {
+	if _, err := tx.Exec(ctx, `
+		UPDATE players
+		SET excluded_at = now(), exclusion_reason = $2, disconnected_at = COALESCE(disconnected_at, now()),
+		    is_host = false, updated_at = now()
+		WHERE id = $1
+	`, member.ID, reason); err != nil {
+		return nil, err
+	}
+	if member.IsHost {
+		if err := transferHostAfterDeparture(ctx, tx, lobby.ID); err != nil {
+			return nil, err
+		}
+	}
+	if member.Admitted {
+		afterCommit, err = a.removePlayerFromGame(ctx, tx, lobby, member.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return afterCommit, bumpLobbyRevision(ctx, tx, lobby.ID)
+}
+
+// transferHostAfterDeparture hands the host role to the earliest active
+// player, connected ones first.
+func transferHostAfterDeparture(ctx context.Context, tx pgx.Tx, lobbyID string) error {
+	var successorID string
+	err := tx.QueryRow(ctx, `
+		SELECT id
+		FROM players
+		WHERE lobby_id = $1 AND is_active
+		ORDER BY (disconnected_at IS NULL) DESC, joined_at, id
+		LIMIT 1
+	`, lobbyID).Scan(&successorID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		_, err := tx.Exec(ctx, `UPDATE lobbies SET host_player_id = NULL WHERE id = $1`, lobbyID)
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE players SET is_host = true, updated_at = now() WHERE id = $1`, successorID); err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `UPDATE lobbies SET host_player_id = $2 WHERE id = $1`, lobbyID, successorID)
+	return err
+}
+
+// removePlayerFromGame makes the lobby's game stop waiting for a departed
+// admitted player. Classic games are updated inside tx; the other modes are
+// re-evaluated in their own transaction through the returned afterCommit.
+func (a *api) removePlayerFromGame(ctx context.Context, tx pgx.Tx, lobby lobbyRef, playerID string) (afterCommit func(), err error) {
+	switch lobby.Status {
+	case "in_game":
+		if lobby.Mode == lobbyModeClassic {
+			return nil, excludeGameParticipant(ctx, tx, lobby.ID, playerID)
+		}
+		return func() { a.settleGameAfterDeparture(lobby.Code, lobby.ID, lobby.Mode) }, nil
+	case "waiting_for_players", "preparing_photos", "ready_to_start":
+		return nil, refreshPreGameLobbyStatus(ctx, tx, lobby.ID)
+	}
+	return nil, nil
+}
+
+// refreshPreGameLobbyStatus recomputes the status of a lobby that has not
+// started its game from its active players.
+func refreshPreGameLobbyStatus(ctx context.Context, tx pgx.Tx, lobbyID string) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE lobbies
+		SET status = CASE
+		      WHEN (SELECT count(*) FROM players WHERE lobby_id = $1 AND is_active) < $2
+		        THEN 'waiting_for_players'::lobby_status
+		      WHEN NOT (SELECT bool_and(ready_status = 'ready') FROM players WHERE lobby_id = $1 AND is_active)
+		        THEN 'preparing_photos'::lobby_status
+		      ELSE 'ready_to_start'::lobby_status
+		    END,
+		    updated_at = now()
+		WHERE id = $1
+	`, lobbyID, minimumPlayerCount)
+	return err
 }

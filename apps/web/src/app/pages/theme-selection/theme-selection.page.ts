@@ -8,13 +8,18 @@ import { IonButton, IonContent, IonIcon, IonInput } from '@ionic/angular/standal
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
+import { SecretRankingRulesComponent } from '@core/components/secret-ranking-rules/secret-ranking-rules.component';
 import { WaitingGameComponent } from '@core/components/waiting-game/waiting-game.component';
 import { ZeroToHundredScoringRulesComponent } from '@core/components/zero-to-100-scoring-rules/zero-to-100-scoring-rules.component';
 import { GameStateService } from '@core/services/game-state.service';
+import { secretRankingQuestion, secretRankingQuestionEnd, secretRankingQuestionStart } from '@core/services/secret-ranking';
+import { wavelengthProposalHint, wavelengthRankingHint, wavelengthRoundsLabel } from './wavelength-vote-copy';
 
 /**
  * Shared theme-collection-and-ranking screen, reused by every uncapped mode (Fast Bio, 0 à 100, Situation,
- * Wavelength). Wavelength comes back here before every round, with a two-pole spectrum instead of a theme.
+ * Wavelength, Classement secret). The secret ranking's themes complete "Pour combien d'argent accepterais-tu
+ * de … ?". Wavelength votes on two-pole spectra instead of themes, and comes back here once the up to
+ * three spectra of its last vote have been played.
  */
 @Component({
   selector: 'app-theme-selection-page',
@@ -29,6 +34,7 @@ import { GameStateService } from '@core/services/game-state.service';
     PhaseConfirmationComponent,
     PhaseTimerComponent,
     ReactiveFormsModule,
+    SecretRankingRulesComponent,
     WaitingGameComponent,
     ZeroToHundredScoringRulesComponent,
   ],
@@ -82,12 +88,41 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
     if (this.gameState.isWavelengthMode()) {
       return 'Wavelength';
     }
+    if (this.gameState.isSecretRankingMode()) {
+      return 'Classement secret';
+    }
     return 'Thèmes Fast Bio';
   });
-  /** "Manche X / Y" above each step, since Wavelength votes a new spectrum before every round. */
-  protected readonly wavelengthRoundLabel = computed(() => {
+  /** The rounds the current Wavelength vote prepares, shown above each step. */
+  private readonly wavelengthVote = computed(() => {
     const wavelength = this.gameState.wavelengthGame();
-    return wavelength ? `Manche ${wavelength.roundNumber ?? 1} / ${wavelength.totalRounds ?? 1}` : null;
+    return wavelength
+      ? { roundNumber: wavelength.roundNumber ?? 1, totalRounds: wavelength.totalRounds ?? 1, spectraToPlay: wavelength.spectraToPlay ?? 1 }
+      : null;
+  });
+  protected readonly wavelengthRoundLabel = computed(() => {
+    const vote = this.wavelengthVote();
+    return vote ? wavelengthRoundsLabel(vote.roundNumber, vote.totalRounds, vote.spectraToPlay) : null;
+  });
+  protected readonly wavelengthProposalHint = computed(() => wavelengthProposalHint(this.wavelengthVote()?.spectraToPlay ?? 1));
+  protected readonly wavelengthRankingHint = computed(() => {
+    const vote = this.wavelengthVote();
+    return vote ? wavelengthRankingHint(vote.roundNumber, vote.totalRounds, vote.spectraToPlay) : '';
+  });
+  protected readonly secretRankingQuestionStart = secretRankingQuestionStart;
+  protected readonly secretRankingQuestion = secretRankingQuestion;
+  protected readonly secretRankingQuestionEnd = secretRankingQuestionEnd;
+  /** 0 à 100 and the secret ranking explain their rules while players wait, instead of the mini-game alone. */
+  protected readonly showsRulesWhileWaiting = computed(() =>
+    this.gameState.isZeroToHundredMode() || this.gameState.isSecretRankingMode(),
+  );
+  protected readonly rankingSentMessage = computed(() => {
+    if (!this.gameState.isWavelengthMode()) {
+      return 'La première manche démarrera automatiquement.';
+    }
+    return (this.wavelengthVote()?.spectraToPlay ?? 1) > 1
+      ? 'La première de ces manches démarrera automatiquement.'
+      : 'La manche démarrera automatiquement.';
   });
 
   constructor() {

@@ -1,0 +1,103 @@
+<ion-modal
+  class="players-panel-modal"
+  [isOpen]="sessionMenu.isPlayersPanelOpen()"
+  [initialBreakpoint]="0.75"
+  [breakpoints]="[0, 0.75, 1]"
+  handleBehavior="cycle"
+  (didDismiss)="sessionMenu.closePlayersPanel()"
+>
+  <ng-template>
+    <ion-content>
+      <section class="px-5 pb-8 pt-3 text-left" aria-labelledby="players-panel-title">
+        <header class="flex min-h-12 items-center justify-between gap-4">
+          <div class="min-w-0">
+            <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">Partie {{ gameState.lobbyCode() }}</p>
+            <p id="players-panel-title" class="mt-1 text-2xl font-extrabold tracking-tight text-ink-900">Joueurs</p>
+          </div>
+          <ion-button aria-label="Fermer" fill="clear" shape="round" size="small" (click)="sessionMenu.closePlayersPanel()">
+            <ion-icon name="close" slot="icon-only" aria-hidden="true" />
+          </ion-button>
+        </header>
+
+        @if (gameState.pendingPlayerList().length > 0) {
+          <section class="mt-5" aria-labelledby="players-panel-requests">
+            <p id="players-panel-requests" class="text-xs font-extrabold uppercase tracking-[0.12em] text-ink-500">
+              Veulent rejoindre la partie ({{ gameState.pendingPlayerList().length }})
+            </p>
+            <ul class="surface-card mt-2 divide-y divide-peach-100 overflow-hidden">
+              @for (player of gameState.pendingPlayerList(); track player.id) {
+                <li class="flex min-h-14 items-center gap-3 px-4 py-3">
+                  <ion-icon class="shrink-0 text-lg text-warning-500" name="hourglass-outline" aria-hidden="true" />
+                  <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">
+                    {{ player.displayName }}
+                    @if (player.isCurrentPlayer) { <span class="text-[10px] font-bold text-ink-500">· toi</span> }
+                  </span>
+                  @if (gameState.isHost()) {
+                    <button
+                      class="panel-text-button bg-danger-50 text-danger-500 disabled:opacity-50"
+                      type="button"
+                      [attr.aria-label]="'Refuser ' + player.displayName"
+                      [disabled]="!gameState.isRealtimeConnected() || gameState.isModeratingPlayer(player.id)"
+                      (click)="onRefuse(player)"
+                    >Refuser</button>
+                    <button
+                      class="panel-text-button bg-success-500 text-white disabled:opacity-50"
+                      type="button"
+                      [attr.aria-label]="'Accepter ' + player.displayName"
+                      [disabled]="!gameState.isRealtimeConnected() || gameState.isModeratingPlayer(player.id)"
+                      (click)="onAdmit(player)"
+                    >{{ gameState.isModeratingPlayer(player.id) ? '…' : 'Accepter' }}</button>
+                  } @else {
+                    <span class="text-[10px] font-bold text-warning-500">En attente de l’hôte</span>
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+        }
+
+        <section class="mt-5" aria-labelledby="players-panel-in-game">
+          <p id="players-panel-in-game" class="text-xs font-extrabold uppercase tracking-[0.12em] text-ink-500">
+            Dans le lobby ({{ gameState.playerList().length }})
+          </p>
+          <ul class="surface-card mt-2 divide-y divide-peach-100 overflow-hidden">
+            @for (player of gameState.playerList(); track player.id) {
+              <li class="flex min-h-14 items-center gap-3 px-4 py-3">
+                <span
+                  class="size-2.5 shrink-0 rounded-full"
+                  [class.bg-success-500]="player.connected"
+                  [class.bg-warning-500]="!player.connected"
+                  aria-hidden="true"
+                ></span>
+                <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">
+                  {{ player.displayName }}
+                  @if (player.isHost) { <span class="text-[10px] uppercase text-warning-500">· hôte</span> }
+                  @if (player.isCurrentPlayer) { <span class="text-[10px] font-bold text-ink-500">· toi</span> }
+                </span>
+                <span class="shrink-0 text-[10px] font-bold" [class.text-success-500]="player.connected" [class.text-warning-500]="!player.connected">
+                  {{ player.connected ? 'En ligne' : 'Hors ligne' }}
+                </span>
+                @if (gameState.canKickPlayer(player)) {
+                  <button
+                    class="panel-icon-button grid size-9 shrink-0 place-items-center bg-danger-50 text-danger-500 disabled:opacity-50"
+                    type="button"
+                    [attr.aria-label]="'Exclure ' + player.displayName"
+                    [disabled]="!gameState.isRealtimeConnected() || gameState.isModeratingPlayer(player.id)"
+                    (click)="onKick(player)"
+                  >
+                    <ion-icon name="person-remove-outline" aria-hidden="true" />
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+          @if (gameState.isHost()) {
+            <p class="mt-2 text-[11px] leading-4 text-ink-500">
+              Un joueur exclu quitte la partie : plus personne ne l’attend.
+            </p>
+          }
+        </section>
+      </section>
+    </ion-content>
+  </ng-template>
+</ion-modal>

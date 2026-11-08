@@ -23,7 +23,22 @@
     </h1>
   </div>
 
-  @if (showDecoration()) {
+  @if (showSessionMenu()) {
+    <button
+      class="session-menu-button relative grid size-11 shrink-0 place-items-center bg-white/70 text-ink-700 transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+      type="button"
+      [attr.aria-label]="pendingRequestCount() > 0 ? 'Menu de la partie, ' + pendingRequestCount() + ' demande(s) en attente' : 'Menu de la partie'"
+      (click)="openSessionMenu()"
+    >
+      <ion-icon name="ellipsis-horizontal" class="text-xl" aria-hidden="true" />
+      @if (pendingRequestCount() > 0) {
+        <span
+          class="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-danger-500 px-1 text-[10px] font-extrabold text-white"
+          aria-hidden="true"
+        >{{ pendingRequestCount() }}</span>
+      }
+    </button>
+  } @else if (showDecoration()) {
     <div class="grid size-11 place-items-center rounded-2xl bg-white/70 text-brand-400" aria-hidden="true">
       <ion-icon name="heart" />
     </div>

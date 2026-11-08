@@ -28,9 +28,19 @@ export function shouldConfirmLobbyExit(currentUrl: string, destinationUrl: strin
   return findLobbyCodeInUrl(destinationUrl) !== currentCode;
 }
 
+/** Where a player who joined a game in progress waits for the host's approval. */
+export function pendingApprovalUrl(code: string): string {
+  return `/lobby/${code}/pending`;
+}
+
+export function isPendingAdmission(state: LobbyStateResponse): boolean {
+  return state.currentPlayerAdmission === 'pending';
+}
+
 /** Modes with crowd-sourced themes and no classic photo-preparation step. */
 export function isUncappedLobbyMode(mode: LobbyMode): boolean {
-  return mode === 'fast_bio' || mode === 'zero_to_100' || mode === 'situation' || mode === 'wavelength';
+  return mode === 'fast_bio' || mode === 'zero_to_100' || mode === 'situation' || mode === 'wavelength' ||
+    mode === 'secret_ranking';
 }
 
 /**
@@ -44,6 +54,9 @@ export function isUncappedLobbyMode(mode: LobbyMode): boolean {
  */
 export function uncappedModeDestination(state: LobbyStateResponse): string {
   const lobbyUrl = `/lobby/${state.code}`;
+  if (isPendingAdmission(state)) {
+    return pendingApprovalUrl(state.code);
+  }
   if (state.status !== 'in_game') {
     return lobbyUrl;
   }
@@ -126,11 +139,44 @@ export function uncappedModeDestination(state: LobbyStateResponse): string {
     }
     return lobbyUrl;
   }
+  if (state.mode === 'secret_ranking') {
+    return secretRankingDestination(state, lobbyUrl);
+  }
   return lobbyUrl;
+}
+
+/** The phones stay on one table page while they are numbered and while the reveal plays. */
+function secretRankingDestination(state: LobbyStateResponse, lobbyUrl: string): string {
+  const secretRanking = state.secretRankingGame;
+  if (!secretRanking) {
+    return lobbyUrl;
+  }
+  if (secretRanking.phase === 'collecting_themes' || secretRanking.phase === 'ranking_themes') {
+    return `/game/${state.code}/theme-selection`;
+  }
+  if (secretRanking.phase === 'completed') {
+    return `/game/${state.code}/secret-ranking/final`;
+  }
+  if (secretRanking.phase !== 'playing' || !secretRanking.roundNumber) {
+    return lobbyUrl;
+  }
+  const roundBase = `/game/${state.code}/secret-ranking/${secretRanking.roundNumber}`;
+  switch (secretRanking.roundPhase) {
+    case 'secret':
+      return `${roundBase}/secret`;
+    case 'placing':
+    case 'revealing':
+      return `${roundBase}/table`;
+    default:
+      return `${roundBase}/results`;
+  }
 }
 
 export function permittedLobbyUrl(state: LobbyStateResponse, requestedUrl: string): string {
   const lobbyUrl = `/lobby/${state.code}`;
+  if (isPendingAdmission(state)) {
+    return pendingApprovalUrl(state.code);
+  }
 
   if (isUncappedLobbyMode(state.mode)) {
     // These modes have no classic photo-preparation step and exactly one

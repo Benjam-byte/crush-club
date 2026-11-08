@@ -21,6 +21,28 @@ func bearerToken(r *http.Request) string {
 	return strings.TrimSpace(header[7:])
 }
 
+// Reasons recorded in players.exclusion_reason.
+const (
+	exclusionReasonLeft    = "left"
+	exclusionReasonKicked  = "kicked"
+	exclusionReasonRefused = "refused"
+)
+
+// playerRemovedError reports a session whose player is no longer in the
+// lobby, with the reason they were removed. It still matches errNotFound, so
+// callers that only care about "no valid session" keep working.
+type playerRemovedError struct {
+	reason string
+}
+
+func (err playerRemovedError) Error() string {
+	return "player removed from the lobby (" + err.reason + ")"
+}
+
+func (err playerRemovedError) Unwrap() error {
+	return errNotFound
+}
+
 func (a *api) authenticatePlayerToken(ctx context.Context, code, rawToken string) (authenticatedPlayer, error) {
 	if rawToken == "" {
 		return authenticatedPlayer{}, errNotFound
@@ -37,24 +59,58 @@ func (a *api) authenticatePlayerToken(ctx context.Context, code, rawToken string
 		  AND lobby.expires_at > now()
 		  AND player.reconnect_token_hash = $2
 		  AND player.excluded_at IS NULL
-		RETURNING player.id, player.lobby_id, lobby.code, player.display_name, player.is_host
+		RETURNING player.id, player.lobby_id, lobby.code, player.display_name, player.is_host,
+		          player.admission_status = 'admitted'
 	`, strings.ToUpper(code), hex.EncodeToString(tokenHash[:])).Scan(
 		&player.ID,
 		&player.LobbyID,
 		&player.Code,
 		&player.DisplayName,
 		&player.IsHost,
+		&player.Admitted,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return authenticatedPlayer{}, errNotFound
+		return authenticatedPlayer{}, a.removedPlayerError(ctx, code, tokenHash[:])
 	}
 	return player, err
 }
 
-func (a *api) requirePlayer(w http.ResponseWriter, r *http.Request) (authenticatedPlayer, bool) {
+// removedPlayerError tells a session whose player left or was removed from
+// the lobby apart from an unknown one, so the client can say why.
+func (a *api) removedPlayerError(ctx context.Context, code string, tokenHash []byte) error {
+	var reason string
+	err := a.pool.QueryRow(ctx, `
+		SELECT COALESCE(player.exclusion_reason, '')
+		FROM players AS player
+		JOIN lobbies AS lobby ON lobby.id = player.lobby_id
+		WHERE lobby.code = $1 AND player.reconnect_token_hash = $2 AND player.excluded_at IS NOT NULL
+	`, strings.ToUpper(code), hex.EncodeToString(tokenHash)).Scan(&reason)
+	if err != nil {
+		return errNotFound
+	}
+	return playerRemovedError{reason: reason}
+}
+
+// sessionErrorCode is the API error code for a refused player session.
+func sessionErrorCode(err error) string {
+	var removed playerRemovedError
+	if errors.As(err, &removed) {
+		switch removed.reason {
+		case exclusionReasonKicked:
+			return "player_excluded"
+		case exclusionReasonRefused:
+			return "admission_refused"
+		}
+	}
+	return "player_session_required"
+}
+
+// requireLobbyMember authenticates any player who still holds a place in the
+// lobby, including one waiting for the host's approval.
+func (a *api) requireLobbyMember(w http.ResponseWriter, r *http.Request) (authenticatedPlayer, bool) {
 	player, err := a.authenticatePlayerToken(r.Context(), r.PathValue("code"), bearerToken(r))
 	if errors.Is(err, errNotFound) {
-		writeError(w, http.StatusUnauthorized, "player_session_required", "A valid player session is required")
+		writeError(w, http.StatusUnauthorized, sessionErrorCode(err), "A valid player session is required")
 		return authenticatedPlayer{}, false
 	}
 	if err != nil {
@@ -64,10 +120,24 @@ func (a *api) requirePlayer(w http.ResponseWriter, r *http.Request) (authenticat
 	return player, true
 }
 
+// requirePlayer authenticates a player allowed to act in the lobby and its
+// game: a player still waiting for the host's approval is refused.
+func (a *api) requirePlayer(w http.ResponseWriter, r *http.Request) (authenticatedPlayer, bool) {
+	player, ok := a.requireLobbyMember(w, r)
+	if !ok {
+		return authenticatedPlayer{}, false
+	}
+	if !player.Admitted {
+		writeError(w, http.StatusForbidden, "admission_pending", "The host has not accepted this player yet")
+		return authenticatedPlayer{}, false
+	}
+	return player, true
+}
+
 func (a *api) handleGetLobbyState(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Crush-Club-Server", a.instanceID)
-	player, ok := a.requirePlayer(w, r)
+	player, ok := a.requireLobbyMember(w, r)
 	if !ok {
 		return
 	}
@@ -81,26 +151,42 @@ func (a *api) handleGetLobbyState(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPlayer) (lobbyStateResponse, error) {
 	state := lobbyStateResponse{
-		ServerTime:      time.Now().UTC(),
-		CurrentPlayerID: currentPlayer.ID,
-		Players:         make([]lobbyPlayerView, 0),
+		ServerTime:        time.Now().UTC(),
+		CurrentPlayerID:   currentPlayer.ID,
+		Players:           make([]lobbyPlayerView, 0),
+		PendingPlayers:    make([]lobbyPlayerView, 0),
+		AwaitingPlayerIDs: make([]string, 0),
 	}
 	var snapshotJSON []byte
+	var isExcluded bool
+	var exclusionReason string
 	err := a.pool.QueryRow(ctx, `
-		SELECT code, status, mode, max_players, revision, game_config_snapshot
-		FROM lobbies
-		WHERE id = $1 AND status <> 'expired' AND expires_at > now()
-	`, currentPlayer.LobbyID).Scan(
+		SELECT lobby.code, lobby.status, lobby.mode, lobby.max_players, lobby.revision, lobby.game_config_snapshot,
+		       me.excluded_at IS NOT NULL, COALESCE(me.exclusion_reason, ''), me.admission_status, me.is_host
+		FROM lobbies AS lobby
+		JOIN players AS me ON me.id = $2 AND me.lobby_id = lobby.id
+		WHERE lobby.id = $1 AND lobby.status <> 'expired' AND lobby.expires_at > now()
+	`, currentPlayer.LobbyID, currentPlayer.ID).Scan(
 		&state.Code,
 		&state.Status,
 		&state.Mode,
 		&state.MaxPlayers,
 		&state.Revision,
 		&snapshotJSON,
+		&isExcluded,
+		&exclusionReason,
+		&state.CurrentPlayerAdmission,
+		&currentPlayer.IsHost,
 	)
 	if err != nil {
 		return lobbyStateResponse{}, err
 	}
+	// A socket opened before the player left or was removed must not keep
+	// receiving the lobby: the error closes it with the matching code.
+	if isExcluded {
+		return lobbyStateResponse{}, playerRemovedError{reason: exclusionReason}
+	}
+	currentPlayer.Admitted = state.CurrentPlayerAdmission == "admitted"
 	if err := json.Unmarshal(snapshotJSON, &state.Questionnaire); err != nil {
 		return lobbyStateResponse{}, err
 	}
@@ -114,14 +200,14 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 
 	rows, err := a.pool.Query(ctx, `
 		SELECT player.id, player.display_name, player.is_host, player.ready_status,
-		       player.disconnected_at, player.joined_at,
+		       player.disconnected_at, player.joined_at, player.admission_status = 'pending',
 		       COALESCE((
 		         SELECT array_agg(photo.id::text ORDER BY photo.position)
 		         FROM player_photos AS photo WHERE photo.player_id = player.id
 		       ), ARRAY[]::text[])
 		FROM players AS player
 		WHERE player.lobby_id = $1
-		  AND (player.excluded_at IS NULL OR $2::text = 'completed')
+		  AND (player.excluded_at IS NULL OR ($2::text = 'completed' AND player.admission_status = 'admitted'))
 		ORDER BY player.joined_at, player.id
 	`, currentPlayer.LobbyID, state.Status)
 	if err != nil {
@@ -130,6 +216,7 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 	defer rows.Close()
 	for rows.Next() {
 		var player lobbyPlayerView
+		var isPending bool
 		if err := rows.Scan(
 			&player.ID,
 			&player.DisplayName,
@@ -137,6 +224,7 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 			&player.ReadyStatus,
 			&player.DisconnectedAt,
 			&player.JoinedAt,
+			&isPending,
 			&player.PhotoIDs,
 		); err != nil {
 			return lobbyStateResponse{}, err
@@ -149,69 +237,84 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 			player.ReconnectDeadline = &deadline
 		}
 		player.CanExclude = canExcludeLobbyPlayer(player.IsHost, player.Connected, player.DisconnectedAt)
-		state.Players = append(state.Players, player)
+		if isPending {
+			state.PendingPlayers = append(state.PendingPlayers, player)
+		} else {
+			state.Players = append(state.Players, player)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return lobbyStateResponse{}, err
 	}
+	rows.Close()
 
-	if state.Mode == lobbyModeFastBio {
-		fastBioGame, err := a.loadFastBioState(ctx, currentPlayer)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return state, nil
-		}
-		if err != nil {
-			return lobbyStateResponse{}, err
-		}
-		state.FastBioGame = &fastBioGame
+	// Until the host lets them in, a pending player only sees who is in the
+	// lobby, never the game itself.
+	if !currentPlayer.Admitted {
 		return state, nil
 	}
 
-	if state.Mode == lobbyModeZeroToHundred {
-		zeroToHundredGame, err := a.loadZeroToHundredState(ctx, currentPlayer)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return state, nil
-		}
-		if err != nil {
-			return lobbyStateResponse{}, err
-		}
-		state.ZeroToHundredGame = &zeroToHundredGame
-		return state, nil
-	}
-
-	if state.Mode == lobbyModeSituation {
-		situationGame, err := a.loadSituationState(ctx, currentPlayer)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return state, nil
-		}
-		if err != nil {
-			return lobbyStateResponse{}, err
-		}
-		state.SituationGame = &situationGame
-		return state, nil
-	}
-
-	if state.Mode == lobbyModeWavelength {
-		wavelengthGame, err := a.loadWavelengthState(ctx, currentPlayer)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return state, nil
-		}
-		if err != nil {
-			return lobbyStateResponse{}, err
-		}
-		state.WavelengthGame = &wavelengthGame
-		return state, nil
-	}
-
-	game, err := a.loadGameState(ctx, currentPlayer)
+	awaiting, err := a.loadModeState(ctx, currentPlayer, &state)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return state, nil
 	}
 	if err != nil {
 		return lobbyStateResponse{}, err
 	}
-	state.Game = &game
+	if awaiting != nil {
+		state.AwaitingPlayerIDs = awaiting
+	}
 	return state, nil
+}
+
+// loadModeState fills the game payload of the lobby's mode and returns the
+// players its current phase is waiting for. pgx.ErrNoRows means no game was
+// started yet.
+func (a *api) loadModeState(ctx context.Context, currentPlayer authenticatedPlayer, state *lobbyStateResponse) ([]string, error) {
+	switch state.Mode {
+	case lobbyModeFastBio:
+		game, err := a.loadFastBioState(ctx, currentPlayer)
+		if err != nil {
+			return nil, err
+		}
+		state.FastBioGame = &game
+		return game.AwaitingPlayerIDs, nil
+	case lobbyModeZeroToHundred:
+		game, err := a.loadZeroToHundredState(ctx, currentPlayer)
+		if err != nil {
+			return nil, err
+		}
+		state.ZeroToHundredGame = &game
+		return game.AwaitingPlayerIDs, nil
+	case lobbyModeSituation:
+		game, err := a.loadSituationState(ctx, currentPlayer)
+		if err != nil {
+			return nil, err
+		}
+		state.SituationGame = &game
+		return game.AwaitingPlayerIDs, nil
+	case lobbyModeWavelength:
+		game, err := a.loadWavelengthState(ctx, currentPlayer)
+		if err != nil {
+			return nil, err
+		}
+		state.WavelengthGame = &game
+		return game.AwaitingPlayerIDs, nil
+	case lobbyModeSecretRanking:
+		game, err := a.loadSecretRankingState(ctx, currentPlayer)
+		if err != nil {
+			return nil, err
+		}
+		state.SecretRankingGame = &game
+		return game.AwaitingPlayerIDs, nil
+	default:
+		game, err := a.loadGameState(ctx, currentPlayer)
+		if err != nil {
+			return nil, err
+		}
+		state.Game = &game
+		return game.AwaitingPlayerIDs, nil
+	}
 }
 
 func canExcludeLobbyPlayer(isHost, connected bool, disconnectedAt *time.Time) bool {
@@ -268,6 +371,16 @@ func (a *api) loadGameState(ctx context.Context, currentPlayer authenticatedPlay
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return gameStateView{}, err
 		}
+	}
+
+	switch game.Phase {
+	case "collecting_submissions":
+		game.AwaitingPlayerIDs, err = classicSubmissionAwaitingIDs(ctx, a.pool, game.ID, roundID)
+		if err != nil {
+			return gameStateView{}, err
+		}
+	case "reveal_and_vote":
+		game.AwaitingPlayerIDs = []string{game.SubjectPlayerID}
 	}
 
 	err = a.pool.QueryRow(ctx, `

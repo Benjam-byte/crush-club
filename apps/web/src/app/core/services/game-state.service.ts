@@ -1,7 +1,14 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { activeNavigationUrl, isUncappedLobbyMode, uncappedModeDestination } from '@core/guards/lobby-route';
+import {
+  activeNavigationUrl,
+  isPendingAdmission,
+  isUncappedLobbyMode,
+  pendingApprovalUrl,
+  permittedLobbyUrl,
+  uncappedModeDestination,
+} from '@core/guards/lobby-route';
 import { primaryPhotoQuestionId } from '@core/models/game.models';
 import type {
   AnswerValue,
@@ -14,6 +21,7 @@ import type {
   QuestionDefinition,
   QuestionnaireSnapshot,
   RoundSubmissionInput,
+  SecretRankingStateView,
   SituationStateView,
   ThemeSelectionState,
   WavelengthStateView,
@@ -21,8 +29,9 @@ import type {
 } from '@core/models/game.models';
 import { LobbyApiService } from './lobby-api.service';
 import { filterBioAnswers, restoredPrimaryPhotoId } from './game-state-draft';
-import { canHostExcludePlayer, PlayerExclusionController } from './player-exclusion';
-import { RealtimeLobbyService } from './realtime-lobby.service';
+import { collectLobbyNotices, resolveAwaitingPlayers, type LobbyNotice } from './lobby-notices';
+import { canHostExcludePlayer, canHostKickPlayer, PlayerExclusionController } from './player-exclusion';
+import { admissionRefusedCloseCode, playerKickedCloseCode, RealtimeLobbyService } from './realtime-lobby.service';
 import type { LobbyApiProbeData } from '../models/realtime-diagnostics.models';
 
 interface StoredDraft {
@@ -40,6 +49,9 @@ interface StoredPlayerSession {
 }
 
 const sessionStorageKey = 'crush-club-player-session-v4';
+
+const secretRankingMinPlayers = 3;
+const secretRankingMaxPlayers = 10;
 
 const emptyPlayer: LobbyPlayer = {
   id: '',
@@ -85,9 +97,14 @@ export class GameStateService {
   private readonly fastBioPhotoUrlByIdState = signal<Readonly<Record<string, string>>>({});
   private readonly loadingFastBioPhotoIdSet = new Set<string>();
   private readonly playerExclusion = new PlayerExclusionController();
+  private readonly playerModeration = new PlayerExclusionController();
+  private readonly noticeQueue = signal<readonly LobbyNotice[]>([]);
+  private previousNoticeState: LobbyStateResponse | null = null;
   private restoredDraftKey = '';
 
   readonly state = this.realtime.state;
+  /** Server time minus local time: see RealtimeLobbyService.serverClockOffsetMs. */
+  readonly serverClockOffsetMs = this.realtime.serverClockOffsetMs;
   readonly connectionStatus = this.realtime.connectionStatus;
   readonly sessionPlayerId = computed(() => this.storedSessionState()?.playerId ?? null);
   /** Lobby the player still holds a place in; null once they left or the server refused their session. */
@@ -103,16 +120,20 @@ export class GameStateService {
   readonly isZeroToHundredMode = computed(() => this.mode() === 'zero_to_100');
   readonly isSituationMode = computed(() => this.mode() === 'situation');
   readonly isWavelengthMode = computed(() => this.mode() === 'wavelength');
+  readonly isSecretRankingMode = computed(() => this.mode() === 'secret_ranking');
   readonly isUncappedMode = computed(() =>
-    this.isFastBioMode() || this.isZeroToHundredMode() || this.isSituationMode() || this.isWavelengthMode(),
+    this.isFastBioMode() || this.isZeroToHundredMode() || this.isSituationMode() || this.isWavelengthMode() ||
+    this.isSecretRankingMode(),
   );
   readonly fastBioGame = computed<FastBioStateView | null>(() => this.state()?.fastBioGame ?? null);
   readonly zeroToHundredGame = computed<ZeroToHundredStateView | null>(() => this.state()?.zeroToHundredGame ?? null);
   readonly situationGame = computed<SituationStateView | null>(() => this.state()?.situationGame ?? null);
   readonly wavelengthGame = computed<WavelengthStateView | null>(() => this.state()?.wavelengthGame ?? null);
+  readonly secretRankingGame = computed<SecretRankingStateView | null>(() => this.state()?.secretRankingGame ?? null);
   /** Shared theme-collection-and-ranking state, whichever uncapped mode is active. */
   readonly themeSelectionState = computed<ThemeSelectionState | null>(() => {
-    return this.fastBioGame() ?? this.zeroToHundredGame() ?? this.situationGame() ?? this.wavelengthGame();
+    return this.fastBioGame() ?? this.zeroToHundredGame() ?? this.situationGame() ?? this.wavelengthGame() ??
+      this.secretRankingGame();
   });
   readonly displayName = computed(() => this.currentPlayer().displayName);
   readonly isHost = computed(() => this.currentPlayer().isHost);
@@ -126,9 +147,26 @@ export class GameStateService {
       isCurrentPlayer: player.id === state.currentPlayerId,
     }));
   });
-  readonly currentPlayer = computed<LobbyPlayer>(() => {
-    return this.playerList().find((player) => player.isCurrentPlayer) ?? emptyPlayer;
+  /** Players who joined the game in progress and wait for the host's approval. */
+  readonly pendingPlayerList = computed<readonly LobbyPlayer[]>(() => {
+    const state = this.state();
+    return (state?.pendingPlayers ?? []).map((player) => ({
+      ...player,
+      isCurrentPlayer: player.id === state?.currentPlayerId,
+    }));
   });
+  readonly currentPlayer = computed<LobbyPlayer>(() => {
+    return this.playerList().find((player) => player.isCurrentPlayer) ??
+      this.pendingPlayerList().find((player) => player.isCurrentPlayer) ??
+      emptyPlayer;
+  });
+  readonly isPendingApproval = computed(() => this.state()?.currentPlayerAdmission === 'pending');
+  readonly hostPlayer = computed(() => this.playerList().find((player) => player.isHost) ?? null);
+  /** Join requests the host still has to answer. */
+  readonly pendingRequestCount = computed(() => this.isHost() ? this.pendingPlayerList().length : 0);
+  /** Other players the current phase is still waiting for. */
+  readonly awaitingPlayers = computed(() => resolveAwaitingPlayers(this.state()?.awaitingPlayerIds ?? [], this.playerList()));
+  readonly currentNotice = computed(() => this.noticeQueue()[0] ?? null);
   readonly gameConfigId = computed<string | null>(() => this.state()?.gameConfig.id ?? null);
   readonly gameConfigName = computed(() => this.state()?.gameConfig.name ?? '');
   readonly gameConfigVersion = computed(() => this.state()?.gameConfig.version ?? 0);
@@ -237,16 +275,34 @@ export class GameStateService {
       players.length >= 2 &&
       players.every((player) => player.connected);
   });
+  readonly canStartSecretRankingGame = computed(() => {
+    const players = this.playerList();
+    return this.isSecretRankingMode() &&
+      this.secretRankingGame() === null &&
+      this.isHost() &&
+      this.isRealtimeConnected() &&
+      players.length >= secretRankingMinPlayers &&
+      players.length <= secretRankingMaxPlayers &&
+      players.every((player) => player.connected);
+  });
 
   constructor() {
     effect(() => {
-      if (this.realtime.connectionStatus() === 'rejected') {
-        this.errorMessageState.set('Ta session a été refusée. Rejoins à nouveau le lobby pour continuer.');
+      if (this.realtime.connectionStatus() !== 'rejected') {
+        return;
       }
+      const closeCode = this.realtime.rejectionCode();
+      if (closeCode === playerKickedCloseCode || closeCode === admissionRefusedCloseCode) {
+        // Leaving the lobby resets realtime signals, which must not happen while this effect runs.
+        queueMicrotask(() => void this.leaveAfterRemoval(closeCode));
+        return;
+      }
+      this.errorMessageState.set('Ta session a été refusée. Rejoins à nouveau le lobby pour continuer.');
     });
     effect(() => {
       const state = this.state();
       if (state) {
+        this.queueLobbyNotices(state);
         this.pruneRemovedPhotoUrls(state);
         this.pruneRemovedFastBioPhotoUrls(state);
         void this.loadMissingPhotos(state);
@@ -404,6 +460,9 @@ export class GameStateService {
         if (this.isSituationMode()) {
           return this.lobbyApi.submitSituationTheme(code, token, theme);
         }
+        if (this.isSecretRankingMode()) {
+          return this.lobbyApi.submitSecretRankingTheme(code, token, theme);
+        }
         return this.lobbyApi.submitFastBioTheme(code, token, theme);
       },
       'Ta proposition de thème n’a pas pu être envoyée.',
@@ -422,6 +481,9 @@ export class GameStateService {
         }
         if (this.isWavelengthMode()) {
           return this.lobbyApi.rankWavelengthThemes(code, token, ranking);
+        }
+        if (this.isSecretRankingMode()) {
+          return this.lobbyApi.rankSecretRankingThemes(code, token, ranking);
         }
         return this.lobbyApi.rankFastBioThemes(code, token, ranking);
       },
@@ -584,6 +646,52 @@ export class GameStateService {
     );
   }
 
+  async startSecretRankingGame(): Promise<void> {
+    if (!this.canStartSecretRankingGame()) {
+      return;
+    }
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.startSecretRanking(code, token),
+      'La partie n’a pas pu démarrer.',
+    );
+  }
+
+  async submitSecretRankingAmount(amount: number): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.submitSecretRankingAmount(code, token, amount),
+      'Ta mise n’a pas pu être envoyée.',
+    );
+  }
+
+  /** Numbers the current player's phone in the line on the table. */
+  async setSecretRankingPosition(position: number): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.setSecretRankingPosition(code, token, position),
+      'Le numéro n’a pas pu être envoyé.',
+    );
+  }
+
+  async openSecretRankingDebrief(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.openSecretRankingDebrief(code, token),
+      'Le débrief n’a pas pu s’ouvrir.',
+    );
+  }
+
+  async startNextSecretRankingRound(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.startNextSecretRankingRound(code, token),
+      'La manche suivante n’a pas pu démarrer.',
+    );
+  }
+
+  async replaySecretRanking(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.replaySecretRanking(code, token),
+      'Impossible de relancer une nouvelle partie.',
+    );
+  }
+
   fastBioPhotoUrl(photoId: string | undefined): string | null {
     return photoId ? this.fastBioPhotoUrlByIdState()[photoId] ?? null : null;
   }
@@ -697,6 +805,87 @@ export class GameStateService {
     return this.playerExclusion.isPending(playerId);
   }
 
+  /** Lets a player who joined the game in progress in. */
+  async admitPlayer(playerId: string): Promise<void> {
+    await this.moderatePlayer(
+      playerId,
+      (code, token) => this.lobbyApi.admitPlayer(code, token, playerId),
+      'Impossible d’accepter ce joueur. Vérifie ta connexion puis réessaie.',
+    );
+  }
+
+  /** Turns down a player waiting to join the game in progress. */
+  async refusePlayer(playerId: string): Promise<void> {
+    await this.moderatePlayer(
+      playerId,
+      (code, token) => this.lobbyApi.refusePlayer(code, token, playerId),
+      'Impossible de refuser ce joueur. Vérifie ta connexion puis réessaie.',
+    );
+  }
+
+  /** Removes another player from the lobby, online or not. */
+  async kickPlayer(playerId: string): Promise<void> {
+    const target = this.playerList().find((player) => player.id === playerId);
+    if (!target || !this.canKickPlayer(target)) {
+      return;
+    }
+    await this.moderatePlayer(
+      playerId,
+      (code, token) => this.lobbyApi.excludePlayer(code, token, playerId),
+      'Impossible d’exclure ce joueur. Vérifie ta connexion puis réessaie.',
+    );
+  }
+
+  canKickPlayer(player: LobbyPlayer): boolean {
+    return canHostKickPlayer(this.isHost(), player);
+  }
+
+  isModeratingPlayer(playerId: string): boolean {
+    return this.playerModeration.isPending(playerId) || this.playerExclusion.isPending(playerId);
+  }
+
+  /** Drops the toast on screen, letting the next queued one show. */
+  dismissNotice(): void {
+    this.noticeQueue.update((queue) => queue.slice(1));
+  }
+
+  private async moderatePlayer(
+    playerId: string,
+    command: (code: string, reconnectToken: string) => Promise<LobbyStateResponse>,
+    fallbackMessage: string,
+  ): Promise<void> {
+    if (!this.isHost() || !this.isRealtimeConnected()) {
+      return;
+    }
+    await this.playerModeration.run(playerId, () => this.runStateCommand(command, fallbackMessage));
+  }
+
+  private queueLobbyNotices(state: LobbyStateResponse): void {
+    const notices = collectLobbyNotices(this.previousNoticeState, state);
+    this.previousNoticeState = state;
+    if (notices.length === 0) {
+      return;
+    }
+    this.noticeQueue.update((queue) => {
+      const queuedIds = new Set(queue.map((notice) => notice.id));
+      return [...queue, ...notices.filter((notice) => !queuedIds.has(notice.id))];
+    });
+  }
+
+  /** The host removed this player or turned their request down: back home, with the reason. */
+  private async leaveAfterRemoval(closeCode: number): Promise<void> {
+    if (this.realtime.rejectionCode() !== closeCode) {
+      return;
+    }
+    this.resetGame();
+    this.errorMessageState.set(
+      closeCode === playerKickedCloseCode
+        ? 'Tu as été exclu·e de la partie par l’hôte.'
+        : 'L’hôte n’a pas accepté ta demande pour rejoindre la partie.',
+    );
+    await this.router.navigateByUrl('/');
+  }
+
   /** Clears the current error message, e.g. once the global error toast has been read/dismissed. */
   clearError(): void {
     this.errorMessageState.set(null);
@@ -727,6 +916,9 @@ export class GameStateService {
     this.loverQuestionIdState.set(null);
     this.errorMessageState.set(null);
     this.playerExclusion.clear();
+    this.playerModeration.clear();
+    this.noticeQueue.set([]);
+    this.previousNoticeState = null;
     this.restoredDraftKey = '';
   }
 
@@ -939,6 +1131,17 @@ export class GameStateService {
     if (!currentURL.startsWith('/lobby/') && !currentURL.startsWith('/game/')) {
       return;
     }
+    const pendingUrl = pendingApprovalUrl(state.code);
+    if (isPendingAdmission(state)) {
+      if (currentURL !== pendingUrl) {
+        await this.router.navigateByUrl(pendingUrl);
+      }
+      return;
+    }
+    if (currentURL === pendingUrl) {
+      await this.router.navigateByUrl(permittedLobbyUrl(state, `/lobby/${state.code}`));
+      return;
+    }
     if (isUncappedLobbyMode(state.mode)) {
       const destination = uncappedModeDestination(state);
       if (currentURL !== destination && (currentURL.startsWith('/game/') || destination !== `/lobby/${state.code}`)) {
@@ -1001,9 +1204,12 @@ export class GameStateService {
         photos_locked: 'Tes photos ont déjà été validées et ne peuvent plus être modifiées.',
         lobby_already_started: 'Cette partie est terminée.',
         display_name_taken: 'Ce pseudo est déjà utilisé par un joueur actuellement en ligne.',
-        player_online: 'Ce joueur vient de se reconnecter et ne peut plus être exclu.',
-        host_required: 'Seul l’hôte du lobby peut exclure un joueur.',
+        host_required: 'Seul l’hôte du lobby peut faire ça.',
         player_not_found: 'Ce joueur ne fait plus partie du lobby.',
+        player_not_pending: 'Ce joueur n’attend plus de réponse.',
+        admission_pending: 'L’hôte doit d’abord accepter ta demande pour rejoindre la partie.',
+        player_excluded: 'Tu as été exclu·e de cette partie par l’hôte.',
+        admission_refused: 'L’hôte n’a pas accepté ta demande pour rejoindre la partie.',
         cannot_exclude_self: 'Tu ne peux pas t’exclure toi-même du lobby.',
         cannot_exclude_host: 'L’hôte du lobby ne peut pas être exclu.',
         invalid_player_count: 'Il n’y a pas assez de joueurs actifs pour lancer la partie.',
@@ -1047,6 +1253,14 @@ export class GameStateService {
         psychic_cannot_guess: 'Le médium connaît déjà la cible : il ne place pas d’aiguille.',
         invalid_position: 'Place ton aiguille entre 0 et 100.',
         wavelength_in_progress: 'La partie Wavelength en cours n’est pas encore terminée.',
+        secret_ranking_not_started: 'Le classement secret n’a pas encore démarré.',
+        secret_ranking_not_playing: 'Aucune manche du classement secret n’est ouverte pour le moment.',
+        secret_ranking_round_locked: 'Cette étape n’est plus ouverte.',
+        secret_ranking_in_progress: 'La partie en cours n’est pas encore terminée.',
+        invalid_amount: 'Entre un montant entier entre 0 € et 1 milliard d’euros.',
+        invalid_table_position: 'Ce numéro ne correspond à aucune place de la ligne.',
+        not_participant: 'Tu n’as pas misé cette manche : ton téléphone n’est pas sur la table.',
+        reveal_in_progress: 'La révélation n’est pas encore terminée.',
       };
       this.errorMessageState.set(
         serverError?.code ? errorMessageByCode[serverError.code] ?? serverError.message ?? fallbackMessage :

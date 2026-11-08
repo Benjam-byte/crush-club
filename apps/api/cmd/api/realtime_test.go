@@ -27,6 +27,9 @@ func TestWebsocketSessionFailureDistinguishesDatabaseErrors(t *testing.T) {
 	}{
 		{name: "invalid session", err: errNotFound, want: closeInvalidSession},
 		{name: "wrapped invalid session", err: fmt.Errorf("authenticate: %w", errNotFound), want: closeInvalidSession},
+		{name: "kicked player", err: playerRemovedError{reason: exclusionReasonKicked}, want: closePlayerKicked},
+		{name: "refused player", err: playerRemovedError{reason: exclusionReasonRefused}, want: closeAdmissionRefused},
+		{name: "player who left", err: playerRemovedError{reason: exclusionReasonLeft}, want: closeInvalidSession},
 		{name: "database unavailable", err: errors.New("database unavailable"), want: websocket.StatusTryAgainLater},
 		{name: "verification timeout", err: context.DeadlineExceeded, want: websocket.StatusTryAgainLater},
 	} {

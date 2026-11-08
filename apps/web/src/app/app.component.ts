@@ -6,11 +6,13 @@ import { filter, map } from 'rxjs';
 import { findLobbyCodeInUrl } from '@core/guards/lobby-route';
 import { AppUpdateService } from '@core/services/app-update.service';
 import { GameStateService } from '@core/services/game-state.service';
+import { SessionMenuService } from '@core/services/session-menu.service';
 import { HostDisconnectedPlayersComponent } from './core/components/host-disconnected-players/host-disconnected-players.component';
+import { PlayersPanelComponent } from './core/components/players-panel/players-panel.component';
 
 @Component({
   selector: 'app-root',
-  imports: [HostDisconnectedPlayersComponent, IonApp, IonRouterOutlet, IonToast],
+  imports: [HostDisconnectedPlayersComponent, IonApp, IonRouterOutlet, IonToast, PlayersPanelComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -18,7 +20,16 @@ import { HostDisconnectedPlayersComponent } from './core/components/host-disconn
 export class AppComponent {
   protected readonly appUpdate = inject(AppUpdateService);
   protected readonly gameState = inject(GameStateService);
+  private readonly sessionMenu = inject(SessionMenuService);
   private readonly router = inject(Router);
+
+  /** A join request toast leads the host straight to the players panel. */
+  protected readonly joinRequestToastButtons = [
+    {
+      text: 'Voir',
+      handler: () => this.sessionMenu.openPlayersPanel(),
+    },
+  ];
 
   // Ionic plays the swipe-back animation before route guards run, so a refused lobby exit
   // would leave the screen half-transitioned: the gesture is off inside a lobby.

@@ -11,7 +11,8 @@
         }
 
         @if (showCountdown()) {
-          <app-phase-timer [remainingSeconds]="remainingSeconds()" />
+          <!-- Later theme steps only last 40 s: a 30 s warning would show almost from the start. -->
+          <app-phase-timer [remainingSeconds]="remainingSeconds()" [warningAt]="15" />
         }
 
         @if (gameState.themeSelectionState()?.phase === 'collecting_themes') {
@@ -25,7 +26,7 @@
                 @if (wavelengthRoundLabel(); as roundLabel) { {{ roundLabel }} · }Étape 1
               </p>
               <h1 class="mt-2 text-2xl font-extrabold text-ink-900">
-                {{ gameState.isWavelengthMode() ? 'Propose un spectre' : 'Propose un thème' }}
+                {{ gameState.isWavelengthMode() ? 'Propose un spectre' : (gameState.isSecretRankingMode() ? 'Propose une question' : 'Propose un thème') }}
               </h1>
               <p class="mt-2 text-sm text-ink-600">
                 @if (gameState.isZeroToHundredMode()) {
@@ -34,6 +35,9 @@
                   Facultatif : une situation, ex. « En entretien d’embauche avec le Père Fouettard ».
                 } @else if (gameState.isWavelengthMode()) {
                   Facultatif : deux extrêmes opposés, ex. « Red flag ↔ Green flag ». Le médium donnera un indice entre les deux.
+                  {{ wavelengthProposalHint() }}
+                } @else if (gameState.isSecretRankingMode()) {
+                  Facultatif : complète la phrase « {{ secretRankingQuestionStart }} de … ? », ex. « manger un insecte vivant ».
                 } @else {
                   Facultatif : un mot ou une expression, ex. « Mode mystérieux ».
                 }
@@ -82,13 +86,13 @@
                 <ion-input
                   class="form-input"
                   formControlName="theme"
-                  label="Ton thème"
+                  [label]="gameState.isSecretRankingMode() ? secretRankingQuestionStart + ' de…' : 'Ton thème'"
                   labelPlacement="stacked"
                   maxlength="80"
-                  placeholder="Résister à un fou rire…"
+                  [placeholder]="gameState.isSecretRankingMode() ? 'manger un insecte vivant' : 'Résister à un fou rire…'"
                 />
                 <ion-button class="action-button w-full" expand="block" type="submit" [disabled]="isSubmittingTheme()">
-                  {{ isSubmittingTheme() ? 'Envoi…' : 'Proposer ce thème' }}
+                  {{ isSubmittingTheme() ? 'Envoi…' : (gameState.isSecretRankingMode() ? 'Proposer cette question' : 'Proposer ce thème') }}
                   <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
                 </ion-button>
                 <ion-button
@@ -109,17 +113,20 @@
               [progressCount]="gameState.themeSelectionState()?.themeProgressCount ?? 0"
               [progressRequired]="gameState.themeSelectionState()?.themeProgressRequired ?? 0"
               progressLabel="joueurs ont proposé"
-              [message]="gameState.isWavelengthMode() ? 'Le vote des spectres s’ouvrira automatiquement.' : 'Le classement des thèmes s’ouvrira automatiquement.'"
-              [hasWaitingGame]="!gameState.isZeroToHundredMode()"
+              [message]="gameState.isWavelengthMode() ? 'Le vote des spectres s’ouvrira automatiquement.' : (gameState.isSecretRankingMode() ? 'Le vote des questions s’ouvrira automatiquement.' : 'Le classement des thèmes s’ouvrira automatiquement.')"
+              [hasWaitingGame]="!showsRulesWhileWaiting()"
             >
-              @if (mySubmittedTheme()) {
-                <p class="mt-1 text-sm text-ink-600">« {{ mySubmittedTheme() }} »</p>
+              @if (mySubmittedTheme(); as submittedTheme) {
+                <p class="mt-1 text-sm text-ink-600">« {{ gameState.isSecretRankingMode() ? secretRankingQuestion(submittedTheme) : submittedTheme }} »</p>
               } @else if (mySubmittedTheme() === '') {
                 <p class="mt-1 text-sm text-ink-600">Tu as passé ton tour.</p>
               }
             </app-phase-confirmation>
             @if (gameState.isZeroToHundredMode()) {
               <app-zero-to-100-scoring-rules />
+              <app-waiting-game />
+            } @else if (gameState.isSecretRankingMode()) {
+              <app-secret-ranking-rules />
               <app-waiting-game />
             }
           }
@@ -132,11 +139,11 @@
                 @if (wavelengthRoundLabel(); as roundLabel) { {{ roundLabel }} · }Étape 2
               </p>
               <h1 class="mt-2 text-2xl font-extrabold text-ink-900">
-                {{ gameState.isWavelengthMode() ? 'Classe les spectres' : 'Classe les thèmes' }}
+                {{ gameState.isWavelengthMode() ? 'Classe les spectres' : (gameState.isSecretRankingMode() ? 'Classe les questions' : 'Classe les thèmes') }}
               </h1>
               <p class="mt-2 text-sm text-ink-600">
                 Glisse pour réordonner, du meilleur (en haut) au moins bon.
-                {{ gameState.isWavelengthMode() ? 'Seul le n°1 sera joué cette manche.' : 'Les 3 premiers seront joués.' }}
+                {{ gameState.isWavelengthMode() ? wavelengthRankingHint() : (gameState.isSecretRankingMode() ? 'Les 3 premières seront jouées, une par manche.' : 'Les 3 premiers seront joués.') }}
               </p>
             </header>
             <ol
@@ -149,7 +156,7 @@
                   <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">
                     {{ index + 1 }}
                   </span>
-                  <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{ theme }}</span>
+                  <span class="min-w-0 flex-1 text-sm font-extrabold leading-snug text-ink-900 [overflow-wrap:anywhere]">{{ gameState.isSecretRankingMode() ? '…' + secretRankingQuestionEnd(theme) : theme }}</span>
                   <ion-icon class="shrink-0 text-lg text-ink-500" name="reorder-two-outline" cdkDragHandle aria-hidden="true" />
                 </li>
               }
@@ -169,11 +176,14 @@
               [progressCount]="gameState.themeSelectionState()?.themeProgressCount ?? 0"
               [progressRequired]="gameState.themeSelectionState()?.themeProgressRequired ?? 0"
               progressLabel="joueurs ont validé leur classement"
-              [message]="gameState.isWavelengthMode() ? 'La manche démarrera automatiquement.' : 'La première manche démarrera automatiquement.'"
-              [hasWaitingGame]="!gameState.isZeroToHundredMode()"
+              [message]="rankingSentMessage()"
+              [hasWaitingGame]="!showsRulesWhileWaiting()"
             />
             @if (gameState.isZeroToHundredMode()) {
               <app-zero-to-100-scoring-rules />
+              <app-waiting-game />
+            } @else if (gameState.isSecretRankingMode()) {
+              <app-secret-ranking-rules />
               <app-waiting-game />
             }
           }

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import type { OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
+import { AwaitingPlayersComponent } from '@core/components/awaiting-players/awaiting-players.component';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
@@ -13,6 +14,7 @@ import { GameStateService } from '@core/services/game-state.service';
 @Component({
   selector: 'app-wavelength-round-page',
   imports: [
+    AwaitingPlayersComponent,
     IonButton,
     IonContent,
     IonIcon,

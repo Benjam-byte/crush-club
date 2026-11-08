@@ -95,10 +95,29 @@ func newRealtimeHub(apiServer *api) *realtimeHub {
 // own. Every other close code, 1008 included, is treated as retryable.
 const (
 	closeInvalidSession   websocket.StatusCode = 4401
+	closePlayerKicked     websocket.StatusCode = 4403
 	closeLobbyUnavailable websocket.StatusCode = 4404
+	closeAdmissionRefused websocket.StatusCode = 4409
 )
 
+// closeCodeForExclusion is the close code telling a removed player's client
+// why they lost their place.
+func closeCodeForExclusion(reason string) websocket.StatusCode {
+	switch reason {
+	case exclusionReasonKicked:
+		return closePlayerKicked
+	case exclusionReasonRefused:
+		return closeAdmissionRefused
+	default:
+		return closeInvalidSession
+	}
+}
+
 func websocketSessionFailure(err error) (websocket.StatusCode, string) {
+	var removed playerRemovedError
+	if errors.As(err, &removed) {
+		return closeCodeForExclusion(removed.reason), "player removed from the lobby"
+	}
 	if errors.Is(err, errNotFound) {
 		return closeInvalidSession, "invalid player session"
 	}
@@ -330,6 +349,12 @@ func (h *realtimeHub) writeLoop(client *realtimeClient) {
 			if client.ctx.Err() != nil {
 				return
 			}
+			var removed playerRemovedError
+			if errors.As(err, &removed) {
+				_ = client.conn.Close(closeCodeForExclusion(removed.reason), "player removed from the lobby")
+				client.cancel()
+				return
+			}
 			if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, errNotFound) {
 				_ = client.conn.Close(closeLobbyUnavailable, "lobby unavailable")
 				client.cancel()
@@ -473,7 +498,7 @@ func (h *realtimeHub) transferDisconnectedHost(code, playerID string, disconnect
 		SELECT player.id
 		FROM players AS player
 		JOIN lobbies AS lobby ON lobby.id = player.lobby_id
-		WHERE lobby.code = $1 AND player.excluded_at IS NULL
+		WHERE lobby.code = $1 AND player.is_active
 		ORDER BY player.joined_at, player.id
 	`, code)
 	if err != nil {
@@ -521,6 +546,28 @@ func (h *realtimeHub) transferDisconnectedHost(code, playerID string, disconnect
 	}
 	if tag.RowsAffected() > 0 {
 		h.publish(code)
+	}
+}
+
+// closePlayer ends every connection of one player with an application close
+// code, so their client stops reconnecting and can tell them why. The close
+// handshake can take a few seconds, so it runs in the background.
+func (h *realtimeHub) closePlayer(code, playerID string, status websocket.StatusCode, reason string) {
+	h.mu.RLock()
+	clients := make([]*realtimeClient, 0, 1)
+	for client := range h.clients[strings.ToUpper(code)] {
+		if client.player.ID == playerID {
+			clients = append(clients, client)
+		}
+	}
+	h.mu.RUnlock()
+	for _, client := range clients {
+		go func() {
+			// Closing before cancelling: a cancelled connection would be
+			// closed with a normal code first, which clients retry.
+			_ = client.conn.Close(status, reason)
+			client.cancel()
+		}()
 	}
 }
 

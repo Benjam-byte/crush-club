@@ -466,9 +466,9 @@ func updatePhotoReadiness(ctx context.Context, tx pgx.Tx, player authenticatedPl
 		UPDATE lobbies
 		SET status = CASE
 		      WHEN status = 'in_game' THEN status
-		      WHEN (SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL) < $2
+		      WHEN (SELECT count(*) FROM players WHERE lobby_id = $1 AND is_active) < $2
 		        THEN 'waiting_for_players'::lobby_status
-		      WHEN NOT (SELECT bool_and(ready_status = 'ready') FROM players WHERE lobby_id = $1 AND excluded_at IS NULL)
+		      WHEN NOT (SELECT bool_and(ready_status = 'ready') FROM players WHERE lobby_id = $1 AND is_active)
 		        THEN 'preparing_photos'::lobby_status
 		      ELSE 'ready_to_start'::lobby_status
 		    END,
@@ -817,7 +817,7 @@ func (a *api) cleanupExpiredLobbies(ctx context.Context) {
 		      SELECT 1
 		      FROM players AS player
 		      WHERE player.lobby_id = lobby.id
-		        AND player.excluded_at IS NULL
+		        AND player.is_active
 		        AND (player.disconnected_at IS NULL OR player.disconnected_at > $1)
 		    )
 		  )

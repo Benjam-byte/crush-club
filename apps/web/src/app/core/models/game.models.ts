@@ -6,7 +6,7 @@ export type LobbyStatus =
   | 'completed'
   | 'expired'
 
-export type LobbyMode = 'classic' | 'fast_bio' | 'zero_to_100' | 'situation' | 'wavelength'
+export type LobbyMode = 'classic' | 'fast_bio' | 'zero_to_100' | 'situation' | 'wavelength' | 'secret_ranking'
 
 export type FastBioGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
 
@@ -34,6 +34,11 @@ export type SituationRoundPhase = 'proposing' | 'dueling' | 'ranking' | 'results
 export type WavelengthGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
 
 export type WavelengthRoundPhase = 'clue' | 'guessing' | 'results' | 'completed'
+
+export type SecretRankingGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
+
+/** secret (bets) → placing (phones numbered on the table) → revealing (domino) → results (debrief). */
+export type SecretRankingRoundPhase = 'secret' | 'placing' | 'revealing' | 'results' | 'completed'
 
 /** Shared shape of the theme-collection-and-ranking step, common to every mode that uses it. */
 export interface ThemeSelectionState {
@@ -66,6 +71,8 @@ export type QuestionType =
 export type AnswerValue = string | number | readonly string[]
 
 export const primaryPhotoQuestionId = '__primary_photo__';
+
+export type PlayerAdmission = 'admitted' | 'pending'
 
 export interface LobbyPlayer {
   id: string
@@ -233,7 +240,14 @@ export interface LobbyStateResponse {
   mode: LobbyMode
   maxPlayers: number | null
   currentPlayerId: string
+  /** "pending" while the current player waits for the host to let them into the game in progress. */
+  currentPlayerAdmission?: PlayerAdmission
+  /** Admitted players only; see pendingPlayers. */
   players: readonly Omit<LobbyPlayer, 'isCurrentPlayer'>[]
+  /** Players who joined the game in progress and wait for the host's approval. */
+  pendingPlayers?: readonly Omit<LobbyPlayer, 'isCurrentPlayer'>[]
+  /** Active players the current phase is still waiting for. */
+  awaitingPlayerIds?: readonly string[]
   gameConfig: LobbyGameConfigSummary
   questionnaire: QuestionnaireSnapshot
   game?: GameStateView
@@ -241,6 +255,7 @@ export interface LobbyStateResponse {
   zeroToHundredGame?: ZeroToHundredStateView
   situationGame?: SituationStateView
   wavelengthGame?: WavelengthStateView
+  secretRankingGame?: SecretRankingStateView
 }
 
 export interface FastBioProposalView {
@@ -399,7 +414,10 @@ export interface WavelengthRevealEntryView {
   points: number
 }
 
-/** The theme phases come back before every round: `roundNumber` is the round being prepared or played. */
+/**
+ * A vote selects up to three spectra, played one per round before the group votes again: `roundNumber`
+ * is the round being played, or the first round the current vote prepares.
+ */
 export interface WavelengthStateView extends ThemeSelectionState {
   id: string
   phase: WavelengthGamePhase
@@ -423,6 +441,81 @@ export interface WavelengthStateView extends ThemeSelectionState {
   psychicPoints?: number
   roundScore?: number
   leaderboard?: readonly FastBioLeaderboardEntryView[]
+  /** During a vote: how many of the ranked spectra the next rounds will play. */
+  spectraToPlay?: number
+  /** On a round's results: the spectrum already voted for the next round, absent when a new vote comes next. */
+  nextSpectrumLabel?: string
+}
+
+/** One participant at the table. `colorIndex` is their phone's color, stable for the whole lobby. */
+export interface SecretRankingSeatView {
+  playerId: string
+  displayName: string
+  colorIndex: number
+  position?: number
+}
+
+/** One phone of the line, in position order. Equal amounts share a true rank range. */
+export interface SecretRankingRevealEntryView {
+  playerId: string
+  displayName: string
+  colorIndex: number
+  position: number
+  amount: number
+  wellPlaced: boolean
+  trueRankMin: number
+  trueRankMax: number
+}
+
+export interface SecretRankingRoundSummaryView {
+  roundNumber: number
+  themeLabel: string
+  wellPlacedCount: number
+  participantCount: number
+  cancelled: boolean
+  smallestPlayerIds: readonly string[]
+  largestPlayerIds: readonly string[]
+  smallestNames: readonly string[]
+  largestNames: readonly string[]
+}
+
+/**
+ * « Le classement secret ». `themeLabel` completes "Pour combien d'argent accepterais-tu de … ?". Nobody
+ * else's amount is sent before the reveal: `myAmount` is the current player's own bet.
+ */
+export interface SecretRankingStateView extends ThemeSelectionState {
+  id: string
+  phase: SecretRankingGamePhase
+  selectedThemes?: readonly string[]
+  roundNumber?: number
+  totalRounds?: number
+  isLastRound?: boolean
+  roundPhase?: SecretRankingRoundPhase
+  themeLabel?: string
+  secretDeadline?: string
+  submitted: boolean
+  submissionProgressCount?: number
+  submissionProgressRequired?: number
+  /** False for a player who did not bet this round: their phone is not on the table. */
+  isParticipant: boolean
+  myAmount?: number
+  myPosition?: number
+  participantCount: number
+  numberedCount: number
+  seats?: readonly SecretRankingSeatView[]
+  /** Set while the phones are numbered 1..N without duplicates: the order locks at this time. */
+  lockAt?: string
+  /** Set when a departure wiped every number. */
+  positionsResetAt?: string
+  /** When phone #1 flips; phone #n flips (n − 1) × revealStepMs later. */
+  revealAt?: string
+  revealStepMs?: number
+  /** When the reveal and its verdict are over: the debrief can open. */
+  revealEndsAt?: string
+  reveal?: readonly SecretRankingRevealEntryView[]
+  wellPlacedCount: number
+  cancelled?: boolean
+  rounds?: readonly SecretRankingRoundSummaryView[]
 }
 
 export interface PlayerSessionResponse {

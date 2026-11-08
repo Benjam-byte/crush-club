@@ -115,6 +115,8 @@ export class LobbyPage implements OnInit {
         await this.gameState.startSituationGame();
       } else if (this.gameState.isWavelengthMode()) {
         await this.gameState.startWavelengthGame();
+      } else if (this.gameState.isSecretRankingMode()) {
+        await this.gameState.startSecretRankingGame();
       } else {
         await this.gameState.startFastBioGame();
       }
@@ -133,6 +135,9 @@ export class LobbyPage implements OnInit {
     if (this.gameState.isWavelengthMode()) {
       return this.gameState.canStartWavelengthGame();
     }
+    if (this.gameState.isSecretRankingMode()) {
+      return this.gameState.canStartSecretRankingGame();
+    }
     return this.gameState.canStartFastBioGame();
   }
 
@@ -146,11 +151,21 @@ export class LobbyPage implements OnInit {
     if (this.gameState.isWavelengthMode()) {
       return 'Wavelength';
     }
+    if (this.gameState.isSecretRankingMode()) {
+      return 'Le classement secret';
+    }
     return 'Fast Bio';
   }
 
   protected uncappedModeMinPlayers(): number {
-    return this.gameState.isZeroToHundredMode() ? 3 : 2;
+    return this.gameState.isZeroToHundredMode() || this.gameState.isSecretRankingMode() ? 3 : 2;
+  }
+
+  protected uncappedModeCapacityLabel(): string {
+    if (this.gameState.isSecretRankingMode()) {
+      return '3 à 10 joueurs, autour d’une table';
+    }
+    return `dès ${this.uncappedModeMinPlayers()} joueurs (5+ recommandé), pas de maximum`;
   }
 
   protected async onStartNextRound(): Promise<void> {

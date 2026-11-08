@@ -112,6 +112,28 @@ restent internes à la stack. Les volumes `postgres-data` et `photo-data` persis
 Sans nom de domaine personnel, `SERVICE_FQDN_WEB_80` demande à Coolify de générer une adresse gratuite
 `sslip.io`. L'URL du service `web` doit utiliser `https://` afin que les cookies sécurisés fonctionnent.
 
+## Le classement secret
+
+Mode de 3 à 10 joueurs pensé pour une table. Le groupe propose puis vote 3 questions qui complètent
+« Pour combien d’argent accepterais-tu de … ? », une par manche. À chaque manche :
+
+1. chacun mise en secret un montant entier, de 0 € à 1 milliard (2 minutes ; un retardataire regarde la
+   manche, et s’il reste moins de 2 mises le délai repart) ;
+2. les téléphones sont posés et alignés du plus petit montant (à gauche) au plus grand. On peut parler et
+   bluffer, mais sans dire de chiffre. Un appui long sur « Voir ma mise » réaffiche son montant ;
+3. chaque tap sur un écran fait défiler son numéro (– → 1 → … → N → 1). Dès que les numéros vont de 1 à N
+   sans doublon, l’ordre se verrouille au bout de 5 secondes, sauf si quelqu’un touche encore un écran ;
+4. les téléphones se retournent un par un, de gauche à droite, calés sur l’horloge du serveur
+   (`serverTime` de chaque snapshot), puis affichent le verdict ;
+5. le score est collectif : un joueur est bien placé si sa place est dans son vrai rang, deux montants égaux
+   étant interchangeables. Le débrief, ouvert par n’importe quel joueur à la fin de la révélation, montre le
+   vrai classement et trois distinctions ; l’hôte lance la manche suivante.
+
+Aucun montant d’un autre joueur n’est envoyé avant la révélation. Un départ pendant la phase de table
+retire le téléphone du joueur et remet tous les numéros à zéro ; une manche réduite à moins de 2 téléphones
+est annulée. La table garde l’écran allumé avec l’API Wake Lock quand le navigateur la propose, et fait
+vibrer les téléphones Android aux moments clés.
+
 ## Configurations de jeu
 
 Les questions sont stockées dans PostgreSQL et le preset `Classique` est créé par la migration

@@ -3,6 +3,7 @@ import type { LobbyPlayer } from '@core/models/game.models';
 import {
   activeGameExclusionCandidates,
   canHostExcludePlayer,
+  canHostKickPlayer,
   PlayerExclusionController,
 } from './player-exclusion';
 
@@ -21,6 +22,16 @@ function player(overrides: Partial<LobbyPlayer> = {}): LobbyPlayer {
     ...overrides,
   };
 }
+
+describe('host kick from the players panel', () => {
+  it('lets the host remove any other player, online or not, but never the host or themselves', () => {
+    expect(canHostKickPlayer(true, player({ connected: true, canExclude: false }))).toBe(true);
+    expect(canHostKickPlayer(true, player())).toBe(true);
+    expect(canHostKickPlayer(false, player({ connected: true }))).toBe(false);
+    expect(canHostKickPlayer(true, player({ isHost: true }))).toBe(false);
+    expect(canHostKickPlayer(true, player({ isCurrentPlayer: true }))).toBe(false);
+  });
+});
 
 describe('player exclusion visibility', () => {
   it('offers exclusion to the host as soon as another player is disconnected', () => {

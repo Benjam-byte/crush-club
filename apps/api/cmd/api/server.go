@@ -194,6 +194,8 @@ func (a *api) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/players/me/photos/complete", a.handleCompletePlayerPhotos)
 	mux.HandleFunc("GET /api/v1/lobbies/{code}/photos/{photoID}", a.handleGetPlayerPhoto)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/players/{playerID}/exclude", a.handleExcludePlayer)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/players/{playerID}/admit", a.handleAdmitPlayer)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/players/{playerID}/refuse", a.handleRefusePlayer)
 	mux.HandleFunc("PUT /api/v1/lobbies/{code}/game-config", a.handleChangeLobbyConfig)
 	mux.HandleFunc("GET /api/v1/lobbies/{code}/questionnaire", a.handleGetQuestionnaire)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/start", a.handleStartMultiplayerGame)
@@ -230,6 +232,14 @@ func (a *api) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/wavelength/guess", a.handleSubmitWavelengthGuess)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/wavelength/rounds/next", a.handleStartNextWavelengthRound)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/wavelength/replay", a.handleReplayWavelength)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/secret-ranking/start", a.handleStartSecretRankingGame)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/secret-ranking/themes", a.handleSubmitSecretRankingTheme)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/secret-ranking/themes/rank", a.handleRankSecretRankingThemes)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/secret-ranking/amount", a.handleSubmitSecretRankingAmount)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/secret-ranking/position", a.handleSetSecretRankingPosition)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/secret-ranking/debrief", a.handleOpenSecretRankingDebrief)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/secret-ranking/rounds/next", a.handleStartNextSecretRankingRound)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/secret-ranking/replay", a.handleReplaySecretRanking)
 	mux.HandleFunc("GET /ws/lobbies/{code}", a.handleLobbyWebSocket)
 	return mux
 }
@@ -590,11 +600,16 @@ func (a *api) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 	}
 	if input.Mode != lobbyModeClassic && input.Mode != lobbyModeFastBio &&
 		input.Mode != lobbyModeZeroToHundred && input.Mode != lobbyModeSituation &&
-		input.Mode != lobbyModeWavelength {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "mode must be classic, fast_bio, zero_to_100, situation, or wavelength")
+		input.Mode != lobbyModeWavelength && input.Mode != lobbyModeSecretRanking {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_lobby", "mode must be classic, fast_bio, zero_to_100, situation, wavelength, or secret_ranking")
 		return
 	}
 	var maxPlayers *int
+	if input.Mode == lobbyModeSecretRanking {
+		// The phones must fit in one line on a table.
+		capacity := secretRankingMaxPlayerCount
+		maxPlayers = &capacity
+	}
 	if input.Mode == lobbyModeClassic {
 		if input.MaxPlayers == 0 {
 			input.MaxPlayers = classicLobbyMaxPlayers

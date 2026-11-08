@@ -1,6 +1,21 @@
 <ion-app>
   <ion-router-outlet [swipeGesture]="isSwipeBackEnabled()" />
   <app-host-disconnected-players />
+  <app-players-panel />
+
+  <!-- One toast element per notice: an inline toast does not present again while isOpen stays true. -->
+  @if (gameState.currentNotice(); as notice) {
+    @for (shownNotice of [notice]; track shownNotice.id) {
+      <ion-toast
+        [isOpen]="true"
+        [message]="shownNotice.message"
+        position="top"
+        [duration]="shownNotice.kind === 'join-request' ? 6000 : 3500"
+        [buttons]="shownNotice.kind === 'join-request' ? joinRequestToastButtons : []"
+        (didDismiss)="gameState.dismissNotice()"
+      />
+    }
+  }
 
   <ion-toast
     [isOpen]="appUpdate.updateAvailable()"

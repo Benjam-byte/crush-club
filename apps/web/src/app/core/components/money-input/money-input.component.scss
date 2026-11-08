@@ -1,0 +1,109 @@
+:host {
+  display: block;
+}
+
+.money-input__label {
+  display: block;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-brand-600);
+}
+
+.money-input__field {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 1.5rem;
+  background: var(--color-peach-50);
+  border: 2px solid var(--color-peach-100);
+  transition: border-color 160ms ease;
+
+  &:focus-within {
+    border-color: var(--color-brand-500);
+  }
+}
+
+// Two identical animations: switching between them replays the bump on every digit.
+.money-input__field--bump-a .money-input__digits {
+  animation: money-bump-a 120ms ease-out;
+}
+
+.money-input__field--bump-b .money-input__digits {
+  animation: money-bump-b 120ms ease-out;
+}
+
+.money-input__digits {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  text-align: right;
+  font: inherit;
+  font-size: 2.75rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-ink-900);
+  font-variant-numeric: tabular-nums;
+  outline: none;
+
+  &::placeholder {
+    color: var(--color-ink-500);
+    opacity: 0.4;
+  }
+}
+
+.money-input__currency {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--color-brand-600);
+}
+
+// Ionic's unlayered button reset beats Tailwind's layered utilities on a raw <button>.
+.money-input__chip {
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  background: var(--color-peach-100);
+  color: var(--color-brand-600);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  transition: transform 120ms ease;
+
+  &:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+  }
+}
+
+.money-input__chip--clear {
+  background: transparent;
+  color: var(--color-ink-500);
+}
+
+@keyframes money-bump-a {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes money-bump-b {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}

@@ -3,6 +3,7 @@ import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import { fastBioReactionEmojis, fastBioReactionPoints } from '@core/models/game.models';
+import { AwaitingPlayersComponent } from '@core/components/awaiting-players/awaiting-players.component';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { ReactionBurstComponent } from '@core/components/reaction-burst/reaction-burst.component';
 import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
@@ -11,7 +12,15 @@ import { RealtimeLobbyService } from '@core/services/realtime-lobby.service';
 
 @Component({
   selector: 'app-fast-bio-review-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, ReactionBurstComponent, WaitingCardComponent],
+  imports: [
+    AwaitingPlayersComponent,
+    IonButton,
+    IonContent,
+    IonIcon,
+    PageHeaderComponent,
+    ReactionBurstComponent,
+    WaitingCardComponent,
+  ],
   templateUrl: './fast-bio-review.page.html',
   styleUrl: './fast-bio-review.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

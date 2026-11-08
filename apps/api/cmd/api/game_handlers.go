@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
-	"time"
 
 	"github.com/example/crush-club/apps/api/internal/scoring"
 	"github.com/jackc/pgx/v5"
@@ -79,7 +78,7 @@ func (a *api) handleStartMultiplayerGame(w http.ResponseWriter, r *http.Request)
 		SELECT player.id, player.ready_status,
 		       (SELECT count(*) FROM player_photos AS photo WHERE photo.player_id = player.id)
 		FROM players AS player
-		WHERE player.lobby_id = $1 AND player.excluded_at IS NULL
+		WHERE player.lobby_id = $1 AND player.is_active
 		ORDER BY player.joined_at, player.id
 	`, player.LobbyID)
 	if err != nil {
@@ -678,97 +677,6 @@ func (a *api) handleStartNextRound(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, state)
 }
 
-func (a *api) handleExcludePlayer(w http.ResponseWriter, r *http.Request) {
-	player, ok := a.requirePlayer(w, r)
-	if !ok {
-		return
-	}
-	if !player.IsHost {
-		writeError(w, http.StatusForbidden, "host_required", "Only the host can exclude a disconnected player")
-		return
-	}
-	targetPlayerID := r.PathValue("playerID")
-	if targetPlayerID == player.ID {
-		writeError(w, http.StatusUnprocessableEntity, "cannot_exclude_self", "The host cannot exclude themselves")
-		return
-	}
-	tx, err := a.pool.Begin(r.Context())
-	if err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	defer tx.Rollback(r.Context())
-	var disconnectedAt *time.Time
-	var targetIsHost bool
-	err = tx.QueryRow(r.Context(), `
-		SELECT disconnected_at, is_host
-		FROM players
-		WHERE id = $1 AND lobby_id = $2 AND excluded_at IS NULL
-		FOR UPDATE
-	`, targetPlayerID, player.LobbyID).Scan(&disconnectedAt, &targetIsHost)
-	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "player_not_found", "Player not found")
-		return
-	}
-	if err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	if targetIsHost {
-		writeError(w, http.StatusConflict, "cannot_exclude_host", "The lobby host cannot be excluded")
-		return
-	}
-	if disconnectedAt == nil || a.hub.isOnline(player.Code, targetPlayerID) {
-		writeError(w, http.StatusConflict, "player_online", "This player is currently online")
-		return
-	}
-	if _, err := tx.Exec(r.Context(), `
-		UPDATE players SET excluded_at = now(), updated_at = now() WHERE id = $1
-	`, targetPlayerID); err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-
-	var lobbyStatus string
-	if err := tx.QueryRow(r.Context(), `SELECT status FROM lobbies WHERE id = $1 FOR UPDATE`, player.LobbyID).Scan(&lobbyStatus); err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	if lobbyStatus == "in_game" {
-		if err := excludeGameParticipant(r.Context(), tx, player.LobbyID, targetPlayerID); err != nil {
-			a.internalError(w, r, err)
-			return
-		}
-	} else {
-		if _, err := tx.Exec(r.Context(), `
-			UPDATE lobbies
-			SET status = CASE
-			      WHEN (SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL) < $2
-			        THEN 'waiting_for_players'::lobby_status
-			      WHEN NOT (SELECT bool_and(ready_status = 'ready') FROM players WHERE lobby_id = $1 AND excluded_at IS NULL)
-			        THEN 'preparing_photos'::lobby_status
-			      ELSE 'ready_to_start'::lobby_status
-			    END,
-			    revision = revision + 1, updated_at = now()
-			WHERE id = $1
-		`, player.LobbyID, minimumPlayerCount); err != nil {
-			a.internalError(w, r, err)
-			return
-		}
-	}
-	if err := tx.Commit(r.Context()); err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	state, err := a.loadLobbyState(r.Context(), player)
-	if err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	a.hub.publish(player.Code)
-	writeJSON(w, http.StatusOK, state)
-}
-
 func loadQuestionnaireSnapshot(ctx context.Context, tx pgx.Tx, lobbyID string) (questionnaireSnapshot, error) {
 	var snapshotJSON []byte
 	if err := tx.QueryRow(ctx, `SELECT game_config_snapshot FROM lobbies WHERE id = $1`, lobbyID).Scan(&snapshotJSON); err != nil {
@@ -1071,6 +979,16 @@ func completeGame(ctx context.Context, tx pgx.Tx, lobbyID, gameID string) error 
 	`, gameID); err != nil {
 		return err
 	}
+	// A finished classic lobby takes nobody in any more: players still
+	// waiting for approval are turned away instead of waiting forever.
+	if _, err := tx.Exec(ctx, `
+		UPDATE players
+		SET excluded_at = now(), exclusion_reason = 'refused', disconnected_at = COALESCE(disconnected_at, now()),
+		    updated_at = now()
+		WHERE lobby_id = $1 AND excluded_at IS NULL AND admission_status = 'pending'
+	`, lobbyID); err != nil {
+		return err
+	}
 	_, err := tx.Exec(ctx, `
 		UPDATE lobbies SET status = 'completed', revision = revision + 1, updated_at = now() WHERE id = $1
 	`, lobbyID)
@@ -1105,7 +1023,7 @@ func enrollReadyLateJoiners(ctx context.Context, tx pgx.Tx, lobbyID, gameID stri
 		SELECT player.id
 		FROM players AS player
 		WHERE player.lobby_id = $1
-		  AND player.excluded_at IS NULL
+		  AND player.is_active
 		  AND player.ready_status = 'ready'
 		  AND NOT EXISTS (
 		    SELECT 1 FROM game_participants AS participant
@@ -1207,15 +1125,7 @@ func excludeGameParticipant(ctx context.Context, tx pgx.Tx, lobbyID, targetPlaye
 		return err
 	}
 	if activeCount < minimumPlayerCount {
-		if _, err := tx.Exec(ctx, `
-			UPDATE games SET phase = 'completed', completed_at = now(), updated_at = now() WHERE id = $1
-		`, gameID); err != nil {
-			return err
-		}
-		_, err := tx.Exec(ctx, `
-			UPDATE lobbies SET status = 'completed', revision = revision + 1, updated_at = now() WHERE id = $1
-		`, lobbyID)
-		return err
+		return completeGame(ctx, tx, lobbyID, gameID)
 	}
 	if phase == "between_rounds" {
 		_, nextSubjectErr := findNextSubject(ctx, tx, gameID)

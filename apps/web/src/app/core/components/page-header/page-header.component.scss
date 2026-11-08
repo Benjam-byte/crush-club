@@ -1,3 +1,8 @@
 :host {
   display: block;
 }
+
+// Ionic's unlayered button reset beats Tailwind's layered utilities on a raw <button>.
+.session-menu-button {
+  border-radius: 1rem;
+}

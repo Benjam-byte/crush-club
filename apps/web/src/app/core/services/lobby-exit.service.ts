@@ -34,18 +34,26 @@ export class LobbyExitService {
   }
 
   private async askConfirmation(): Promise<boolean> {
-    const alert = await this.alertController.create({
-      header: 'Quitter le lobby ?',
-      message: this.gameState.isHost()
-        ? 'Tu perdras ta place dans ce lobby et ton rôle d’hôte passera à un autre joueur.'
-        : 'Tu perdras ta place dans ce lobby.',
-      buttons: [
-        { text: 'Rester', role: 'cancel' },
-        { text: 'Quitter', role: confirmRole },
-      ],
-    });
+    const alert = await this.alertController.create({ ...this.confirmationCopy(), buttons: [
+      { text: 'Rester', role: 'cancel' },
+      { text: this.gameState.isPendingApproval() ? 'Annuler ma demande' : 'Quitter', role: confirmRole },
+    ] });
     await alert.present();
     const { role } = await alert.onDidDismiss();
     return role === confirmRole;
+  }
+
+  private confirmationCopy(): { header: string, message: string } {
+    if (this.gameState.isPendingApproval()) {
+      return { header: 'Annuler ta demande ?', message: 'Tu ne rejoindras pas la partie en cours.' };
+    }
+    const hostNote = this.gameState.isHost() ? ' Ton rôle d’hôte passera à un autre joueur.' : '';
+    if (this.gameState.lobbyStatus() === 'in_game') {
+      return {
+        header: 'Quitter la partie ?',
+        message: `La partie continuera sans toi : plus personne ne t’attendra.${hostNote}`,
+      };
+    }
+    return { header: 'Quitter le lobby ?', message: `Tu perdras ta place dans ce lobby.${hostNote}` };
   }
 }

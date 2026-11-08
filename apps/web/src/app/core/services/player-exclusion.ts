@@ -1,8 +1,14 @@
 import { signal } from '@angular/core';
 import type { GamePhase, LobbyPlayer, LobbyStatus } from '@core/models/game.models';
 
+/** Quick exclusion offered for a disconnected player (lobby list and the in-game offline panel). */
 export function canHostExcludePlayer(isHost: boolean, player: LobbyPlayer): boolean {
   return isHost && !player.isCurrentPlayer && !player.isHost && !player.connected && player.canExclude;
+}
+
+/** From the players panel, the host can remove anyone else, online or not. */
+export function canHostKickPlayer(isHost: boolean, player: LobbyPlayer): boolean {
+  return isHost && !player.isCurrentPlayer && !player.isHost;
 }
 
 export function activeGameExclusionCandidates(

@@ -95,6 +95,49 @@ describe('permittedLobbyUrl for the crowd-sourced-theme modes', () => {
     expect(uncappedModeDestination(wavelengthState('results'))).toBe('/game/ABCD/wavelength/2/results');
   });
 
+  it('keeps the secret ranking table and its reveal on one page', () => {
+    const secretRankingState = (roundPhase: 'secret' | 'placing' | 'revealing' | 'results') => baseState({
+      mode: 'secret_ranking',
+      secretRankingGame: {
+        id: 'g1',
+        phase: 'playing',
+        themeSubmitted: true,
+        themeRanked: true,
+        roundNumber: 2,
+        totalRounds: 3,
+        roundPhase,
+        submitted: true,
+        isParticipant: true,
+        participantCount: 4,
+        numberedCount: 0,
+        wellPlacedCount: 0,
+      },
+    });
+    expect(uncappedModeDestination(secretRankingState('secret'))).toBe('/game/ABCD/secret-ranking/2/secret');
+    expect(uncappedModeDestination(secretRankingState('placing'))).toBe('/game/ABCD/secret-ranking/2/table');
+    expect(uncappedModeDestination(secretRankingState('revealing'))).toBe('/game/ABCD/secret-ranking/2/table');
+    expect(uncappedModeDestination(secretRankingState('results'))).toBe('/game/ABCD/secret-ranking/2/results');
+  });
+
+  it('routes the secret ranking questions vote and its final screen', () => {
+    const state = (phase: 'collecting_themes' | 'completed') => baseState({
+      mode: 'secret_ranking',
+      secretRankingGame: {
+        id: 'g1',
+        phase,
+        themeSubmitted: false,
+        themeRanked: false,
+        submitted: false,
+        isParticipant: false,
+        participantCount: 0,
+        numberedCount: 0,
+        wellPlacedCount: 0,
+      },
+    });
+    expect(permittedLobbyUrl(state('collecting_themes'), '/game/ABCD/secret-ranking/1/table')).toBe('/game/ABCD/theme-selection');
+    expect(uncappedModeDestination(state('completed'))).toBe('/game/ABCD/secret-ranking/final');
+  });
+
   it('sends a wavelength game back to theme selection between rounds', () => {
     const state = baseState({
       mode: 'wavelength',
@@ -113,6 +156,29 @@ describe('permittedLobbyUrl for the crowd-sourced-theme modes', () => {
   it('sends an uncapped-mode lobby that has not started back to the waiting room', () => {
     const state = baseState({ mode: 'zero_to_100', status: 'waiting_for_players' });
     expect(uncappedModeDestination(state)).toBe('/lobby/ABCD');
+  });
+});
+
+describe('players waiting for the host to let them into the game', () => {
+  it('keeps a pending player on the approval page, whatever the mode or requested page', () => {
+    for (const mode of ['classic', 'wavelength'] as const) {
+      const state = baseState({ mode, currentPlayerAdmission: 'pending' });
+      expect(permittedLobbyUrl(state, '/game/ABCD/theme-selection')).toBe('/lobby/ABCD/pending');
+      expect(permittedLobbyUrl(state, '/lobby/ABCD')).toBe('/lobby/ABCD/pending');
+      expect(permittedLobbyUrl(state, '/lobby/ABCD/pending')).toBe('/lobby/ABCD/pending');
+    }
+    expect(uncappedModeDestination(baseState({ currentPlayerAdmission: 'pending' }))).toBe('/lobby/ABCD/pending');
+  });
+
+  it('moves an admitted player off the approval page', () => {
+    const state = baseState({
+      mode: 'wavelength',
+      currentPlayerAdmission: 'admitted',
+      wavelengthGame: { id: 'g1', phase: 'collecting_themes', themeSubmitted: false, themeRanked: false, submitted: false },
+    });
+    expect(permittedLobbyUrl(state, '/lobby/ABCD/pending')).toBe('/game/ABCD/theme-selection');
+    const classic = baseState({ mode: 'classic', status: 'in_game', currentPlayerAdmission: 'admitted' });
+    expect(permittedLobbyUrl(classic, '/lobby/ABCD/pending')).toBe('/lobby/ABCD');
   });
 });
 

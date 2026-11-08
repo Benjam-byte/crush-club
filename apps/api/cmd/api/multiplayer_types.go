@@ -20,6 +20,7 @@ const (
 	lobbyModeZeroToHundred = "zero_to_100"
 	lobbyModeSituation     = "situation"
 	lobbyModeWavelength    = "wavelength"
+	lobbyModeSecretRanking = "secret_ranking"
 
 	// classicLobbyMinPlayers matches the system-wide floor (minimumPlayerCount)
 	// rather than a stricter 3: the create-lobby UI only ever offers 3-5, this
@@ -64,11 +65,39 @@ const (
 	wavelengthInnerPoints    = 3
 	wavelengthOuterPoints    = 2
 	wavelengthPoleMaxLength  = 40
+	// wavelengthSpectraPerVote is how many of the ranked spectra a vote
+	// keeps: they are played one per round, in ranking order, before the
+	// group votes again.
+	wavelengthSpectraPerVote = 3
 
-	// themePhaseWindow bounds both sub-phases of the shared theme/situation
-	// selection step (collecting_themes, ranking_themes) across Fast Bio,
-	// 0 à 100, Situation and Wavelength, mirroring the existing round-level windows.
-	themePhaseWindow = 2 * time.Minute
+	secretRankingMinPlayerCount = 3
+	secretRankingMaxPlayerCount = maximumPlayerCount
+	secretRankingRoundCount     = 3
+	// secretRankingMinParticipants is how many bets a round needs: below it
+	// the secret window starts over, and a round left with fewer at the table
+	// is cancelled.
+	secretRankingMinParticipants = 2
+	secretRankingAmountWindow    = 2 * time.Minute
+	secretRankingMaxAmount       = 1_000_000_000
+	secretRankingThemeMaxLength  = 80
+	// Once the phones are numbered 1..N without duplicates, the order locks
+	// after secretRankingLockDelay unless someone taps a number again.
+	secretRankingLockDelay = 5 * time.Second
+	// The domino reveal: a "Silence…" lead, then one phone flips every step,
+	// then the verdict plays for secretRankingRevealFinale. The debrief opens
+	// once it is over.
+	secretRankingRevealLead   = 2 * time.Second
+	secretRankingRevealStep   = 1400 * time.Millisecond
+	secretRankingRevealFinale = 2500 * time.Millisecond
+
+	// The shared theme/situation selection step (collecting_themes, then
+	// ranking_themes) of Fast Bio, 0 à 100, Situation and Wavelength gets the
+	// full window the first time a lobby goes through it, and the shorter
+	// repeat windows afterwards (Wavelength rounds 2+, replays): by then
+	// everyone knows the drill. See themeStepWindow.
+	themeStepFirstWindow      = 2 * time.Minute
+	themeProposalRepeatWindow = 40 * time.Second
+	themeRankingRepeatWindow  = 40 * time.Second
 )
 
 var fastBioReactionPoints = map[string]int{
@@ -136,6 +165,9 @@ type authenticatedPlayer struct {
 	Code        string
 	DisplayName string
 	IsHost      bool
+	// Admitted is false while a player who joined a game in progress waits
+	// for the host's approval: they can follow the lobby but not play.
+	Admitted bool
 }
 
 type playerSessionResponse struct {
@@ -157,14 +189,23 @@ type lobbyPlayerView struct {
 }
 
 type lobbyStateResponse struct {
-	Revision          int64                   `json:"revision"`
-	ServerTime        time.Time               `json:"serverTime"`
-	Code              string                  `json:"code"`
-	Status            string                  `json:"status"`
-	Mode              string                  `json:"mode"`
-	MaxPlayers        *int                    `json:"maxPlayers"`
-	CurrentPlayerID   string                  `json:"currentPlayerId"`
-	Players           []lobbyPlayerView       `json:"players"`
+	Revision        int64     `json:"revision"`
+	ServerTime      time.Time `json:"serverTime"`
+	Code            string    `json:"code"`
+	Status          string    `json:"status"`
+	Mode            string    `json:"mode"`
+	MaxPlayers      *int      `json:"maxPlayers"`
+	CurrentPlayerID string    `json:"currentPlayerId"`
+	// CurrentPlayerAdmission is "pending" while the current player waits for
+	// the host to let them into the game in progress, "admitted" otherwise.
+	CurrentPlayerAdmission string `json:"currentPlayerAdmission"`
+	// Players only lists admitted players; PendingPlayers are those waiting
+	// for the host's approval.
+	Players        []lobbyPlayerView `json:"players"`
+	PendingPlayers []lobbyPlayerView `json:"pendingPlayers"`
+	// AwaitingPlayerIDs are the active players the current phase still waits
+	// for, so everyone can see who is holding the game up.
+	AwaitingPlayerIDs []string                `json:"awaitingPlayerIds"`
 	GameConfig        lobbyGameConfigSummary  `json:"gameConfig"`
 	Questionnaire     questionnaireSnapshot   `json:"questionnaire"`
 	Game              *gameStateView          `json:"game,omitempty"`
@@ -172,6 +213,7 @@ type lobbyStateResponse struct {
 	ZeroToHundredGame *zeroToHundredStateView `json:"zeroToHundredGame,omitempty"`
 	SituationGame     *situationStateView     `json:"situationGame,omitempty"`
 	WavelengthGame    *wavelengthStateView    `json:"wavelengthGame,omitempty"`
+	SecretRankingGame *secretRankingStateView `json:"secretRankingGame,omitempty"`
 }
 
 type lobbyGameConfigSummary struct {
@@ -182,6 +224,8 @@ type lobbyGameConfigSummary struct {
 }
 
 type gameStateView struct {
+	// AwaitingPlayerIDs is lifted into lobbyStateResponse.AwaitingPlayerIDs.
+	AwaitingPlayerIDs   []string               `json:"-"`
 	ID                  string                 `json:"id"`
 	Phase               string                 `json:"phase"`
 	RoundNumber         int                    `json:"roundNumber"`
@@ -231,6 +275,8 @@ type leaderboardEntryView struct {
 }
 
 type fastBioStateView struct {
+	// AwaitingPlayerIDs is lifted into lobbyStateResponse.AwaitingPlayerIDs.
+	AwaitingPlayerIDs          []string                      `json:"-"`
 	ID                         string                        `json:"id"`
 	Phase                      string                        `json:"phase"`
 	ThemeSubmitted             bool                          `json:"themeSubmitted"`
@@ -285,6 +331,8 @@ type fastBioLeaderboardEntryView struct {
 }
 
 type zeroToHundredStateView struct {
+	// AwaitingPlayerIDs is lifted into lobbyStateResponse.AwaitingPlayerIDs.
+	AwaitingPlayerIDs          []string                       `json:"-"`
 	ID                         string                         `json:"id"`
 	Phase                      string                         `json:"phase"`
 	ThemeSubmitted             bool                           `json:"themeSubmitted"`
@@ -334,6 +382,8 @@ type zeroToHundredRevealEntryView struct {
 }
 
 type situationStateView struct {
+	// AwaitingPlayerIDs is lifted into lobbyStateResponse.AwaitingPlayerIDs.
+	AwaitingPlayerIDs          []string                      `json:"-"`
 	ID                         string                        `json:"id"`
 	Phase                      string                        `json:"phase"`
 	ThemeSubmitted             bool                          `json:"themeSubmitted"`
@@ -397,6 +447,8 @@ type situationDuelView struct {
 // psychic until the round reaches its results, and the other players'
 // needles (Reveal) are only sent once the round is scored.
 type wavelengthStateView struct {
+	// AwaitingPlayerIDs is lifted into lobbyStateResponse.AwaitingPlayerIDs.
+	AwaitingPlayerIDs          []string                      `json:"-"`
 	ID                         string                        `json:"id"`
 	Phase                      string                        `json:"phase"`
 	ThemeSubmitted             bool                          `json:"themeSubmitted"`
@@ -424,6 +476,12 @@ type wavelengthStateView struct {
 	PsychicPoints              int                           `json:"psychicPoints,omitempty"`
 	RoundScore                 int                           `json:"roundScore,omitempty"`
 	Leaderboard                []fastBioLeaderboardEntryView `json:"leaderboard,omitempty"`
+	// SpectraToPlay is, during a vote, how many of the ranked spectra will be
+	// played over the next rounds.
+	SpectraToPlay int `json:"spectraToPlay,omitempty"`
+	// NextSpectrumLabel is, on a round's results, the spectrum already voted
+	// for the next round; empty when the group votes again next.
+	NextSpectrumLabel string `json:"nextSpectrumLabel,omitempty"`
 }
 
 type wavelengthRevealEntryView struct {
@@ -431,6 +489,83 @@ type wavelengthRevealEntryView struct {
 	DisplayName string `json:"displayName"`
 	Position    int    `json:"position"`
 	Points      int    `json:"points"`
+}
+
+// secretRankingStateView is personalized: MyAmount is the current player's
+// own bet, and nobody else's amount is sent before the round reaches its
+// reveal. Positions are public: they are on the phones lying on the table.
+type secretRankingStateView struct {
+	// AwaitingPlayerIDs is lifted into lobbyStateResponse.AwaitingPlayerIDs.
+	AwaitingPlayerIDs          []string                        `json:"-"`
+	ID                         string                          `json:"id"`
+	Phase                      string                          `json:"phase"`
+	ThemeSubmitted             bool                            `json:"themeSubmitted"`
+	ThemeCandidates            []string                        `json:"themeCandidates,omitempty"`
+	ThemeRanked                bool                            `json:"themeRanked"`
+	ThemeDeadline              *time.Time                      `json:"themeDeadline,omitempty"`
+	ThemeProgressCount         int                             `json:"themeProgressCount"`
+	ThemeProgressRequired      int                             `json:"themeProgressRequired"`
+	SelectedThemes             []string                        `json:"selectedThemes,omitempty"`
+	RoundNumber                int                             `json:"roundNumber,omitempty"`
+	TotalRounds                int                             `json:"totalRounds,omitempty"`
+	IsLastRound                bool                            `json:"isLastRound,omitempty"`
+	RoundPhase                 string                          `json:"roundPhase,omitempty"`
+	ThemeLabel                 string                          `json:"themeLabel,omitempty"`
+	SecretDeadline             *time.Time                      `json:"secretDeadline,omitempty"`
+	Submitted                  bool                            `json:"submitted"`
+	SubmissionProgressCount    int                             `json:"submissionProgressCount"`
+	SubmissionProgressRequired int                             `json:"submissionProgressRequired"`
+	IsParticipant              bool                            `json:"isParticipant"`
+	MyAmount                   *int64                          `json:"myAmount,omitempty"`
+	MyPosition                 *int                            `json:"myPosition,omitempty"`
+	ParticipantCount           int                             `json:"participantCount"`
+	NumberedCount              int                             `json:"numberedCount"`
+	Seats                      []secretRankingSeatView         `json:"seats,omitempty"`
+	LockAt                     *time.Time                      `json:"lockAt,omitempty"`
+	PositionsResetAt           *time.Time                      `json:"positionsResetAt,omitempty"`
+	RevealAt                   *time.Time                      `json:"revealAt,omitempty"`
+	RevealStepMs               int                             `json:"revealStepMs,omitempty"`
+	RevealEndsAt               *time.Time                      `json:"revealEndsAt,omitempty"`
+	Reveal                     []secretRankingRevealEntryView  `json:"reveal,omitempty"`
+	WellPlacedCount            int                             `json:"wellPlacedCount"`
+	Cancelled                  bool                            `json:"cancelled,omitempty"`
+	Rounds                     []secretRankingRoundSummaryView `json:"rounds,omitempty"`
+}
+
+// secretRankingSeatView is one participant at the table. ColorIndex is the
+// participant's rank by arrival in the lobby: their phone's color.
+type secretRankingSeatView struct {
+	PlayerID    string `json:"playerId"`
+	DisplayName string `json:"displayName"`
+	ColorIndex  int    `json:"colorIndex"`
+	Position    *int   `json:"position,omitempty"`
+}
+
+// secretRankingRevealEntryView is one phone of the line, in position order.
+// A player is well placed when their position lies within their true rank
+// range; equal amounts share a range, so they are interchangeable.
+type secretRankingRevealEntryView struct {
+	PlayerID    string `json:"playerId"`
+	DisplayName string `json:"displayName"`
+	ColorIndex  int    `json:"colorIndex"`
+	Position    int    `json:"position"`
+	Amount      int64  `json:"amount"`
+	WellPlaced  bool   `json:"wellPlaced"`
+	TrueRankMin int    `json:"trueRankMin"`
+	TrueRankMax int    `json:"trueRankMax"`
+}
+
+// secretRankingRoundSummaryView sums up a played round for the final screen.
+type secretRankingRoundSummaryView struct {
+	RoundNumber       int      `json:"roundNumber"`
+	ThemeLabel        string   `json:"themeLabel"`
+	WellPlacedCount   int      `json:"wellPlacedCount"`
+	ParticipantCount  int      `json:"participantCount"`
+	Cancelled         bool     `json:"cancelled"`
+	SmallestPlayerIDs []string `json:"smallestPlayerIds"`
+	LargestPlayerIDs  []string `json:"largestPlayerIds"`
+	SmallestNames     []string `json:"smallestNames"`
+	LargestNames      []string `json:"largestNames"`
 }
 
 type roundSubmissionInput struct {

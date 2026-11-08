@@ -56,6 +56,16 @@ export const routes: Routes = [
     title: "Lobby Crush Club",
   },
   {
+    path: "lobby/:code/pending",
+    canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
+    loadComponent: () =>
+      import("./pages/pending-approval/pending-approval.page").then(
+        (module) => module.PendingApprovalPage,
+      ),
+    title: "Demande envoyée Crush Club",
+  },
+  {
     path: "lobby/:code/photos",
     canActivate: [lobbySessionGuard],
     canDeactivate: [lobbyExitGuard],
@@ -276,6 +286,46 @@ export const routes: Routes = [
         (module) => module.WavelengthFinalPage,
       ),
     title: "Classement Wavelength Crush Club",
+  },
+  {
+    path: "game/:code/secret-ranking/:roundNumber/secret",
+    canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
+    loadComponent: () =>
+      import("./pages/secret-ranking-secret/secret-ranking-secret.page").then(
+        (module) => module.SecretRankingSecretPage,
+      ),
+    title: "Mise secrète Crush Club",
+  },
+  {
+    path: "game/:code/secret-ranking/:roundNumber/table",
+    canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
+    loadComponent: () =>
+      import("./pages/secret-ranking-table/secret-ranking-table.page").then(
+        (module) => module.SecretRankingTablePage,
+      ),
+    title: "Sur la table Crush Club",
+  },
+  {
+    path: "game/:code/secret-ranking/:roundNumber/results",
+    canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
+    loadComponent: () =>
+      import("./pages/secret-ranking-results/secret-ranking-results.page").then(
+        (module) => module.SecretRankingResultsPage,
+      ),
+    title: "Débrief du classement secret Crush Club",
+  },
+  {
+    path: "game/:code/secret-ranking/final",
+    canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
+    loadComponent: () =>
+      import("./pages/secret-ranking-final/secret-ranking-final.page").then(
+        (module) => module.SecretRankingFinalPage,
+      ),
+    title: "Bilan du classement secret Crush Club",
   },
   {
     path: "**",

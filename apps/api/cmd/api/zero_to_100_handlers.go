@@ -77,7 +77,7 @@ func (a *api) handleStartZeroToHundredGame(w http.ResponseWriter, r *http.Reques
 	}
 
 	var gameID string
-	themeDeadline := time.Now().Add(themePhaseWindow)
+	themeDeadline := time.Now().Add(themeStepWindow(themeProposalStep, true))
 	if err := tx.QueryRow(r.Context(), `
 		INSERT INTO zero_to_100_games (lobby_id, theme_phase_deadline) VALUES ($1, $2) RETURNING id
 	`, player.LobbyID, themeDeadline).Scan(&gameID); err != nil {
@@ -98,7 +98,7 @@ func (a *api) handleStartZeroToHundredGame(w http.ResponseWriter, r *http.Reques
 		a.internalError(w, r, err)
 		return
 	}
-	a.scheduleZeroToHundredThemeSubmissionTimeout(player.Code, gameID)
+	a.scheduleZeroToHundredThemeSubmissionTimeout(player.Code, gameID, themeDeadline)
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
@@ -126,7 +126,7 @@ func (a *api) handleSubmitZeroToHundredTheme(w http.ResponseWriter, r *http.Requ
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, phase, err := loadActiveZeroToHundredGame(r.Context(), tx, player.LobbyID)
+	gameID, phase, err := lockActiveZeroToHundredGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusConflict, "zero_to_100_not_started", "The 0 à 100 game has not started yet")
 		return
@@ -152,7 +152,7 @@ func (a *api) handleSubmitZeroToHundredTheme(w http.ResponseWriter, r *http.Requ
 		a.internalError(w, r, err)
 		return
 	}
-	advanced, err := a.tryAdvanceZeroToHundredThemeCollection(r.Context(), tx, gameID, player.LobbyID, false)
+	rankingDeadline, err := a.tryAdvanceZeroToHundredThemeCollection(r.Context(), tx, gameID, player.LobbyID, false)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
@@ -165,33 +165,36 @@ func (a *api) handleSubmitZeroToHundredTheme(w http.ResponseWriter, r *http.Requ
 		a.internalError(w, r, err)
 		return
 	}
-	if advanced {
-		a.scheduleZeroToHundredThemeRankingTimeout(player.Code, gameID)
+	if rankingDeadline != nil {
+		a.scheduleZeroToHundredThemeRankingTimeout(player.Code, gameID, *rankingDeadline)
 	}
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
-func (a *api) tryAdvanceZeroToHundredThemeCollection(ctx context.Context, tx pgx.Tx, gameID, lobbyID string, force bool) (advanced bool, err error) {
-	activeCount, err := activeLobbyPlayerCount(ctx, tx, lobbyID)
+// tryAdvanceZeroToHundredThemeCollection moves the game into ranking_themes once
+// every active player has either proposed a theme or explicitly passed — or
+// unconditionally when force is true (the submission deadline expired). It
+// returns the ranking deadline it set, nil when the phase did not move.
+func (a *api) tryAdvanceZeroToHundredThemeCollection(ctx context.Context, tx pgx.Tx, gameID, lobbyID string, force bool) (*time.Time, error) {
+	if !force {
+		awaiting, err := themeStepAwaitingIDs(ctx, tx, lobbyID, zeroToHundredThemeSubmissions, gameID, 0)
+		if err != nil {
+			return nil, err
+		}
+		if len(awaiting) > 0 {
+			return nil, nil
+		}
+	}
+	deadline, err := themeRankingDeadline(ctx, tx, "zero_to_100_games", lobbyID, gameID, false)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	var submittedCount int
-	if err := tx.QueryRow(ctx, `
-		SELECT count(*) FROM zero_to_100_theme_submissions WHERE game_id = $1
-	`, gameID).Scan(&submittedCount); err != nil {
-		return false, err
-	}
-	if !force && submittedCount < activeCount {
-		return false, nil
-	}
-	deadline := time.Now().Add(themePhaseWindow)
 	if _, err := tx.Exec(ctx, `
 		UPDATE zero_to_100_games SET phase = 'ranking_themes', theme_phase_deadline = $2 WHERE id = $1
 	`, gameID, deadline); err != nil {
-		return false, err
+		return nil, err
 	}
-	return true, nil
+	return &deadline, nil
 }
 
 func (a *api) handleRankZeroToHundredThemes(w http.ResponseWriter, r *http.Request) {
@@ -213,7 +216,7 @@ func (a *api) handleRankZeroToHundredThemes(w http.ResponseWriter, r *http.Reque
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, phase, err := loadActiveZeroToHundredGame(r.Context(), tx, player.LobbyID)
+	gameID, phase, err := lockActiveZeroToHundredGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusConflict, "zero_to_100_not_started", "The 0 à 100 game has not started yet")
 		return
@@ -272,25 +275,21 @@ func (a *api) handleRankZeroToHundredThemes(w http.ResponseWriter, r *http.Reque
 func (a *api) tryConcludeZeroToHundredRanking(
 	ctx context.Context, tx pgx.Tx, gameID, lobbyID string, candidates []string, force bool,
 ) (nextRoundID string, shouldScheduleNext bool, err error) {
-	activeCount, err := activeLobbyPlayerCount(ctx, tx, lobbyID)
-	if err != nil {
-		return "", false, err
-	}
-	var votedCount int
-	if err := tx.QueryRow(ctx, `
-		SELECT count(*) FROM zero_to_100_theme_rankings WHERE game_id = $1
-	`, gameID).Scan(&votedCount); err != nil {
-		return "", false, err
-	}
-	if !force && votedCount < activeCount {
-		return "", false, nil
+	if !force {
+		awaiting, err := themeStepAwaitingIDs(ctx, tx, lobbyID, zeroToHundredThemeRankings, gameID, 0)
+		if err != nil {
+			return "", false, err
+		}
+		if len(awaiting) > 0 {
+			return "", false, nil
+		}
 	}
 
 	rows, err := tx.Query(ctx, `SELECT ranking FROM zero_to_100_theme_rankings WHERE game_id = $1`, gameID)
 	if err != nil {
 		return "", false, err
 	}
-	rankings := make([][]string, 0, activeCount)
+	rankings := make([][]string, 0)
 	for rows.Next() {
 		var rankingJSON []byte
 		if err := rows.Scan(&rankingJSON); err != nil {
@@ -332,8 +331,8 @@ func (a *api) tryConcludeZeroToHundredRanking(
 	return roundID, true, nil
 }
 
-func (a *api) scheduleZeroToHundredThemeSubmissionTimeout(code, gameID string) {
-	time.AfterFunc(themePhaseWindow, func() {
+func (a *api) scheduleZeroToHundredThemeSubmissionTimeout(code, gameID string, deadline time.Time) {
+	time.AfterFunc(time.Until(deadline), func() {
 		a.forceZeroToHundredThemeSubmissionDeadline(code, gameID)
 	})
 }
@@ -357,7 +356,7 @@ func (a *api) forceZeroToHundredThemeSubmissionDeadline(code, gameID string) {
 	if phase != "collecting_themes" {
 		return
 	}
-	advanced, err := a.tryAdvanceZeroToHundredThemeCollection(ctx, tx, gameID, lobbyID, true)
+	rankingDeadline, err := a.tryAdvanceZeroToHundredThemeCollection(ctx, tx, gameID, lobbyID, true)
 	if err != nil {
 		a.logger.Error("unable to force zero to 100 theme collection deadline", "game_id", gameID, "error", err)
 		return
@@ -371,13 +370,13 @@ func (a *api) forceZeroToHundredThemeSubmissionDeadline(code, gameID string) {
 		return
 	}
 	a.hub.publish(code)
-	if advanced {
-		a.scheduleZeroToHundredThemeRankingTimeout(code, gameID)
+	if rankingDeadline != nil {
+		a.scheduleZeroToHundredThemeRankingTimeout(code, gameID, *rankingDeadline)
 	}
 }
 
-func (a *api) scheduleZeroToHundredThemeRankingTimeout(code, gameID string) {
-	time.AfterFunc(themePhaseWindow, func() {
+func (a *api) scheduleZeroToHundredThemeRankingTimeout(code, gameID string, deadline time.Time) {
+	time.AfterFunc(time.Until(deadline), func() {
 		a.forceZeroToHundredThemeRankingDeadline(code, gameID)
 	})
 }
@@ -591,7 +590,7 @@ func (a *api) handleSubmitZeroToHundredGuess(w http.ResponseWriter, r *http.Requ
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, gamePhase, err := loadActiveZeroToHundredGame(r.Context(), tx, player.LobbyID)
+	gameID, gamePhase, err := lockActiveZeroToHundredGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && gamePhase != "playing") {
 		writeError(w, http.StatusConflict, "zero_to_100_not_playing", "No round is currently open for guesses")
 		return
@@ -637,19 +636,12 @@ func (a *api) handleSubmitZeroToHundredGuess(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	activeCount, err := activeLobbyPlayerCount(r.Context(), tx, player.LobbyID)
+	awaiting, err := zeroToHundredGuessAwaitingIDs(r.Context(), tx, player.LobbyID, round.ID)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
 	}
-	var submittedCount int
-	if err := tx.QueryRow(r.Context(), `
-		SELECT count(DISTINCT guesser_player_id) FROM zero_to_100_guesses WHERE round_id = $1
-	`, round.ID).Scan(&submittedCount); err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	if submittedCount >= activeCount {
+	if len(awaiting) == 0 {
 		if err := a.closeZeroToHundredGuessing(r.Context(), tx, round.ID); err != nil {
 			a.internalError(w, r, err)
 			return
@@ -816,7 +808,7 @@ func (a *api) handleStartNextZeroToHundredRound(w http.ResponseWriter, r *http.R
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, gamePhase, err := loadActiveZeroToHundredGame(r.Context(), tx, player.LobbyID)
+	gameID, gamePhase, err := lockActiveZeroToHundredGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && gamePhase != "playing") {
 		writeError(w, http.StatusConflict, "zero_to_100_not_playing", "No round is currently in progress")
 		return
@@ -896,7 +888,7 @@ func (a *api) handleReplayZeroToHundred(w http.ResponseWriter, r *http.Request) 
 	}
 	defer tx.Rollback(r.Context())
 
-	_, gamePhase, err := loadActiveZeroToHundredGame(r.Context(), tx, player.LobbyID)
+	_, gamePhase, err := lockActiveZeroToHundredGame(r.Context(), tx, player.LobbyID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		a.internalError(w, r, err)
 		return
@@ -907,7 +899,7 @@ func (a *api) handleReplayZeroToHundred(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var gameID string
-	themeDeadline := time.Now().Add(themePhaseWindow)
+	themeDeadline := time.Now().Add(themeStepWindow(themeProposalStep, false))
 	if err := tx.QueryRow(r.Context(), `
 		INSERT INTO zero_to_100_games (lobby_id, theme_phase_deadline) VALUES ($1, $2) RETURNING id
 	`, player.LobbyID, themeDeadline).Scan(&gameID); err != nil {
@@ -928,7 +920,7 @@ func (a *api) handleReplayZeroToHundred(w http.ResponseWriter, r *http.Request) 
 		a.internalError(w, r, err)
 		return
 	}
-	a.scheduleZeroToHundredThemeSubmissionTimeout(player.Code, gameID)
+	a.scheduleZeroToHundredThemeSubmissionTimeout(player.Code, gameID, themeDeadline)
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
@@ -937,6 +929,16 @@ func (a *api) handleReplayZeroToHundred(w http.ResponseWriter, r *http.Request) 
 func loadActiveZeroToHundredGame(ctx context.Context, db dbQuerier, lobbyID string) (id, phase string, err error) {
 	err = db.QueryRow(ctx, `
 		SELECT id, phase FROM zero_to_100_games WHERE lobby_id = $1 ORDER BY created_at DESC LIMIT 1
+	`, lobbyID).Scan(&id, &phase)
+	return id, phase, err
+}
+
+// lockActiveZeroToHundredGame is loadActiveZeroToHundredGame for write paths: the row lock
+// serializes every command, deadline and departure of a lobby, so "everyone
+// answered" checks never miss a concurrent answer or departure.
+func lockActiveZeroToHundredGame(ctx context.Context, tx pgx.Tx, lobbyID string) (id, phase string, err error) {
+	err = tx.QueryRow(ctx, `
+		SELECT id, phase FROM zero_to_100_games WHERE lobby_id = $1 ORDER BY created_at DESC LIMIT 1 FOR UPDATE
 	`, lobbyID).Scan(&id, &phase)
 	return id, phase, err
 }
@@ -1101,7 +1103,7 @@ func loadZeroToHundredLeaderboard(ctx context.Context, db dbQuerier, gameID stri
 		  ON guess.guesser_player_id = author.id AND guess.guesser_player_id <> guess.nominee_player_id
 		LEFT JOIN zero_to_100_rounds AS round ON round.id = guess.round_id AND round.game_id = $1
 		WHERE author.lobby_id = (SELECT lobby_id FROM zero_to_100_games WHERE id = $1)
-		  AND author.excluded_at IS NULL
+		  AND author.is_active
 		GROUP BY author.id, author.display_name
 		ORDER BY total_score DESC, author.display_name ASC
 	`, gameID, zeroToHundredRoundCount)
@@ -1122,10 +1124,9 @@ func loadZeroToHundredLeaderboard(ctx context.Context, db dbQuerier, gameID stri
 
 // loadZeroToHundredState builds the 0 à 100 view of the lobby state for the
 // current player, mirroring loadFastBioState's role for the Fast Bio mode.
-// loadZeroToHundredThemeProgress populates the deadline and "X of Y" progress
-// counters shared by both theme sub-phases. progressTable is always one of
-// the two hardcoded table name constants below (never user input).
-func (a *api) loadZeroToHundredThemeProgress(ctx context.Context, gameID, lobbyID, progressTable string, view *zeroToHundredStateView) error {
+// loadZeroToHundredThemeProgress populates the deadline, the "X of Y" progress
+// counters and the awaited players shared by both theme sub-phases.
+func (a *api) loadZeroToHundredThemeProgress(ctx context.Context, gameID, lobbyID string, table themeStepTable, view *zeroToHundredStateView) error {
 	var deadline *time.Time
 	if err := a.pool.QueryRow(ctx, `
 		SELECT theme_phase_deadline FROM zero_to_100_games WHERE id = $1
@@ -1133,17 +1134,13 @@ func (a *api) loadZeroToHundredThemeProgress(ctx context.Context, gameID, lobbyI
 		return err
 	}
 	view.ThemeDeadline = deadline
-	requiredCount, err := activeLobbyPlayerCount(ctx, a.pool, lobbyID)
+	progress, err := loadThemeStepProgress(ctx, a.pool, lobbyID, table, gameID, 0)
 	if err != nil {
 		return err
 	}
-	view.ThemeProgressRequired = requiredCount
-	var progressCount int
-	query := "SELECT count(*) FROM " + progressTable + " WHERE game_id = $1"
-	if err := a.pool.QueryRow(ctx, query, gameID).Scan(&progressCount); err != nil {
-		return err
-	}
-	view.ThemeProgressCount = progressCount
+	view.ThemeProgressCount = progress.count
+	view.ThemeProgressRequired = progress.required
+	view.AwaitingPlayerIDs = progress.awaiting
 	return nil
 }
 
@@ -1163,7 +1160,7 @@ func (a *api) loadZeroToHundredState(ctx context.Context, currentPlayer authenti
 			return zeroToHundredStateView{}, err
 		}
 		view.ThemeSubmitted = exists
-		if err := a.loadZeroToHundredThemeProgress(ctx, gameID, currentPlayer.LobbyID, "zero_to_100_theme_submissions", &view); err != nil {
+		if err := a.loadZeroToHundredThemeProgress(ctx, gameID, currentPlayer.LobbyID, zeroToHundredThemeSubmissions, &view); err != nil {
 			return zeroToHundredStateView{}, err
 		}
 
@@ -1181,7 +1178,7 @@ func (a *api) loadZeroToHundredState(ctx context.Context, currentPlayer authenti
 			return zeroToHundredStateView{}, err
 		}
 		view.ThemeRanked = exists
-		if err := a.loadZeroToHundredThemeProgress(ctx, gameID, currentPlayer.LobbyID, "zero_to_100_theme_rankings", &view); err != nil {
+		if err := a.loadZeroToHundredThemeProgress(ctx, gameID, currentPlayer.LobbyID, zeroToHundredThemeRankings, &view); err != nil {
 			return zeroToHundredStateView{}, err
 		}
 
@@ -1209,12 +1206,14 @@ func (a *api) loadZeroToHundredState(ctx context.Context, currentPlayer authenti
 			if err != nil {
 				return zeroToHundredStateView{}, err
 			}
-			view.SubmissionProgressRequired = requiredCount
-			if err := a.pool.QueryRow(ctx, `
-				SELECT count(DISTINCT guesser_player_id) FROM zero_to_100_guesses WHERE round_id = $1
-			`, round.ID).Scan(&view.SubmissionProgressCount); err != nil {
+			awaiting, err := zeroToHundredGuessAwaitingIDs(ctx, a.pool, currentPlayer.LobbyID, round.ID)
+			if err != nil {
 				return zeroToHundredStateView{}, err
 			}
+			progress := newStepProgress(requiredCount, awaiting)
+			view.SubmissionProgressRequired = progress.required
+			view.SubmissionProgressCount = progress.count
+			view.AwaitingPlayerIDs = progress.awaiting
 		}
 
 		nominees, err := loadZeroToHundredNominees(ctx, a.pool, round.ID)

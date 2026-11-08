@@ -107,7 +107,7 @@ func (a *api) handleStartWavelengthGame(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	gameID, err := createWavelengthGame(r.Context(), tx, player.LobbyID)
+	gameID, themeDeadline, err := createWavelengthGame(r.Context(), tx, player.LobbyID, true)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
@@ -116,23 +116,25 @@ func (a *api) handleStartWavelengthGame(w http.ResponseWriter, r *http.Request) 
 		a.internalError(w, r, err)
 		return
 	}
-	a.scheduleWavelengthThemeSubmissionTimeout(player.Code, gameID, 1)
+	a.scheduleWavelengthThemeSubmissionTimeout(player.Code, gameID, 1, themeDeadline)
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
 // createWavelengthGame opens a new game on round 1's theme collection and
-// puts the lobby in game.
-func createWavelengthGame(ctx context.Context, tx pgx.Tx, lobbyID string) (string, error) {
+// puts the lobby in game. firstThemeSelection is true for the lobby's first
+// game, which gets the full theme window.
+func createWavelengthGame(ctx context.Context, tx pgx.Tx, lobbyID string, firstThemeSelection bool) (string, time.Time, error) {
 	var gameID string
+	deadline := time.Now().Add(themeStepWindow(themeProposalStep, firstThemeSelection))
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO wavelength_games (lobby_id, theme_phase_deadline) VALUES ($1, $2) RETURNING id
-	`, lobbyID, time.Now().Add(themePhaseWindow)).Scan(&gameID); err != nil {
-		return "", err
+	`, lobbyID, deadline).Scan(&gameID); err != nil {
+		return "", time.Time{}, err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE lobbies SET status = 'in_game' WHERE id = $1`, lobbyID); err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
-	return gameID, bumpLobbyRevision(ctx, tx, lobbyID)
+	return gameID, deadline, bumpLobbyRevision(ctx, tx, lobbyID)
 }
 
 func (a *api) handleSubmitWavelengthTheme(w http.ResponseWriter, r *http.Request) {
@@ -192,7 +194,7 @@ func (a *api) handleSubmitWavelengthTheme(w http.ResponseWriter, r *http.Request
 		a.internalError(w, r, err)
 		return
 	}
-	advanced, err := tryAdvanceWavelengthThemeCollection(r.Context(), tx, game, player.LobbyID, false)
+	rankingDeadline, err := tryAdvanceWavelengthThemeCollection(r.Context(), tx, game, player.LobbyID, false)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
@@ -205,32 +207,36 @@ func (a *api) handleSubmitWavelengthTheme(w http.ResponseWriter, r *http.Request
 		a.internalError(w, r, err)
 		return
 	}
-	if advanced {
-		a.scheduleWavelengthThemeRankingTimeout(player.Code, game.ID, game.RoundNumber)
+	if rankingDeadline != nil {
+		a.scheduleWavelengthThemeRankingTimeout(player.Code, game.ID, game.RoundNumber, *rankingDeadline)
 	}
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
-func tryAdvanceWavelengthThemeCollection(ctx context.Context, tx pgx.Tx, game wavelengthGameRow, lobbyID string, force bool) (advanced bool, err error) {
-	activeCount, err := activeLobbyPlayerCount(ctx, tx, lobbyID)
+// tryAdvanceWavelengthThemeCollection opens the ranking of this round's
+// spectra once every active player proposed one or passed (or when forced by
+// the deadline). It returns the ranking deadline it set, nil when the phase
+// did not move.
+func tryAdvanceWavelengthThemeCollection(ctx context.Context, tx pgx.Tx, game wavelengthGameRow, lobbyID string, force bool) (*time.Time, error) {
+	if !force {
+		awaiting, err := themeStepAwaitingIDs(ctx, tx, lobbyID, wavelengthThemeSubmissions, game.ID, game.RoundNumber)
+		if err != nil {
+			return nil, err
+		}
+		if len(awaiting) > 0 {
+			return nil, nil
+		}
+	}
+	deadline, err := themeRankingDeadline(ctx, tx, "wavelength_games", lobbyID, game.ID, game.RoundNumber > 1)
 	if err != nil {
-		return false, err
-	}
-	var submittedCount int
-	if err := tx.QueryRow(ctx, `
-		SELECT count(*) FROM wavelength_theme_submissions WHERE game_id = $1 AND round_number = $2
-	`, game.ID, game.RoundNumber).Scan(&submittedCount); err != nil {
-		return false, err
-	}
-	if !force && submittedCount < activeCount {
-		return false, nil
+		return nil, err
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE wavelength_games SET phase = 'ranking_themes', theme_phase_deadline = $2 WHERE id = $1
-	`, game.ID, time.Now().Add(themePhaseWindow)); err != nil {
-		return false, err
+	`, game.ID, deadline); err != nil {
+		return nil, err
 	}
-	return true, nil
+	return &deadline, nil
 }
 
 func (a *api) handleRankWavelengthThemes(w http.ResponseWriter, r *http.Request) {
@@ -313,18 +319,14 @@ func (a *api) handleRankWavelengthThemes(w http.ResponseWriter, r *http.Request)
 func tryConcludeWavelengthRanking(
 	ctx context.Context, tx pgx.Tx, game wavelengthGameRow, lobbyID string, candidates []wavelengthSpectrum, force bool,
 ) (roundID string, started bool, err error) {
-	activeCount, err := activeLobbyPlayerCount(ctx, tx, lobbyID)
-	if err != nil {
-		return "", false, err
-	}
-	var votedCount int
-	if err := tx.QueryRow(ctx, `
-		SELECT count(*) FROM wavelength_theme_rankings WHERE game_id = $1 AND round_number = $2
-	`, game.ID, game.RoundNumber).Scan(&votedCount); err != nil {
-		return "", false, err
-	}
-	if !force && votedCount < activeCount {
-		return "", false, nil
+	if !force {
+		awaiting, err := themeStepAwaitingIDs(ctx, tx, lobbyID, wavelengthThemeRankings, game.ID, game.RoundNumber)
+		if err != nil {
+			return "", false, err
+		}
+		if len(awaiting) > 0 {
+			return "", false, nil
+		}
 	}
 
 	rows, err := tx.Query(ctx, `
@@ -333,7 +335,7 @@ func tryConcludeWavelengthRanking(
 	if err != nil {
 		return "", false, err
 	}
-	rankings := make([][]string, 0, activeCount)
+	rankings := make([][]string, 0)
 	for rows.Next() {
 		var rankingJSON []byte
 		if err := rows.Scan(&rankingJSON); err != nil {
@@ -354,20 +356,70 @@ func tryConcludeWavelengthRanking(
 	rows.Close()
 
 	winners := tallyThemeRanking(wavelengthSpectrumLabels(candidates), rankings)
-	if len(winners) == 0 {
-		return "", false, errors.New("wavelength ranking produced no selected spectrum")
+	remaining, err := wavelengthRemainingPsychicCount(ctx, tx, game.ID, lobbyID)
+	if err != nil {
+		return "", false, err
 	}
-	winnerKey := strings.ToLower(strings.TrimSpace(winners[0]))
-	for _, candidate := range candidates {
-		if strings.ToLower(strings.TrimSpace(candidate.label())) == winnerKey {
-			return startWavelengthRound(ctx, tx, game, lobbyID, candidate)
+	selected, err := wavelengthWinningSpectra(winners, candidates, wavelengthSpectraToPlay(remaining))
+	if err != nil {
+		return "", false, err
+	}
+	for offset, spectrum := range selected {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO wavelength_selected_spectra (game_id, round_number, left_label, right_label)
+			VALUES ($1, $2, $3, $4)
+		`, game.ID, game.RoundNumber+offset, spectrum.Left, spectrum.Right); err != nil {
+			return "", false, err
 		}
 	}
-	return "", false, errors.New("wavelength ranking winner is not a candidate")
+	return startWavelengthRound(ctx, tx, game, lobbyID, selected[0])
 }
 
-func (a *api) scheduleWavelengthThemeSubmissionTimeout(code, gameID string, roundNumber int) {
-	time.AfterFunc(themePhaseWindow, func() {
+// wavelengthSpectraToPlay is how many voted spectra the next rounds use:
+// three, or fewer when fewer players are left to be the psychic.
+func wavelengthSpectraToPlay(remainingPsychics int) int {
+	return min(wavelengthSpectraPerVote, max(remainingPsychics, 1))
+}
+
+// wavelengthWinningSpectra maps the first count winning labels back to their
+// spectra, in ranking order.
+func wavelengthWinningSpectra(winners []string, candidates []wavelengthSpectrum, count int) ([]wavelengthSpectrum, error) {
+	spectrumByKey := make(map[string]wavelengthSpectrum, len(candidates))
+	for _, candidate := range candidates {
+		spectrumByKey[strings.ToLower(strings.TrimSpace(candidate.label()))] = candidate
+	}
+	selected := make([]wavelengthSpectrum, 0, count)
+	for _, winner := range winners {
+		if len(selected) == count {
+			break
+		}
+		spectrum, known := spectrumByKey[strings.ToLower(strings.TrimSpace(winner))]
+		if !known {
+			return nil, errors.New("wavelength ranking winner is not a candidate")
+		}
+		selected = append(selected, spectrum)
+	}
+	if len(selected) == 0 {
+		return nil, errors.New("wavelength ranking produced no selected spectrum")
+	}
+	return selected, nil
+}
+
+// loadWavelengthSelectedSpectrum returns the spectrum voted for a round, if
+// the last vote covered it.
+func loadWavelengthSelectedSpectrum(ctx context.Context, db dbQuerier, gameID string, roundNumber int) (wavelengthSpectrum, bool, error) {
+	var spectrum wavelengthSpectrum
+	err := db.QueryRow(ctx, `
+		SELECT left_label, right_label FROM wavelength_selected_spectra WHERE game_id = $1 AND round_number = $2
+	`, gameID, roundNumber).Scan(&spectrum.Left, &spectrum.Right)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return wavelengthSpectrum{}, false, nil
+	}
+	return spectrum, err == nil, err
+}
+
+func (a *api) scheduleWavelengthThemeSubmissionTimeout(code, gameID string, roundNumber int, deadline time.Time) {
+	time.AfterFunc(time.Until(deadline), func() {
 		a.forceWavelengthThemeSubmissionDeadline(code, gameID, roundNumber)
 	})
 }
@@ -394,7 +446,8 @@ func (a *api) forceWavelengthThemeSubmissionDeadline(code, gameID string, roundN
 	if game.Phase != "collecting_themes" || game.RoundNumber != roundNumber {
 		return
 	}
-	if _, err := tryAdvanceWavelengthThemeCollection(ctx, tx, game, lobbyID, true); err != nil {
+	rankingDeadline, err := tryAdvanceWavelengthThemeCollection(ctx, tx, game, lobbyID, true)
+	if err != nil {
 		a.logger.Error("unable to force wavelength theme collection deadline", "game_id", gameID, "error", err)
 		return
 	}
@@ -407,11 +460,11 @@ func (a *api) forceWavelengthThemeSubmissionDeadline(code, gameID string, roundN
 		return
 	}
 	a.hub.publish(code)
-	a.scheduleWavelengthThemeRankingTimeout(code, gameID, roundNumber)
+	a.scheduleWavelengthThemeRankingTimeout(code, gameID, roundNumber, *rankingDeadline)
 }
 
-func (a *api) scheduleWavelengthThemeRankingTimeout(code, gameID string, roundNumber int) {
-	time.AfterFunc(themePhaseWindow, func() {
+func (a *api) scheduleWavelengthThemeRankingTimeout(code, gameID string, roundNumber int, deadline time.Time) {
+	time.AfterFunc(time.Until(deadline), func() {
 		a.forceWavelengthThemeRankingDeadline(code, gameID, roundNumber)
 	})
 }
@@ -881,17 +934,11 @@ func (a *api) loadPlayingWavelengthRound(w http.ResponseWriter, r *http.Request,
 // every active guesser placed their needle (or when forced by the deadline).
 func tryCloseWavelengthGuessing(ctx context.Context, tx pgx.Tx, round wavelengthRoundRow, lobbyID string, force bool) (closed bool, err error) {
 	if !force {
-		requiredCount, err := wavelengthGuesserCount(ctx, tx, lobbyID, round.PsychicPlayerID)
+		awaiting, err := wavelengthGuessAwaitingIDs(ctx, tx, lobbyID, round.ID, round.PsychicPlayerID)
 		if err != nil {
 			return false, err
 		}
-		var submittedCount int
-		if err := tx.QueryRow(ctx, `
-			SELECT count(*) FROM wavelength_guesses WHERE round_id = $1
-		`, round.ID).Scan(&submittedCount); err != nil {
-			return false, err
-		}
-		if submittedCount < requiredCount {
+		if len(awaiting) > 0 {
 			return false, nil
 		}
 	}
@@ -987,16 +1034,33 @@ func (a *api) handleStartNextWavelengthRound(w http.ResponseWriter, r *http.Requ
 		a.internalError(w, r, err)
 		return
 	}
-	nextRoundNumber := 0
-	if remaining == 0 {
+	// The next round plays the next spectrum of the last vote; once they are
+	// all played, the group votes again for the following rounds.
+	nextSpectrum, alreadyVoted, err := loadWavelengthSelectedSpectrum(r.Context(), tx, game.ID, game.RoundNumber+1)
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	votingRoundNumber := 0
+	startedRoundID := ""
+	themeDeadline := time.Now().Add(themeStepWindow(themeProposalStep, false))
+	switch {
+	case remaining == 0:
 		err = completeWavelengthGame(r.Context(), tx, game.ID)
-	} else {
-		nextRoundNumber = game.RoundNumber + 1
+	case alreadyVoted:
+		game.RoundNumber++
+		if _, err = tx.Exec(r.Context(), `
+			UPDATE wavelength_games SET round_number = $2 WHERE id = $1
+		`, game.ID, game.RoundNumber); err == nil {
+			startedRoundID, _, err = startWavelengthRound(r.Context(), tx, game, player.LobbyID, nextSpectrum)
+		}
+	default:
+		votingRoundNumber = game.RoundNumber + 1
 		_, err = tx.Exec(r.Context(), `
 			UPDATE wavelength_games
 			SET phase = 'collecting_themes', round_number = $2, theme_phase_deadline = $3
 			WHERE id = $1
-		`, game.ID, nextRoundNumber, time.Now().Add(themePhaseWindow))
+		`, game.ID, votingRoundNumber, themeDeadline)
 	}
 	if err != nil {
 		a.internalError(w, r, err)
@@ -1010,8 +1074,11 @@ func (a *api) handleStartNextWavelengthRound(w http.ResponseWriter, r *http.Requ
 		a.internalError(w, r, err)
 		return
 	}
-	if nextRoundNumber > 0 {
-		a.scheduleWavelengthThemeSubmissionTimeout(player.Code, game.ID, nextRoundNumber)
+	if votingRoundNumber > 0 {
+		a.scheduleWavelengthThemeSubmissionTimeout(player.Code, game.ID, votingRoundNumber, themeDeadline)
+	}
+	if startedRoundID != "" {
+		a.scheduleWavelengthClueTimeout(player.Code, startedRoundID)
 	}
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
@@ -1041,7 +1108,7 @@ func (a *api) handleReplayWavelength(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "wavelength_in_progress", "The current cycle has not finished yet")
 		return
 	}
-	gameID, err := createWavelengthGame(r.Context(), tx, player.LobbyID)
+	gameID, themeDeadline, err := createWavelengthGame(r.Context(), tx, player.LobbyID, false)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
@@ -1050,7 +1117,7 @@ func (a *api) handleReplayWavelength(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	a.scheduleWavelengthThemeSubmissionTimeout(player.Code, gameID, 1)
+	a.scheduleWavelengthThemeSubmissionTimeout(player.Code, gameID, 1, themeDeadline)
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
@@ -1138,7 +1205,7 @@ func loadWavelengthRound(ctx context.Context, db dbQuerier, roundID string) (wav
 func wavelengthGuesserCount(ctx context.Context, db dbQuerier, lobbyID, psychicPlayerID string) (int, error) {
 	var count int
 	err := db.QueryRow(ctx, `
-		SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL AND id <> $2
+		SELECT count(*) FROM players WHERE lobby_id = $1 AND is_active AND id <> $2
 	`, lobbyID, psychicPlayerID).Scan(&count)
 	return count, err
 }
@@ -1195,7 +1262,7 @@ func loadWavelengthLeaderboard(ctx context.Context, db dbQuerier, gameID string)
 		       ), 0) AS total_score
 		FROM players AS player
 		WHERE player.lobby_id = (SELECT lobby_id FROM wavelength_games WHERE id = $1)
-		  AND player.excluded_at IS NULL
+		  AND player.is_active
 		ORDER BY total_score DESC, player.display_name ASC
 	`, gameID)
 	if err != nil {
@@ -1213,11 +1280,9 @@ func loadWavelengthLeaderboard(ctx context.Context, db dbQuerier, gameID string)
 	return leaderboard, rows.Err()
 }
 
-// loadWavelengthThemeProgress populates the deadline and "X of Y" progress
-// counters shared by both theme sub-phases of the current round.
-// progressTable is always one of the two hardcoded table names (never user
-// input).
-func (a *api) loadWavelengthThemeProgress(ctx context.Context, game wavelengthGameRow, lobbyID, progressTable string, view *wavelengthStateView) error {
+// loadWavelengthThemeProgress populates the deadline, the "X of Y" progress
+// counters and the awaited players of the current round's theme step.
+func (a *api) loadWavelengthThemeProgress(ctx context.Context, game wavelengthGameRow, lobbyID string, table themeStepTable, view *wavelengthStateView) error {
 	var deadline *time.Time
 	if err := a.pool.QueryRow(ctx, `
 		SELECT theme_phase_deadline FROM wavelength_games WHERE id = $1
@@ -1225,13 +1290,14 @@ func (a *api) loadWavelengthThemeProgress(ctx context.Context, game wavelengthGa
 		return err
 	}
 	view.ThemeDeadline = deadline
-	requiredCount, err := activeLobbyPlayerCount(ctx, a.pool, lobbyID)
+	progress, err := loadThemeStepProgress(ctx, a.pool, lobbyID, table, game.ID, game.RoundNumber)
 	if err != nil {
 		return err
 	}
-	view.ThemeProgressRequired = requiredCount
-	query := "SELECT count(*) FROM " + progressTable + " WHERE game_id = $1 AND round_number = $2"
-	return a.pool.QueryRow(ctx, query, game.ID, game.RoundNumber).Scan(&view.ThemeProgressCount)
+	view.ThemeProgressCount = progress.count
+	view.ThemeProgressRequired = progress.required
+	view.AwaitingPlayerIDs = progress.awaiting
+	return nil
 }
 
 // loadWavelengthState builds the Wavelength view of the lobby state for the
@@ -1265,6 +1331,10 @@ func (a *api) loadWavelengthState(ctx context.Context, currentPlayer authenticat
 	}
 	view.TotalRounds = startedRounds + remaining
 
+	if game.Phase == "collecting_themes" || game.Phase == "ranking_themes" {
+		view.SpectraToPlay = wavelengthSpectraToPlay(remaining)
+	}
+
 	switch game.Phase {
 	case "collecting_themes":
 		if err := a.pool.QueryRow(ctx, `
@@ -1274,7 +1344,7 @@ func (a *api) loadWavelengthState(ctx context.Context, currentPlayer authenticat
 		`, game.ID, game.RoundNumber, currentPlayer.ID).Scan(&view.ThemeSubmitted); err != nil {
 			return wavelengthStateView{}, err
 		}
-		if err := a.loadWavelengthThemeProgress(ctx, game, currentPlayer.LobbyID, "wavelength_theme_submissions", &view); err != nil {
+		if err := a.loadWavelengthThemeProgress(ctx, game, currentPlayer.LobbyID, wavelengthThemeSubmissions, &view); err != nil {
 			return wavelengthStateView{}, err
 		}
 
@@ -1292,7 +1362,7 @@ func (a *api) loadWavelengthState(ctx context.Context, currentPlayer authenticat
 		`, game.ID, game.RoundNumber, currentPlayer.ID).Scan(&view.ThemeRanked); err != nil {
 			return wavelengthStateView{}, err
 		}
-		if err := a.loadWavelengthThemeProgress(ctx, game, currentPlayer.LobbyID, "wavelength_theme_rankings", &view); err != nil {
+		if err := a.loadWavelengthThemeProgress(ctx, game, currentPlayer.LobbyID, wavelengthThemeRankings, &view); err != nil {
 			return wavelengthStateView{}, err
 		}
 
@@ -1322,11 +1392,17 @@ func (a *api) loadWavelengthState(ctx context.Context, currentPlayer authenticat
 			if err != nil {
 				return wavelengthStateView{}, err
 			}
-			view.SubmissionProgressRequired = requiredCount
-			if err := a.pool.QueryRow(ctx, `
-				SELECT count(*) FROM wavelength_guesses WHERE round_id = $1
-			`, round.ID).Scan(&view.SubmissionProgressCount); err != nil {
+			awaiting, err := wavelengthGuessAwaitingIDs(ctx, a.pool, currentPlayer.LobbyID, round.ID, round.PsychicPlayerID)
+			if err != nil {
 				return wavelengthStateView{}, err
+			}
+			progress := newStepProgress(requiredCount, awaiting)
+			view.SubmissionProgressRequired = progress.required
+			view.SubmissionProgressCount = progress.count
+			if round.Phase == "clue" {
+				view.AwaitingPlayerIDs = []string{round.PsychicPlayerID}
+			} else {
+				view.AwaitingPlayerIDs = progress.awaiting
 			}
 		}
 
@@ -1353,6 +1429,15 @@ func (a *api) loadWavelengthState(ctx context.Context, currentPlayer authenticat
 				view.RoundScore = view.PsychicPoints
 			} else if myPoints != nil {
 				view.RoundScore = *myPoints
+			}
+			if remaining > 0 {
+				nextSpectrum, alreadyVoted, err := loadWavelengthSelectedSpectrum(ctx, a.pool, game.ID, round.RoundNumber+1)
+				if err != nil {
+					return wavelengthStateView{}, err
+				}
+				if alreadyVoted {
+					view.NextSpectrumLabel = nextSpectrum.label()
+				}
 			}
 		}
 	}

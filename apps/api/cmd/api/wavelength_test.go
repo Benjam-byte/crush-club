@@ -113,3 +113,33 @@ func TestWavelengthSpectrumLabel(t *testing.T) {
 		t.Fatalf("label() = %q, want %q", label, "Froid ↔ Chaud")
 	}
 }
+
+func TestWavelengthSpectraToPlay(t *testing.T) {
+	for remaining, want := range map[int]int{5: 3, 3: 3, 2: 2, 1: 1, 0: 1} {
+		if got := wavelengthSpectraToPlay(remaining); got != want {
+			t.Errorf("wavelengthSpectraToPlay(%d) = %d, want %d", remaining, got, want)
+		}
+	}
+}
+
+func TestWavelengthWinningSpectraKeepsRankingOrder(t *testing.T) {
+	candidates := []wavelengthSpectrum{
+		{Left: "Froid", Right: "Chaud"},
+		{Left: "Ringard", Right: "Stylé"},
+		{Left: "Calme", Right: "Chaotique"},
+	}
+	winners := []string{"calme ↔ chaotique", "Froid ↔ Chaud", "Ringard ↔ Stylé"}
+	selected, err := wavelengthWinningSpectra(winners, candidates, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selected) != 2 || selected[0] != candidates[2] || selected[1] != candidates[0] {
+		t.Fatalf("selected = %#v", selected)
+	}
+	if _, err := wavelengthWinningSpectra([]string{"Inconnu ↔ Mystère"}, candidates, 1); err == nil {
+		t.Fatal("a winner outside the candidates was accepted")
+	}
+	if _, err := wavelengthWinningSpectra(nil, candidates, 3); err == nil {
+		t.Fatal("an empty ranking selected a spectrum")
+	}
+}

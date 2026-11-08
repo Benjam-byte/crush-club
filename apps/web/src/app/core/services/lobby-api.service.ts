@@ -194,9 +194,26 @@ export class LobbyApiService {
   }
 
   excludePlayer(code: string, reconnectToken: string, playerId: string): Promise<LobbyStateResponse> {
+    return this.moderatePlayer(code, reconnectToken, playerId, 'exclude');
+  }
+
+  admitPlayer(code: string, reconnectToken: string, playerId: string): Promise<LobbyStateResponse> {
+    return this.moderatePlayer(code, reconnectToken, playerId, 'admit');
+  }
+
+  refusePlayer(code: string, reconnectToken: string, playerId: string): Promise<LobbyStateResponse> {
+    return this.moderatePlayer(code, reconnectToken, playerId, 'refuse');
+  }
+
+  private moderatePlayer(
+    code: string,
+    reconnectToken: string,
+    playerId: string,
+    action: 'exclude' | 'admit' | 'refuse',
+  ): Promise<LobbyStateResponse> {
     return firstValueFrom(
       this.http.post<LobbyStateResponse>(
-        `/api/v1/lobbies/${code}/players/${playerId}/exclude`,
+        `/api/v1/lobbies/${code}/players/${playerId}/${action}`,
         null,
         { headers: this.authorizationHeaders(reconnectToken) },
       ),
@@ -509,6 +526,52 @@ export class LobbyApiService {
   replayWavelength(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
     return firstValueFrom(
       this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/wavelength/replay`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  startSecretRanking(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return this.postSecretRanking(code, reconnectToken, 'start', null);
+  }
+
+  /** An empty theme passes. */
+  submitSecretRankingTheme(code: string, reconnectToken: string, theme: string): Promise<LobbyStateResponse> {
+    return this.postSecretRanking(code, reconnectToken, 'themes', { theme });
+  }
+
+  rankSecretRankingThemes(code: string, reconnectToken: string, ranking: readonly string[]): Promise<LobbyStateResponse> {
+    return this.postSecretRanking(code, reconnectToken, 'themes/rank', { ranking });
+  }
+
+  submitSecretRankingAmount(code: string, reconnectToken: string, amount: number): Promise<LobbyStateResponse> {
+    return this.postSecretRanking(code, reconnectToken, 'amount', { amount });
+  }
+
+  setSecretRankingPosition(code: string, reconnectToken: string, position: number): Promise<LobbyStateResponse> {
+    return this.postSecretRanking(code, reconnectToken, 'position', { position });
+  }
+
+  openSecretRankingDebrief(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return this.postSecretRanking(code, reconnectToken, 'debrief', null);
+  }
+
+  startNextSecretRankingRound(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return this.postSecretRanking(code, reconnectToken, 'rounds/next', null);
+  }
+
+  replaySecretRanking(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return this.postSecretRanking(code, reconnectToken, 'replay', null);
+  }
+
+  private postSecretRanking(
+    code: string,
+    reconnectToken: string,
+    path: string,
+    body: object | null,
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/secret-ranking/${path}`, body, {
         headers: this.authorizationHeaders(reconnectToken),
       }),
     );

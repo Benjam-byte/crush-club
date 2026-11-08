@@ -1,0 +1,18 @@
+@if (players().length > 0) {
+  <div class="mt-3 rounded-2xl bg-warning-50 px-3 py-2.5 text-left" role="status" aria-live="polite">
+    <p class="text-[11px] font-extrabold text-ink-700">On attend encore&nbsp;:</p>
+    <ul class="mt-1.5 flex flex-wrap gap-1.5">
+      @for (player of players(); track player.id) {
+        <li class="inline-flex max-w-full items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-extrabold text-ink-900 shadow-sm">
+          @if (!player.connected) {
+            <ion-icon class="shrink-0 text-warning-500" name="cloud-offline-outline" aria-hidden="true" />
+          }
+          <span class="truncate">{{ player.displayName }}</span>
+          @if (!player.connected) {
+            <span class="sr-only">(hors ligne)</span>
+          }
+        </li>
+      }
+    </ul>
+  </div>
+}

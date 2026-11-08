@@ -77,6 +77,7 @@
                   <ion-select-option value="zero_to_100">0 à 100 · dès 3 joueurs (5+ recommandé)</ion-select-option>
                   <ion-select-option value="situation">Situation · dès 2 joueurs, pensé pour un grand groupe</ion-select-option>
                   <ion-select-option value="wavelength">Wavelength · dès 2 joueurs (4+ recommandé)</ion-select-option>
+                  <ion-select-option value="secret_ranking">Le classement secret · 3 à 10 joueurs</ion-select-option>
                 </ion-select>
                 <p class="mt-2 text-xs leading-5 text-ink-500">
                   @if (selectedMode() === 'fast_bio') {
@@ -87,6 +88,8 @@
                     Le groupe choisit 3 situations, chacun désigne qui s’en sortirait le mieux et pourquoi. En grand groupe, des duels en face-à-face réduisent les propositions à 4 avant le classement final.
                   } @else if (selectedMode() === 'wavelength') {
                     À chaque manche, le groupe vote un spectre (« Froid ↔ Chaud »). Le médium voit une cible secrète et donne un indice à voix haute, puis tout le monde place son aiguille. Chacun est médium une fois.
+                  } @else if (selectedMode() === 'secret_ranking') {
+                    Autour d’une table : chacun mise en secret un montant, puis le groupe aligne les téléphones du plus petit au plus grand. Révélation en cascade, score d’équipe.
                   } @else {
                     Chacun uploade 4 photos, puis devine les réponses de l’Amoureux à chaque manche.
                   }

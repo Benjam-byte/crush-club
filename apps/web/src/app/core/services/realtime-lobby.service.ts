@@ -34,6 +34,14 @@ export interface ReactionBroadcastMessage {
 type RealtimeMessage = Partial<SnapshotMessage> | Partial<ReactionBroadcastMessage> |
   Partial<StateUnavailableMessage> | Partial<DiagnosticPongMessage>;
 
+/**
+ * Close codes after which the client stops reconnecting on its own: an invalid session, a player the
+ * host removed (4403) or turned away (4409), and a lobby that no longer exists.
+ */
+export const playerKickedCloseCode = 4403;
+export const admissionRefusedCloseCode = 4409;
+const rejectingCloseCodes: ReadonlySet<number> = new Set([4401, playerKickedCloseCode, 4404, admissionRefusedCloseCode]);
+
 const compressionStorageKey = 'crush-club-websocket-compression-v1';
 const connectionTimeoutMs = 20_000;
 const stableConnectionMs = 20_000;
@@ -43,10 +51,14 @@ export function isAppleMobileDevice(device: { userAgent: string, maxTouchPoints?
   return /iPhone|iPad|iPod/.test(device.userAgent) || (/Macintosh/.test(device.userAgent) && (device.maxTouchPoints ?? 0) > 1);
 }
 
+/** How many recent states the server clock offset is estimated from. */
+const serverClockSampleCount = 8;
+
 @Injectable({ providedIn: 'root' })
 export class RealtimeLobbyService {
   private readonly stateValue = signal<LobbyStateResponse | null>(null);
   private readonly connectionStatusValue = signal<ConnectionStatus>('idle');
+  private readonly rejectionCodeValue = signal<number | null>(null);
   private readonly reactionEventsValue = signal<readonly ReactionBroadcastMessage[]>([]);
   private readonly compressionEnabledValue = signal(this.readCompressionPreference());
   private readonly compressionActiveValue = signal<boolean | null>(null);
@@ -56,6 +68,8 @@ export class RealtimeLobbyService {
   private readonly connectionIdValue = signal<string | null>(null);
   private readonly playerIdValue = signal<string | null>(null);
   private readonly lastSnapshotAtValue = signal<string | null>(null);
+  private readonly serverClockOffsetValue = signal(0);
+  private serverClockSamples: number[] = [];
   private socket: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connectionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -73,7 +87,15 @@ export class RealtimeLobbyService {
   }>();
 
   readonly state = this.stateValue.asReadonly();
+  /**
+   * Server time minus local time, in ms. Each received state is a sample that arrived late by its own
+   * latency, so the largest of the recent samples is the closest to the truth. Pages that animate in sync
+   * across phones (the secret ranking's domino reveal) schedule on `Date.now() + serverClockOffsetMs()`.
+   */
+  readonly serverClockOffsetMs = this.serverClockOffsetValue.asReadonly();
   readonly connectionStatus = this.connectionStatusValue.asReadonly();
+  /** Close code of the refusal that stopped reconnecting; null while the session is not rejected. */
+  readonly rejectionCode = this.rejectionCodeValue.asReadonly();
   readonly compressionEnabled = this.compressionEnabledValue.asReadonly();
   readonly compressionActive = this.compressionActiveValue.asReadonly();
   readonly compressionPreferenceSaved = this.compressionPreferenceSavedValue.asReadonly();
@@ -102,7 +124,15 @@ export class RealtimeLobbyService {
   }
 
   setState(state: LobbyStateResponse): void {
+    this.recordServerClockSample(state.serverTime);
     if (shouldApplyLobbySnapshot(this.stateValue(), state)) this.stateValue.set(state);
+  }
+
+  private recordServerClockSample(serverTime: string): void {
+    const serverTimeMs = Date.parse(serverTime);
+    if (!Number.isFinite(serverTimeMs)) return;
+    this.serverClockSamples = [...this.serverClockSamples.slice(-(serverClockSampleCount - 1)), serverTimeMs - Date.now()];
+    this.serverClockOffsetValue.set(Math.max(...this.serverClockSamples));
   }
 
   connect(code: string, reconnectToken: string, forceReconnect = false): void {
@@ -135,6 +165,7 @@ export class RealtimeLobbyService {
     this.activeCode = '';
     this.activeToken = '';
     this.connectionStatusValue.set('idle');
+    this.rejectionCodeValue.set(null);
     this.compressionActiveValue.set(null);
     this.reactionEventsValue.set([]);
     if (clearState) {
@@ -250,7 +281,8 @@ export class RealtimeLobbyService {
       this.finishProbes();
       this.compressionActiveValue.set(null);
       // Only explicit session/lobby refusals stop retries; 1008 can also mean a late authentication message.
-      const rejected = event.code === 4401 || event.code === 4404;
+      const rejected = rejectingCloseCodes.has(event.code);
+      this.rejectionCodeValue.set(rejected ? event.code : null);
       this.connectionStatusValue.set(rejected ? 'rejected' : 'offline');
       const reason = (event.reason ?? '').split(this.activeToken).join('[masqué]').slice(0, 160);
       this.record('closed', rejected ? 'Session refusée : reconnexion automatique arrêtée' : 'Connexion interrompue', {

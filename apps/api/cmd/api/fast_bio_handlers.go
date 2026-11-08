@@ -69,7 +69,7 @@ func (a *api) handleStartFastBioGame(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var gameID string
-	themeDeadline := time.Now().Add(themePhaseWindow)
+	themeDeadline := time.Now().Add(themeStepWindow(themeProposalStep, true))
 	if err := tx.QueryRow(r.Context(), `
 		INSERT INTO fast_bio_games (lobby_id, theme_phase_deadline) VALUES ($1, $2) RETURNING id
 	`, player.LobbyID, themeDeadline).Scan(&gameID); err != nil {
@@ -90,7 +90,7 @@ func (a *api) handleStartFastBioGame(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	a.scheduleFastBioThemeSubmissionTimeout(player.Code, gameID)
+	a.scheduleFastBioThemeSubmissionTimeout(player.Code, gameID, themeDeadline)
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
@@ -118,7 +118,7 @@ func (a *api) handleSubmitFastBioTheme(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, phase, err := loadActiveFastBioGame(r.Context(), tx, player.LobbyID)
+	gameID, phase, err := lockActiveFastBioGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusConflict, "fast_bio_not_started", "The Fast Bio game has not started yet")
 		return
@@ -144,7 +144,7 @@ func (a *api) handleSubmitFastBioTheme(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	advanced, err := a.tryAdvanceFastBioThemeCollection(r.Context(), tx, gameID, player.LobbyID, false)
+	rankingDeadline, err := a.tryAdvanceFastBioThemeCollection(r.Context(), tx, gameID, player.LobbyID, false)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
@@ -157,36 +157,36 @@ func (a *api) handleSubmitFastBioTheme(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	if advanced {
-		a.scheduleFastBioThemeRankingTimeout(player.Code, gameID)
+	if rankingDeadline != nil {
+		a.scheduleFastBioThemeRankingTimeout(player.Code, gameID, *rankingDeadline)
 	}
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
 // tryAdvanceFastBioThemeCollection moves the game into ranking_themes once
-// every active player has either proposed a theme or explicitly passed —
-// or unconditionally when force is true (the submission deadline expired).
-func (a *api) tryAdvanceFastBioThemeCollection(ctx context.Context, tx pgx.Tx, gameID, lobbyID string, force bool) (advanced bool, err error) {
-	activeCount, err := activeLobbyPlayerCount(ctx, tx, lobbyID)
+// every active player has either proposed a theme or explicitly passed — or
+// unconditionally when force is true (the submission deadline expired). It
+// returns the ranking deadline it set, nil when the phase did not move.
+func (a *api) tryAdvanceFastBioThemeCollection(ctx context.Context, tx pgx.Tx, gameID, lobbyID string, force bool) (*time.Time, error) {
+	if !force {
+		awaiting, err := themeStepAwaitingIDs(ctx, tx, lobbyID, fastBioThemeSubmissions, gameID, 0)
+		if err != nil {
+			return nil, err
+		}
+		if len(awaiting) > 0 {
+			return nil, nil
+		}
+	}
+	deadline, err := themeRankingDeadline(ctx, tx, "fast_bio_games", lobbyID, gameID, false)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	var submittedCount int
-	if err := tx.QueryRow(ctx, `
-		SELECT count(*) FROM fast_bio_theme_submissions WHERE game_id = $1
-	`, gameID).Scan(&submittedCount); err != nil {
-		return false, err
-	}
-	if !force && submittedCount < activeCount {
-		return false, nil
-	}
-	deadline := time.Now().Add(themePhaseWindow)
 	if _, err := tx.Exec(ctx, `
 		UPDATE fast_bio_games SET phase = 'ranking_themes', theme_phase_deadline = $2 WHERE id = $1
 	`, gameID, deadline); err != nil {
-		return false, err
+		return nil, err
 	}
-	return true, nil
+	return &deadline, nil
 }
 
 func (a *api) handleRankFastBioThemes(w http.ResponseWriter, r *http.Request) {
@@ -208,7 +208,7 @@ func (a *api) handleRankFastBioThemes(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, phase, err := loadActiveFastBioGame(r.Context(), tx, player.LobbyID)
+	gameID, phase, err := lockActiveFastBioGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusConflict, "fast_bio_not_started", "The Fast Bio game has not started yet")
 		return
@@ -269,25 +269,21 @@ func (a *api) handleRankFastBioThemes(w http.ResponseWriter, r *http.Request) {
 func (a *api) tryConcludeFastBioRanking(
 	ctx context.Context, tx pgx.Tx, gameID, lobbyID string, candidates []string, force bool,
 ) (nextRoundID string, shouldScheduleNext bool, err error) {
-	activeCount, err := activeLobbyPlayerCount(ctx, tx, lobbyID)
-	if err != nil {
-		return "", false, err
-	}
-	var votedCount int
-	if err := tx.QueryRow(ctx, `
-		SELECT count(*) FROM fast_bio_theme_rankings WHERE game_id = $1
-	`, gameID).Scan(&votedCount); err != nil {
-		return "", false, err
-	}
-	if !force && votedCount < activeCount {
-		return "", false, nil
+	if !force {
+		awaiting, err := themeStepAwaitingIDs(ctx, tx, lobbyID, fastBioThemeRankings, gameID, 0)
+		if err != nil {
+			return "", false, err
+		}
+		if len(awaiting) > 0 {
+			return "", false, nil
+		}
 	}
 
 	rows, err := tx.Query(ctx, `SELECT ranking FROM fast_bio_theme_rankings WHERE game_id = $1`, gameID)
 	if err != nil {
 		return "", false, err
 	}
-	rankings := make([][]string, 0, activeCount)
+	rankings := make([][]string, 0)
 	for rows.Next() {
 		var rankingJSON []byte
 		if err := rows.Scan(&rankingJSON); err != nil {
@@ -329,8 +325,8 @@ func (a *api) tryConcludeFastBioRanking(
 	return roundID, true, nil
 }
 
-func (a *api) scheduleFastBioThemeSubmissionTimeout(code, gameID string) {
-	time.AfterFunc(themePhaseWindow, func() {
+func (a *api) scheduleFastBioThemeSubmissionTimeout(code, gameID string, deadline time.Time) {
+	time.AfterFunc(time.Until(deadline), func() {
 		a.forceFastBioThemeSubmissionDeadline(code, gameID)
 	})
 }
@@ -354,7 +350,7 @@ func (a *api) forceFastBioThemeSubmissionDeadline(code, gameID string) {
 	if phase != "collecting_themes" {
 		return
 	}
-	advanced, err := a.tryAdvanceFastBioThemeCollection(ctx, tx, gameID, lobbyID, true)
+	rankingDeadline, err := a.tryAdvanceFastBioThemeCollection(ctx, tx, gameID, lobbyID, true)
 	if err != nil {
 		a.logger.Error("unable to force fast bio theme collection deadline", "game_id", gameID, "error", err)
 		return
@@ -368,13 +364,13 @@ func (a *api) forceFastBioThemeSubmissionDeadline(code, gameID string) {
 		return
 	}
 	a.hub.publish(code)
-	if advanced {
-		a.scheduleFastBioThemeRankingTimeout(code, gameID)
+	if rankingDeadline != nil {
+		a.scheduleFastBioThemeRankingTimeout(code, gameID, *rankingDeadline)
 	}
 }
 
-func (a *api) scheduleFastBioThemeRankingTimeout(code, gameID string) {
-	time.AfterFunc(themePhaseWindow, func() {
+func (a *api) scheduleFastBioThemeRankingTimeout(code, gameID string, deadline time.Time) {
+	time.AfterFunc(time.Until(deadline), func() {
 		a.forceFastBioThemeRankingDeadline(code, gameID)
 	})
 }
@@ -723,7 +719,7 @@ func (a *api) handleSubmitFastBioProposal(w http.ResponseWriter, r *http.Request
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, gamePhase, err := loadActiveFastBioGame(r.Context(), tx, player.LobbyID)
+	gameID, gamePhase, err := lockActiveFastBioGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && gamePhase != "playing") {
 		writeError(w, http.StatusConflict, "fast_bio_not_playing", "No Fast Bio round is currently open for submissions")
 		return
@@ -769,18 +765,14 @@ func (a *api) handleSubmitFastBioProposal(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	var requiredCount, submittedCount int
-	if err := tx.QueryRow(r.Context(), `SELECT count(*) FROM fast_bio_assignments WHERE round_id = $1`, round.ID).Scan(&requiredCount); err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	if err := tx.QueryRow(r.Context(), `SELECT count(*) FROM fast_bio_proposals WHERE round_id = $1`, round.ID).Scan(&submittedCount); err != nil {
+	awaiting, err := fastBioSubmissionAwaitingIDs(r.Context(), tx, round.ID)
+	if err != nil {
 		a.internalError(w, r, err)
 		return
 	}
 	var nextRoundID string
 	var shouldScheduleNext bool
-	if submittedCount >= requiredCount {
+	if len(awaiting) == 0 {
 		nextRoundID, shouldScheduleNext, err = a.transitionFastBioRoundOutOfSubmitting(r.Context(), tx, round.ID)
 		if err != nil {
 			a.internalError(w, r, err)
@@ -878,7 +870,7 @@ func (a *api) handleAdvanceFastBioReview(w http.ResponseWriter, r *http.Request)
 	}
 	defer tx.Rollback(r.Context())
 
-	gameID, gamePhase, err := loadActiveFastBioGame(r.Context(), tx, player.LobbyID)
+	gameID, gamePhase, err := lockActiveFastBioGame(r.Context(), tx, player.LobbyID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && gamePhase != "playing") {
 		writeError(w, http.StatusConflict, "fast_bio_not_playing", "No Fast Bio round is currently being reviewed")
 		return
@@ -1100,7 +1092,7 @@ func (a *api) handleReplayFastBio(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
-	_, gamePhase, err := loadActiveFastBioGame(r.Context(), tx, player.LobbyID)
+	_, gamePhase, err := lockActiveFastBioGame(r.Context(), tx, player.LobbyID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		a.internalError(w, r, err)
 		return
@@ -1111,7 +1103,7 @@ func (a *api) handleReplayFastBio(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var gameID string
-	themeDeadline := time.Now().Add(themePhaseWindow)
+	themeDeadline := time.Now().Add(themeStepWindow(themeProposalStep, false))
 	if err := tx.QueryRow(r.Context(), `
 		INSERT INTO fast_bio_games (lobby_id, theme_phase_deadline) VALUES ($1, $2) RETURNING id
 	`, player.LobbyID, themeDeadline).Scan(&gameID); err != nil {
@@ -1132,7 +1124,7 @@ func (a *api) handleReplayFastBio(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	a.scheduleFastBioThemeSubmissionTimeout(player.Code, gameID)
+	a.scheduleFastBioThemeSubmissionTimeout(player.Code, gameID, themeDeadline)
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
@@ -1140,7 +1132,7 @@ func (a *api) handleReplayFastBio(w http.ResponseWriter, r *http.Request) {
 
 func activeLobbyPlayerIDs(ctx context.Context, db dbQuerier, lobbyID string) ([]string, error) {
 	rows, err := db.Query(ctx, `
-		SELECT id FROM players WHERE lobby_id = $1 AND excluded_at IS NULL ORDER BY joined_at, id
+		SELECT id FROM players WHERE lobby_id = $1 AND is_active ORDER BY joined_at, id
 	`, lobbyID)
 	if err != nil {
 		return nil, err
@@ -1160,7 +1152,7 @@ func activeLobbyPlayerIDs(ctx context.Context, db dbQuerier, lobbyID string) ([]
 func activeLobbyPlayerCount(ctx context.Context, db dbQuerier, lobbyID string) (int, error) {
 	var count int
 	err := db.QueryRow(ctx, `
-		SELECT count(*) FROM players WHERE lobby_id = $1 AND excluded_at IS NULL
+		SELECT count(*) FROM players WHERE lobby_id = $1 AND is_active
 	`, lobbyID).Scan(&count)
 	return count, err
 }
@@ -1168,6 +1160,16 @@ func activeLobbyPlayerCount(ctx context.Context, db dbQuerier, lobbyID string) (
 func loadActiveFastBioGame(ctx context.Context, db dbQuerier, lobbyID string) (id, phase string, err error) {
 	err = db.QueryRow(ctx, `
 		SELECT id, phase FROM fast_bio_games WHERE lobby_id = $1 ORDER BY created_at DESC LIMIT 1
+	`, lobbyID).Scan(&id, &phase)
+	return id, phase, err
+}
+
+// lockActiveFastBioGame is loadActiveFastBioGame for write paths: the row lock
+// serializes every command, deadline and departure of a lobby, so "everyone
+// answered" checks never miss a concurrent answer or departure.
+func lockActiveFastBioGame(ctx context.Context, tx pgx.Tx, lobbyID string) (id, phase string, err error) {
+	err = tx.QueryRow(ctx, `
+		SELECT id, phase FROM fast_bio_games WHERE lobby_id = $1 ORDER BY created_at DESC LIMIT 1 FOR UPDATE
 	`, lobbyID).Scan(&id, &phase)
 	return id, phase, err
 }
@@ -1247,14 +1249,14 @@ func loadFastBioReactionProgress(
 				JOIN players AS voter ON voter.id = reaction.voter_player_id
 				WHERE reaction.proposal_id = $2
 				  AND voter.lobby_id = $1
-				  AND voter.excluded_at IS NULL
+				  AND voter.is_active
 				  AND voter.id <> $3
 			),
 			(
 				SELECT count(*)
 				FROM players
 				WHERE lobby_id = $1
-				  AND excluded_at IS NULL
+				  AND is_active
 				  AND id <> $3
 			)
 	`, lobbyID, proposalID, authorPlayerID).Scan(&count, &required)
@@ -1317,7 +1319,7 @@ func loadFastBioLeaderboard(ctx context.Context, db dbQuerier, gameID string) ([
 		LEFT JOIN fast_bio_rounds AS round ON round.id = proposal.round_id AND round.game_id = $1
 		LEFT JOIN fast_bio_reactions AS reaction ON reaction.proposal_id = proposal.id AND round.id IS NOT NULL
 		WHERE author.lobby_id = (SELECT lobby_id FROM fast_bio_games WHERE id = $1)
-		  AND author.excluded_at IS NULL
+		  AND author.is_active
 		GROUP BY author.id, author.display_name
 		ORDER BY total_score DESC, author.display_name ASC
 	`, gameID, fastBioRoundCount)
@@ -1336,10 +1338,9 @@ func loadFastBioLeaderboard(ctx context.Context, db dbQuerier, gameID string) ([
 	return leaderboard, rows.Err()
 }
 
-// loadFastBioThemeProgress populates the deadline and "X of Y" progress
-// counters shared by both theme sub-phases. progressTable is always one of
-// the two hardcoded table name constants below (never user input).
-func (a *api) loadFastBioThemeProgress(ctx context.Context, gameID, lobbyID, progressTable string, view *fastBioStateView) error {
+// loadFastBioThemeProgress populates the deadline, the "X of Y" progress
+// counters and the awaited players shared by both theme sub-phases.
+func (a *api) loadFastBioThemeProgress(ctx context.Context, gameID, lobbyID string, table themeStepTable, view *fastBioStateView) error {
 	var deadline *time.Time
 	if err := a.pool.QueryRow(ctx, `
 		SELECT theme_phase_deadline FROM fast_bio_games WHERE id = $1
@@ -1347,17 +1348,13 @@ func (a *api) loadFastBioThemeProgress(ctx context.Context, gameID, lobbyID, pro
 		return err
 	}
 	view.ThemeDeadline = deadline
-	requiredCount, err := activeLobbyPlayerCount(ctx, a.pool, lobbyID)
+	progress, err := loadThemeStepProgress(ctx, a.pool, lobbyID, table, gameID, 0)
 	if err != nil {
 		return err
 	}
-	view.ThemeProgressRequired = requiredCount
-	var progressCount int
-	query := "SELECT count(*) FROM " + progressTable + " WHERE game_id = $1"
-	if err := a.pool.QueryRow(ctx, query, gameID).Scan(&progressCount); err != nil {
-		return err
-	}
-	view.ThemeProgressCount = progressCount
+	view.ThemeProgressCount = progress.count
+	view.ThemeProgressRequired = progress.required
+	view.AwaitingPlayerIDs = progress.awaiting
 	return nil
 }
 
@@ -1379,7 +1376,7 @@ func (a *api) loadFastBioState(ctx context.Context, currentPlayer authenticatedP
 			return fastBioStateView{}, err
 		}
 		view.ThemeSubmitted = exists
-		if err := a.loadFastBioThemeProgress(ctx, gameID, currentPlayer.LobbyID, "fast_bio_theme_submissions", &view); err != nil {
+		if err := a.loadFastBioThemeProgress(ctx, gameID, currentPlayer.LobbyID, fastBioThemeSubmissions, &view); err != nil {
 			return fastBioStateView{}, err
 		}
 
@@ -1397,7 +1394,7 @@ func (a *api) loadFastBioState(ctx context.Context, currentPlayer authenticatedP
 			return fastBioStateView{}, err
 		}
 		view.ThemeRanked = exists
-		if err := a.loadFastBioThemeProgress(ctx, gameID, currentPlayer.LobbyID, "fast_bio_theme_rankings", &view); err != nil {
+		if err := a.loadFastBioThemeProgress(ctx, gameID, currentPlayer.LobbyID, fastBioThemeRankings, &view); err != nil {
 			return fastBioStateView{}, err
 		}
 
@@ -1421,16 +1418,18 @@ func (a *api) loadFastBioState(ctx context.Context, currentPlayer authenticatedP
 		if round.Phase == "submitting" {
 			deadline := round.SubmissionDeadline
 			view.SubmissionDeadline = &deadline
-			if err := a.pool.QueryRow(ctx, `
-				SELECT count(*) FROM fast_bio_assignments WHERE round_id = $1
-			`, round.ID).Scan(&view.SubmissionProgressRequired); err != nil {
+			requiredCount, err := fastBioActiveAuthorCount(ctx, a.pool, round.ID)
+			if err != nil {
 				return fastBioStateView{}, err
 			}
-			if err := a.pool.QueryRow(ctx, `
-				SELECT count(*) FROM fast_bio_proposals WHERE round_id = $1
-			`, round.ID).Scan(&view.SubmissionProgressCount); err != nil {
+			awaiting, err := fastBioSubmissionAwaitingIDs(ctx, a.pool, round.ID)
+			if err != nil {
 				return fastBioStateView{}, err
 			}
+			progress := newStepProgress(requiredCount, awaiting)
+			view.SubmissionProgressRequired = progress.required
+			view.SubmissionProgressCount = progress.count
+			view.AwaitingPlayerIDs = progress.awaiting
 		}
 
 		var targetID, targetName string
@@ -1472,6 +1471,12 @@ func (a *api) loadFastBioState(ctx context.Context, currentPlayer authenticatedP
 				}
 				view.CurrentProposal = &proposal
 				view.ReactionProgressCount, view.ReactionProgressRequired, err = loadFastBioReactionProgress(
+					ctx, a.pool, currentPlayer.LobbyID, proposal.ID, proposal.AuthorPlayerID,
+				)
+				if err != nil {
+					return fastBioStateView{}, err
+				}
+				view.AwaitingPlayerIDs, err = fastBioReactionAwaitingIDs(
 					ctx, a.pool, currentPlayer.LobbyID, proposal.ID, proposal.AuthorPlayerID,
 				)
 				if err != nil {

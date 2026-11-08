@@ -224,7 +224,7 @@ describe('RealtimeLobbyService compression preference', () => {
   });
 
   it('stops retrying rejected sessions and redacts tokens in close reasons', () => {
-    for (const code of [4401, 4404]) {
+    for (const code of [4401, 4403, 4404, 4409]) {
       TestWebSocket.instances = [];
       const service = new RealtimeLobbyService();
       service.connect('ROOM', 'private-token');
@@ -232,6 +232,7 @@ describe('RealtimeLobbyService compression preference', () => {
       vi.advanceTimersByTime(60_000);
       service.connect('ROOM', 'private-token');
       expect(service.connectionStatus()).toBe('rejected');
+      expect(service.rejectionCode()).toBe(code);
       expect(TestWebSocket.instances).toHaveLength(1);
       expect(JSON.stringify(service.diagnosticEvents())).not.toContain('private-token');
       service.connect('ROOM', 'private-token', true);

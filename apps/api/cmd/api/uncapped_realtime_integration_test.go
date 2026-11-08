@@ -52,6 +52,26 @@ func integrationThemeSelection(t *testing.T, mode string, state lobbyStateRespon
 			deadline: game.ThemeDeadline, progressCount: game.ThemeProgressCount,
 			requiredCount: game.ThemeProgressRequired, candidates: game.ThemeCandidates,
 		}
+	case lobbyModeWavelength:
+		if state.WavelengthGame == nil {
+			t.Fatal("missing Wavelength state")
+		}
+		game := state.WavelengthGame
+		return integrationThemeView{
+			phase: game.Phase, submitted: game.ThemeSubmitted, ranked: game.ThemeRanked,
+			deadline: game.ThemeDeadline, progressCount: game.ThemeProgressCount,
+			requiredCount: game.ThemeProgressRequired, candidates: game.ThemeCandidates,
+		}
+	case lobbyModeSecretRanking:
+		if state.SecretRankingGame == nil {
+			t.Fatal("missing Classement secret state")
+		}
+		game := state.SecretRankingGame
+		return integrationThemeView{
+			phase: game.Phase, submitted: game.ThemeSubmitted, ranked: game.ThemeRanked,
+			deadline: game.ThemeDeadline, progressCount: game.ThemeProgressCount,
+			requiredCount: game.ThemeProgressRequired, candidates: game.ThemeCandidates,
+		}
 	default:
 		t.Fatalf("unsupported uncapped mode %q", mode)
 		return integrationThemeView{}
@@ -78,6 +98,7 @@ func TestUncappedModeRealtimeRevisionFlow(t *testing.T) {
 		{mode: lobbyModeFastBio, playerCount: 2, apiSegment: "fast-bio"},
 		{mode: lobbyModeZeroToHundred, playerCount: zeroToHundredNomineeCount, apiSegment: "zero-to-100"},
 		{mode: lobbyModeSituation, playerCount: 2, apiSegment: "situation"},
+		{mode: lobbyModeSecretRanking, playerCount: secretRankingMinPlayerCount, apiSegment: "secret-ranking"},
 	}
 
 	for _, testCase := range testCases {
@@ -255,6 +276,20 @@ func submitFirstRoundAction(
 			state.SituationGame.SubmissionProgressCount != 1 {
 			t.Fatalf("Situation proposal was not acknowledged: %#v", state.SituationGame)
 		}
+	case lobbyModeSecretRanking:
+		if state.SecretRankingGame == nil || state.SecretRankingGame.SecretDeadline == nil ||
+			rankingDeadline == nil || !state.SecretRankingGame.SecretDeadline.After(*rankingDeadline) {
+			t.Fatalf("Classement secret round did not receive a fresh deadline: %#v", state.SecretRankingGame)
+		}
+		*state = integrationRequestJSON[lobbyStateResponse](
+			t, hostIdentity, http.MethodPost,
+			baseURL+"/api/v1/lobbies/"+code+"/secret-ranking/amount",
+			players[0].ReconnectToken, map[string]int64{"amount": 1500}, http.StatusOK,
+		)
+		if state.SecretRankingGame == nil || !state.SecretRankingGame.Submitted ||
+			state.SecretRankingGame.SubmissionProgressCount != 1 {
+			t.Fatalf("Classement secret bet was not acknowledged: %#v", state.SecretRankingGame)
+		}
 	}
 }
 
@@ -272,6 +307,15 @@ func requireRoundProgressBroadcast(t *testing.T, mode string, snapshot lobbyStat
 	case lobbyModeSituation:
 		if snapshot.SituationGame == nil || snapshot.SituationGame.SubmissionProgressCount != 1 {
 			t.Fatalf("Situation proposal progress was not broadcast: %#v", snapshot.SituationGame)
+		}
+	case lobbyModeSecretRanking:
+		game := snapshot.SecretRankingGame
+		if game == nil || game.SubmissionProgressCount != 1 {
+			t.Fatalf("Classement secret bet progress was not broadcast: %#v", game)
+		}
+		// The observer must never receive someone else's bet before the reveal.
+		if game.MyAmount != nil || len(game.Reveal) > 0 {
+			t.Fatalf("an amount leaked to another player before the reveal: %#v", game)
 		}
 	}
 }

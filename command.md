@@ -43,7 +43,7 @@ Déroulé :
 
 À savoir :
 
-- Il n'existe pas de bots pour les modes Classique, Fast Bio, 0 à 100 et Wavelength.
+- Il n'existe pas de bots pour les modes Classique, Fast Bio, 0 à 100, Wavelength et Le classement secret.
 - Le mode Situation démarre dès 2 joueurs : un seul bot suffit pour tester.
 - Les bots laissent le temps de voir les écrans d'attente et leurs mini-jeux (« Proposition envoyée ! », « Classement envoyé ! »).
 
@@ -89,7 +89,7 @@ corepack pnpm typecheck
 corepack pnpm build
 ```
 
-Le build affiche un avertissement de budget sur le bundle initial (1,13 MB pour 1 MB autorisé). Il est connu et ne bloque pas le build.
+Le build affiche un avertissement de budget sur le bundle initial (1,14 MB pour 1 MB autorisé). Il est connu et ne bloque pas le build.
 
 ### API Go
 
