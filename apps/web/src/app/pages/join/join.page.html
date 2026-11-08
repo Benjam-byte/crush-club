@@ -1,27 +1,12 @@
 <div class="ion-page">
-  <ion-content>
-    <main class="app-shell min-h-full pb-8">
-      <app-page-header
+  <app-page-header
         [title]="isCreateMode() ? 'Crée ton lobby' : 'Rejoins la partie'"
         backLink="/"
       />
-
-      <section class="px-5 pt-4">
-        <div class="surface-card overflow-hidden">
-          <div class="relative bg-gradient-to-br from-brand-500 to-coral-400 px-6 py-7 text-white">
-            <div class="absolute -right-7 -top-10 size-32 rounded-full border-[22px] border-white/10"></div>
-            <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-white/75">
-              {{ isCreateMode() ? 'Tu seras l’hôte' : 'Invitation reçue' }}
-            </p>
-            <h2 class="mt-2 max-w-xs text-2xl font-extrabold leading-tight">
-              {{ isCreateMode() ? 'Rassemble le groupe en quelques secondes.' : 'Entre dans le club.' }}
-            </h2>
-            <p class="mt-2 max-w-sm text-sm leading-6 text-white/85">
-              Un pseudo suffit pour rejoindre la partie.
-            </p>
-          </div>
-
-          <form class="space-y-5 p-5" [formGroup]="joinForm" (ngSubmit)="onSubmit()">
+  <ion-content [scrollY]="false">
+    <main class="app-shell screen-body">
+<p class="text-sm text-ink-600">Un pseudo suffit pour rejoindre la partie.</p>
+<form id="join-form" class="flex flex-col gap-3" [formGroup]="joinForm" (ngSubmit)="onSubmit()">
             @if (!isCreateMode()) {
               <div>
                 <ion-input
@@ -79,7 +64,7 @@
                   <ion-select-option value="wavelength">Wavelength · dès 2 joueurs (4+ recommandé)</ion-select-option>
                   <ion-select-option value="secret_ranking">Le classement secret · 3 à 10 joueurs</ion-select-option>
                 </ion-select>
-                <p class="mt-2 text-xs leading-5 text-ink-500">
+                <p class="mt-2 line-clamp-2 text-xs leading-5 text-ink-500">
                   @if (selectedMode() === 'fast_bio') {
                     Chacun invente une bio + une photo pour un autre joueur sur un thème choisi par le groupe, puis tout le monde note les propositions.
                   } @else if (selectedMode() === 'zero_to_100') {
@@ -97,11 +82,12 @@
               </div>
 
               @if (selectedMode() === 'classic') {
+<div class="grid grid-cols-[6rem_1fr] gap-3">
                 <div>
                   <ion-select
                     class="form-input"
                     formControlName="maxPlayers"
-                    label="Nombre de joueurs"
+                    label="Joueurs"
                     labelPlacement="stacked"
                     interface="action-sheet"
                   >
@@ -115,7 +101,7 @@
                   <ion-select
                     class="form-input"
                     formControlName="gameConfigId"
-                    label="Questionnaire du lobby"
+                    label="Questionnaire"
                     labelPlacement="stacked"
                     interface="action-sheet"
                     placeholder="Choisir une configuration"
@@ -133,23 +119,25 @@
                     <p class="mt-2 text-xs font-semibold text-danger-500">Choisis un questionnaire.</p>
                   }
                 </div>
+              </div>
               }
             }
 
-            @if (gameConfigs.errorMessage() || gameState.errorMessage(); as errorMessage) {
+            @if (gameConfigs.errorMessage(); as errorMessage) {
               <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">
                 {{ errorMessage }}
               </p>
             }
 
-            <ion-button class="action-button w-full" expand="block" type="submit" [disabled]="isSubmitting()">
+            
+          </form>
+    </main>
+  </ion-content>
+  <footer class="screen-footer">
+<ion-button class="action-button w-full" expand="block" type="submit" form="join-form" [disabled]="isSubmitting()">
               {{ isSubmitting() ? 'Connexion…' : (isCreateMode() ? 'Créer mon lobby' : 'Rejoindre le lobby') }}
               <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
             </ion-button>
-          </form>
-        </div>
+  </footer>
 
-      </section>
-    </main>
-  </ion-content>
 </div>

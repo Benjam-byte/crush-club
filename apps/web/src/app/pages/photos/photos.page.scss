@@ -1,49 +1,7 @@
-.selection-timer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 16px;
-  padding: 18px;
-  border: 1px solid var(--color-layer-border);
-  border-radius: 22px;
-  background: white;
-  box-shadow: var(--shadow-card);
-  transition:
-    border-color 160ms ease,
-    background 160ms ease;
-}
-
-.selection-timer--warning {
-  border-color: rgb(212 71 88 / 0.35);
-  background: var(--color-danger-50);
-}
-
-.selection-timer__value {
-  min-width: 76px;
-  padding: 10px 12px;
-  border-radius: 16px;
-  background: var(--color-layer-soft);
-  color: var(--color-brand-600);
-  font-size: 20px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  text-align: center;
-}
-
-.selection-timer__value--warning {
-  background: white;
-  color: var(--color-danger-500);
-}
-
-.photo-slot-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
 .photo-slot {
+  position: relative;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--color-layer-border);
   border-radius: 20px;
@@ -57,7 +15,7 @@
 
 .photo-slot__preview {
   position: relative;
-  aspect-ratio: 3 / 4;
+  height: 100%;
   overflow: hidden;
   background: var(--color-layer-soft);
 }
@@ -132,6 +90,11 @@
 }
 
 .photo-slot__actions {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.94);
   display: grid;
   grid-template-columns: 1fr 1fr;
   border-top: 1px solid var(--color-layer-border);
@@ -140,13 +103,14 @@
 .photo-slot__actions button {
   display: inline-flex;
   min-width: 0;
-  min-height: 42px;
+  min-height: 44px;
+  min-width: 44px;
   align-items: center;
   justify-content: center;
   gap: 4px;
   padding: 7px 4px;
   color: var(--color-brand-600);
-  font-size: 9px;
+  font-size: 18px;
   font-weight: 800;
 }
 
@@ -165,20 +129,6 @@
 @keyframes photo-spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@media (max-width: 359px) {
-  .selection-timer {
-    grid-template-columns: 1fr;
-  }
-
-  .selection-timer__value {
-    width: fit-content;
-  }
-
-  .photo-slot-grid {
-    gap: 10px;
   }
 }
 

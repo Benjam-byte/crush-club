@@ -1,24 +1,15 @@
 <div class="ion-page">
-  <ion-content>
-    <main class="app-shell decorative-grid relative flex min-h-full flex-col items-center justify-center overflow-hidden px-5 py-8 text-center">
-      <div class="absolute -left-16 top-16 size-48 rounded-full bg-brand-200/45 blur-3xl"></div>
-      <div class="absolute -right-20 bottom-10 size-56 rounded-full bg-lover-500/10 blur-3xl"></div>
-
-      <div class="relative z-10">
-        <app-brand-mark size="large" />
-      </div>
-
-      <p class="relative z-10 mt-6 text-xs font-extrabold uppercase tracking-[0.18em] text-brand-600">
-        Manche {{ gameState.game()?.roundNumber }} sur {{ gameState.game()?.totalRounds }}
-      </p>
-      <h1 class="relative z-10 mt-2 text-4xl font-extrabold tracking-[-0.045em] text-ink-900">
+  <app-page-header [title]="'Manche ' + gameState.game()?.roundNumber + ' / ' + gameState.game()?.totalRounds" />
+  <ion-content [scrollY]="false">
+    <main class="app-shell screen-body">
+<section class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-center">      <h1 class="relative z-10 mt-0 text-2xl font-extrabold tracking-[-0.045em] text-ink-900">
         @if (gameState.role() === 'lover') {
           Cette manche parle de <span class="text-brand-600">toi&nbsp;!</span>
         } @else {
           À quel point connais-tu <span class="text-brand-600">{{ gameState.subjectPlayer().displayName }}&nbsp;?</span>
         }
       </h1>
-      <p class="relative z-10 mt-3 max-w-sm text-sm leading-6 text-ink-600">
+      <p class="relative z-10 max-w-sm text-sm leading-6 text-ink-600">
         @if (gameState.role() === 'lover') {
           Tu es la <strong class="text-ink-900">cible</strong>. Réponds sincèrement puis choisis ta phrase préférée.
         } @else {
@@ -26,7 +17,7 @@
         }
       </p>
 
-      <div class="role-portrait relative z-10 mt-7 size-52 overflow-hidden rounded-[38px] border-[6px] border-white">
+      <div class="role-portrait relative z-10 mt-3 size-40 overflow-hidden rounded-[38px] border-4 border-white">
         @if (subjectPhotoUrl()) {
           <img class="h-full w-full object-cover" [src]="subjectPhotoUrl()" [alt]="'Photo de ' + gameState.subjectPlayer().displayName" />
         } @else {
@@ -40,29 +31,16 @@
         </div>
       </div>
 
-      <div class="relative z-10 mt-6 grid w-full grid-cols-3 gap-2">
-        <div class="surface-card px-2 py-4">
-          <p class="text-base font-extrabold text-brand-600">~ 6 min</p>
-          <p class="mt-1 text-[10px] font-semibold text-ink-500">pour répondre</p>
-        </div>
-        <div class="surface-card px-2 py-4">
-          <p class="text-base font-extrabold text-brand-600">1</p>
-          <p class="mt-1 text-[10px] font-semibold text-ink-500">{{ gameState.role() === 'lover' ? 'vote à faire' : 'LOVER à miser' }}</p>
-        </div>
-        <div class="surface-card px-2 py-4">
-          <p class="text-base font-extrabold text-brand-600">{{ gameState.playerList().length }}</p>
-          <p class="mt-1 text-[10px] font-semibold text-ink-500">joueurs réels</p>
-        </div>
-      </div>
-
-      <p class="relative z-10 mt-6 text-xs font-bold text-ink-500">
-        {{ gameState.game()?.submittedCount ?? 0 }}/{{ gameState.game()?.requiredCount ?? 0 }} joueurs ont déjà répondu
-      </p>
-
-      <ion-button class="action-button relative z-10 mt-3 w-full" expand="block" (click)="onStartQuestionnaire()">
-        {{ gameState.role() === 'lover' ? 'Remplir mon vrai profil' : 'Commencer à deviner' }}
-        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-      </ion-button>
+</section>
     </main>
   </ion-content>
+  <footer class="screen-footer">
+<ion-button class="action-button  w-full" expand="block" (click)="onStartQuestionnaire()">
+        {{ gameState.role() === 'lover' ? 'Remplir mon vrai profil' : 'Commencer à deviner' }}
+        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+      </ion-button><p class="mt-2 text-center text-xs font-extrabold uppercase tracking-[0.18em] text-brand-600">
+        Manche {{ gameState.game()?.roundNumber }} sur {{ gameState.game()?.totalRounds }}
+      </p>
+  </footer>
+
 </div>

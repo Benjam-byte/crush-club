@@ -11,7 +11,7 @@ import {
 } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
 import { WaitingCardComponent } from '../../core/components/waiting-card/waiting-card.component';
-import { WaitingGameComponent } from '../../core/components/waiting-game/waiting-game.component';
+import { WaitingGameLauncherComponent } from '../../core/components/waiting-game-launcher/waiting-game-launcher.component';
 import { GameStateService } from '../../core/services/game-state.service';
 import { GameConfigService } from '../../core/services/game-config.service';
 
@@ -26,7 +26,7 @@ import { GameConfigService } from '../../core/services/game-config.service';
     IonToast,
     PageHeaderComponent,
     WaitingCardComponent,
-    WaitingGameComponent,
+    WaitingGameLauncherComponent,
   ],
   templateUrl: './lobby.page.html',
   styleUrl: './lobby.page.scss',
@@ -46,6 +46,10 @@ export class LobbyPage implements OnInit {
   protected readonly readyPlayerCount = computed(() => {
     return this.gameState.playerList().filter((player) => player.readyStatus === 'ready').length;
   });
+
+  protected isPlayerConnected(playerId: string): boolean {
+    return this.gameState.playerList().some(player => player.id === playerId && player.connected);
+  }
 
   async ngOnInit(): Promise<void> {
     try {

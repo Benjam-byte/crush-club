@@ -2,13 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
-import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
+import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 /** A player who joined a game in progress waits here until the host lets them in or turns them down. */
 @Component({
   selector: 'app-pending-approval-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent],
+  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, PhaseConfirmationComponent],
   templateUrl: './pending-approval.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
