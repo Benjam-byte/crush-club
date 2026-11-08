@@ -1,6 +1,7 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom, timeout } from 'rxjs';
+import type { LobbyApiProbeData } from '../models/realtime-diagnostics.models';
 import type {
   LobbyMode,
   LobbyResponse,
@@ -42,6 +43,21 @@ export class LobbyApiService {
         headers: this.authorizationHeaders(reconnectToken),
       }),
     );
+  }
+
+  async probeConnection(code: string, reconnectToken: string): Promise<LobbyApiProbeData> {
+    const response = await firstValueFrom(
+      this.http.get<LobbyStateResponse>(`/api/v1/lobbies/${code}/state`, {
+        headers: this.authorizationHeaders(reconnectToken).set('Cache-Control', 'no-cache'),
+        observe: 'response',
+      }).pipe(timeout(5000)),
+    );
+    if (!response.body) throw new Error('Missing lobby state');
+    return {
+      serverInstanceId: response.headers.get('X-Crush-Club-Server'),
+      playerId: response.body.currentPlayerId,
+      revision: response.body.revision,
+    };
   }
 
   changeConfig(code: string, reconnectToken: string, gameConfigId: string): Promise<LobbyStateResponse> {
@@ -401,20 +417,6 @@ export class LobbyApiService {
     );
   }
 
-  advanceSituationReview(
-    code: string,
-    reconnectToken: string,
-    direction: 'next' | 'previous',
-  ): Promise<LobbyStateResponse> {
-    return firstValueFrom(
-      this.http.post<LobbyStateResponse>(
-        `/api/v1/lobbies/${code}/situation/review/advance`,
-        { direction },
-        { headers: this.authorizationHeaders(reconnectToken) },
-      ),
-    );
-  }
-
   submitSituationRanking(
     code: string,
     reconnectToken: string,
@@ -440,6 +442,73 @@ export class LobbyApiService {
   replaySituation(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
     return firstValueFrom(
       this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/situation/replay`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  startWavelength(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/wavelength/start`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  /** Empty poles pass on this round's proposal. */
+  submitWavelengthTheme(code: string, reconnectToken: string, left: string, right: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/wavelength/themes`,
+        { left, right },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  rankWavelengthThemes(
+    code: string,
+    reconnectToken: string,
+    ranking: readonly string[],
+  ): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/wavelength/themes/rank`,
+        { ranking },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  confirmWavelengthClue(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/wavelength/clue`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  submitWavelengthGuess(code: string, reconnectToken: string, position: number): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(
+        `/api/v1/lobbies/${code}/wavelength/guess`,
+        { position },
+        { headers: this.authorizationHeaders(reconnectToken) },
+      ),
+    );
+  }
+
+  startNextWavelengthRound(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/wavelength/rounds/next`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
+  replayWavelength(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(
+      this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/wavelength/replay`, null, {
         headers: this.authorizationHeaders(reconnectToken),
       }),
     );

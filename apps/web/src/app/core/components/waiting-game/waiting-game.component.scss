@@ -1,0 +1,8 @@
+:host {
+  display: block;
+}
+
+// Stops iOS from opening the long-press callout while the player holds the canvas.
+.waiting-game-canvas {
+  -webkit-touch-callout: none;
+}

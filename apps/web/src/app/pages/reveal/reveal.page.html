@@ -102,11 +102,7 @@
             <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
           </ion-button>
         } @else {
-          <div class="surface-card p-5 text-center">
-            <ion-icon class="text-3xl text-brand-500" name="hourglass-outline" aria-hidden="true" />
-            <p class="mt-2 text-sm font-extrabold text-ink-900">En attente du vote</p>
-            <p class="mt-1 text-xs text-ink-500">Les scores apparaîtront automatiquement sur tous les appareils.</p>
-          </div>
+          <app-waiting-card title="En attente du vote" message="Les scores apparaîtront automatiquement sur tous les appareils." />
         }
 
         @if (gameState.errorMessage(); as errorMessage) {

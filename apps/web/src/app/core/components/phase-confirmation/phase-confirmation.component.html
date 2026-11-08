@@ -12,3 +12,7 @@
   }
   <p class="mt-1 text-xs text-ink-500">{{ message() }}</p>
 </section>
+
+@if (hasWaitingGame()) {
+  <app-waiting-game class="mt-4" />
+}

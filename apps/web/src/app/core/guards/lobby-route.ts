@@ -1,4 +1,4 @@
-import type { LobbyStateResponse } from '@core/models/game.models';
+import type { LobbyMode, LobbyStateResponse } from '@core/models/game.models';
 
 export function shouldApplyLobbySnapshot(
   current: LobbyStateResponse | null,
@@ -11,12 +11,36 @@ export function activeNavigationUrl(currentUrl: string, pendingUrl?: string): st
   return (pendingUrl ?? currentUrl).split('?')[0];
 }
 
+/** Code of the lobby a `/lobby/…` or `/game/…` URL belongs to, or null for any other page. */
+export function findLobbyCodeInUrl(url: string): string | null {
+  return /^\/(?:lobby|game)\/([^/?#]+)/.exec(url)?.[1]?.toUpperCase() ?? null;
+}
+
 /**
- * Expected route for the "crowd-sourced theme/situation + fixed rounds" modes
- * (Fast Bio, 0 à 100, Situation), which all share the same top-level shape:
- * theme selection, then per-round pages, then a final leaderboard. Returns the
- * lobby URL whenever there is no game in progress yet, so callers that only
- * care about "is this URL allowed" don't need a separate not-started branch.
+ * Leaving the lobby flow costs the player their place, so it must be confirmed — unless they
+ * no longer hold a live session for this lobby (already left, excluded, lobby gone).
+ */
+export function shouldConfirmLobbyExit(currentUrl: string, destinationUrl: string, activeSessionCode: string | null): boolean {
+  const currentCode = findLobbyCodeInUrl(currentUrl);
+  if (currentCode === null || currentCode !== activeSessionCode) {
+    return false;
+  }
+  return findLobbyCodeInUrl(destinationUrl) !== currentCode;
+}
+
+/** Modes with crowd-sourced themes and no classic photo-preparation step. */
+export function isUncappedLobbyMode(mode: LobbyMode): boolean {
+  return mode === 'fast_bio' || mode === 'zero_to_100' || mode === 'situation' || mode === 'wavelength';
+}
+
+/**
+ * Expected route for the "crowd-sourced theme/situation + rounds" modes
+ * (Fast Bio, 0 à 100, Situation, Wavelength), which all share the same
+ * top-level shape: theme selection, then per-round pages, then a final
+ * leaderboard (Wavelength goes back to theme selection before every round).
+ * Returns the lobby URL whenever there is no game in progress yet, so callers
+ * that only care about "is this URL allowed" don't need a separate
+ * not-started branch.
  */
 export function uncappedModeDestination(state: LobbyStateResponse): string {
   const lobbyUrl = `/lobby/${state.code}`;
@@ -72,8 +96,6 @@ export function uncappedModeDestination(state: LobbyStateResponse): string {
           return `${roundBase}/propose`;
         case 'dueling':
           return `${roundBase}/duel`;
-        case 'revealing':
-          return `${roundBase}/review`;
         case 'ranking':
           return `${roundBase}/ranking`;
         default:
@@ -85,13 +107,32 @@ export function uncappedModeDestination(state: LobbyStateResponse): string {
     }
     return lobbyUrl;
   }
+  if (state.mode === 'wavelength') {
+    const wavelength = state.wavelengthGame;
+    if (!wavelength) {
+      return lobbyUrl;
+    }
+    if (wavelength.phase === 'collecting_themes' || wavelength.phase === 'ranking_themes') {
+      return `/game/${state.code}/theme-selection`;
+    }
+    if (wavelength.phase === 'playing' && wavelength.roundNumber) {
+      const roundBase = `/game/${state.code}/wavelength/${wavelength.roundNumber}`;
+      return wavelength.roundPhase === 'clue' || wavelength.roundPhase === 'guessing'
+        ? `${roundBase}/play`
+        : `${roundBase}/results`;
+    }
+    if (wavelength.phase === 'completed') {
+      return `/game/${state.code}/wavelength/final`;
+    }
+    return lobbyUrl;
+  }
   return lobbyUrl;
 }
 
 export function permittedLobbyUrl(state: LobbyStateResponse, requestedUrl: string): string {
   const lobbyUrl = `/lobby/${state.code}`;
 
-  if (state.mode === 'fast_bio' || state.mode === 'zero_to_100' || state.mode === 'situation') {
+  if (isUncappedLobbyMode(state.mode)) {
     // These modes have no classic photo-preparation step and exactly one
     // valid destination per phase — unlike the classic branch below, /photos
     // is never a permitted URL here.

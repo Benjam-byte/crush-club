@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { activeNavigationUrl, uncappedModeDestination } from '@core/guards/lobby-route';
+import { activeNavigationUrl, isUncappedLobbyMode, uncappedModeDestination } from '@core/guards/lobby-route';
 import { primaryPhotoQuestionId } from '@core/models/game.models';
 import type {
   AnswerValue,
@@ -16,12 +16,14 @@ import type {
   RoundSubmissionInput,
   SituationStateView,
   ThemeSelectionState,
+  WavelengthStateView,
   ZeroToHundredStateView,
 } from '@core/models/game.models';
 import { LobbyApiService } from './lobby-api.service';
 import { filterBioAnswers, restoredPrimaryPhotoId } from './game-state-draft';
 import { canHostExcludePlayer, PlayerExclusionController } from './player-exclusion';
 import { RealtimeLobbyService } from './realtime-lobby.service';
+import type { LobbyApiProbeData } from '../models/realtime-diagnostics.models';
 
 interface StoredDraft {
   primaryPhotoId: string | null
@@ -77,6 +79,7 @@ export class GameStateService {
   private readonly bioAnswerByCategoryIdState = signal<Record<string, string>>({});
   private readonly loverQuestionIdState = signal<string | null>(null);
   private readonly errorMessageState = signal<string | null>(null);
+  private readonly isSessionRefusedState = signal(false);
   private readonly photoUrlByIdState = signal<Readonly<Record<string, string>>>({});
   private readonly loadingPhotoIdSet = new Set<string>();
   private readonly fastBioPhotoUrlByIdState = signal<Readonly<Record<string, string>>>({});
@@ -86,6 +89,12 @@ export class GameStateService {
 
   readonly state = this.realtime.state;
   readonly connectionStatus = this.realtime.connectionStatus;
+  readonly sessionPlayerId = computed(() => this.storedSessionState()?.playerId ?? null);
+  /** Lobby the player still holds a place in; null once they left or the server refused their session. */
+  readonly activeSessionCode = computed(() => {
+    const isSessionRefused = this.isSessionRefusedState() || this.connectionStatus() === 'rejected';
+    return isSessionRefused ? null : this.storedSessionState()?.lobbyCode ?? null;
+  });
   readonly isRealtimeConnected = computed(() => this.connectionStatus() === 'connected');
   readonly lobbyCode = computed(() => this.state()?.code ?? this.storedSessionState()?.lobbyCode ?? '');
   readonly lobbyStatus = computed<LobbyStatus>(() => this.state()?.status ?? 'waiting_for_players');
@@ -93,13 +102,17 @@ export class GameStateService {
   readonly isFastBioMode = computed(() => this.mode() === 'fast_bio');
   readonly isZeroToHundredMode = computed(() => this.mode() === 'zero_to_100');
   readonly isSituationMode = computed(() => this.mode() === 'situation');
-  readonly isUncappedMode = computed(() => this.isFastBioMode() || this.isZeroToHundredMode() || this.isSituationMode());
+  readonly isWavelengthMode = computed(() => this.mode() === 'wavelength');
+  readonly isUncappedMode = computed(() =>
+    this.isFastBioMode() || this.isZeroToHundredMode() || this.isSituationMode() || this.isWavelengthMode(),
+  );
   readonly fastBioGame = computed<FastBioStateView | null>(() => this.state()?.fastBioGame ?? null);
   readonly zeroToHundredGame = computed<ZeroToHundredStateView | null>(() => this.state()?.zeroToHundredGame ?? null);
   readonly situationGame = computed<SituationStateView | null>(() => this.state()?.situationGame ?? null);
+  readonly wavelengthGame = computed<WavelengthStateView | null>(() => this.state()?.wavelengthGame ?? null);
   /** Shared theme-collection-and-ranking state, whichever uncapped mode is active. */
   readonly themeSelectionState = computed<ThemeSelectionState | null>(() => {
-    return this.fastBioGame() ?? this.zeroToHundredGame() ?? this.situationGame();
+    return this.fastBioGame() ?? this.zeroToHundredGame() ?? this.situationGame() ?? this.wavelengthGame();
   });
   readonly displayName = computed(() => this.currentPlayer().displayName);
   readonly isHost = computed(() => this.currentPlayer().isHost);
@@ -215,8 +228,22 @@ export class GameStateService {
       players.length >= 2 &&
       players.every((player) => player.connected);
   });
+  readonly canStartWavelengthGame = computed(() => {
+    const players = this.playerList();
+    return this.isWavelengthMode() &&
+      this.wavelengthGame() === null &&
+      this.isHost() &&
+      this.isRealtimeConnected() &&
+      players.length >= 2 &&
+      players.every((player) => player.connected);
+  });
 
   constructor() {
+    effect(() => {
+      if (this.realtime.connectionStatus() === 'rejected') {
+        this.errorMessageState.set('Ta session a été refusée. Rejoins à nouveau le lobby pour continuer.');
+      }
+    });
     effect(() => {
       const state = this.state();
       if (state) {
@@ -274,12 +301,28 @@ export class GameStateService {
     this.errorMessageState.set(null);
     try {
       const state = await this.lobbyApi.getState(code, session.reconnectToken);
+      this.isSessionRefusedState.set(false);
       this.realtime.setState(state);
       this.realtime.connect(code, session.reconnectToken);
     } catch (error: unknown) {
+      // 401 means the player was excluded or the lobby is gone; a network error keeps the session alive.
+      if (error instanceof HttpErrorResponse && error.status === 401) {
+        this.isSessionRefusedState.set(true);
+      }
       this.captureError(error, 'Ta session joueur a expiré. Rejoins à nouveau le lobby.');
       throw error;
     }
+  }
+
+  probeLobbyConnection(): Promise<LobbyApiProbeData> {
+    const session = this.storedSessionState();
+    if (!session) throw new Error('No player session');
+    return this.lobbyApi.probeConnection(session.lobbyCode, session.reconnectToken);
+  }
+
+  reconnectRealtime(): void {
+    const session = this.storedSessionState();
+    if (session) this.realtime.connect(session.lobbyCode, session.reconnectToken, true);
   }
 
   async changeLobbyConfig(gameConfigId: string): Promise<void> {
@@ -377,6 +420,9 @@ export class GameStateService {
         if (this.isSituationMode()) {
           return this.lobbyApi.rankSituationThemes(code, token, ranking);
         }
+        if (this.isWavelengthMode()) {
+          return this.lobbyApi.rankWavelengthThemes(code, token, ranking);
+        }
         return this.lobbyApi.rankFastBioThemes(code, token, ranking);
       },
       'Ton classement n’a pas pu être envoyé.',
@@ -471,13 +517,6 @@ export class GameStateService {
     );
   }
 
-  async advanceSituationReview(direction: 'next' | 'previous'): Promise<void> {
-    await this.runStateCommand(
-      (code, token) => this.lobbyApi.advanceSituationReview(code, token, direction),
-      'Impossible de changer de proposition.',
-    );
-  }
-
   async submitSituationRanking(ranking: readonly string[]): Promise<void> {
     await this.runStateCommand(
       (code, token) => this.lobbyApi.submitSituationRanking(code, token, ranking),
@@ -496,6 +535,52 @@ export class GameStateService {
     await this.runStateCommand(
       (code, token) => this.lobbyApi.replaySituation(code, token),
       'Impossible de relancer une nouvelle manche.',
+    );
+  }
+
+  async startWavelengthGame(): Promise<void> {
+    if (!this.canStartWavelengthGame()) {
+      return;
+    }
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.startWavelength(code, token),
+      'La partie n’a pas pu démarrer.',
+    );
+  }
+
+  /** Submits this round's spectrum proposal; two empty poles pass. */
+  async submitWavelengthTheme(left: string, right: string): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.submitWavelengthTheme(code, token, left, right),
+      'Ta proposition de spectre n’a pas pu être envoyée.',
+    );
+  }
+
+  async confirmWavelengthClue(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.confirmWavelengthClue(code, token),
+      'L’indice n’a pas pu être validé.',
+    );
+  }
+
+  async submitWavelengthGuess(position: number): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.submitWavelengthGuess(code, token, position),
+      'Ta position n’a pas pu être envoyée.',
+    );
+  }
+
+  async startNextWavelengthRound(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.startNextWavelengthRound(code, token),
+      'La manche suivante n’a pas pu démarrer.',
+    );
+  }
+
+  async replayWavelength(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.replayWavelength(code, token),
+      'Impossible de relancer une nouvelle partie.',
     );
   }
 
@@ -625,6 +710,7 @@ export class GameStateService {
     localStorage.removeItem(this.currentDraftStorageKey());
     localStorage.removeItem(sessionStorageKey);
     this.storedSessionState.set(null);
+    this.isSessionRefusedState.set(false);
     this.realtime.disconnect();
     for (const url of Object.values(this.photoUrlByIdState())) {
       URL.revokeObjectURL(url);
@@ -665,6 +751,7 @@ export class GameStateService {
     };
     localStorage.setItem(sessionStorageKey, JSON.stringify(session));
     this.storedSessionState.set(session);
+    this.isSessionRefusedState.set(false);
     this.realtime.setState(state);
     this.realtime.connect(state.code, reconnectToken);
     this.restoredDraftKey = '';
@@ -852,7 +939,7 @@ export class GameStateService {
     if (!currentURL.startsWith('/lobby/') && !currentURL.startsWith('/game/')) {
       return;
     }
-    if (state.mode === 'fast_bio' || state.mode === 'zero_to_100' || state.mode === 'situation') {
+    if (isUncappedLobbyMode(state.mode)) {
       const destination = uncappedModeDestination(state);
       if (currentURL !== destination && (currentURL.startsWith('/game/') || destination !== `/lobby/${state.code}`)) {
         await this.router.navigateByUrl(destination);
@@ -952,6 +1039,14 @@ export class GameStateService {
         duel_not_active: 'Ce duel n’est plus ouvert au vote.',
         not_a_representative: 'Tu ne fais pas partie de ce duel.',
         situation_in_progress: 'Le cycle Situation en cours n’est pas encore terminé.',
+        incomplete_spectrum: 'Remplis les deux pôles, ou passe ton tour.',
+        wavelength_not_started: 'La partie Wavelength n’a pas encore démarré.',
+        wavelength_not_playing: 'Aucune manche Wavelength n’est ouverte pour le moment.',
+        wavelength_round_locked: 'Cette étape n’est plus ouverte.',
+        not_psychic: 'Seul le médium de la manche peut faire ça.',
+        psychic_cannot_guess: 'Le médium connaît déjà la cible : il ne place pas d’aiguille.',
+        invalid_position: 'Place ton aiguille entre 0 et 100.',
+        wavelength_in_progress: 'La partie Wavelength en cours n’est pas encore terminée.',
       };
       this.errorMessageState.set(
         serverError?.code ? errorMessageByCode[serverError.code] ?? serverError.message ?? fallbackMessage :

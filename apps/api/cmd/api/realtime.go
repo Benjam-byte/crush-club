@@ -2,29 +2,37 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"github.com/jackc/pgx/v5"
 )
 
 type realtimeHub struct {
-	api     *api
-	mu      sync.RWMutex
-	clients map[string]map[*realtimeClient]struct{}
+	api              *api
+	mu               sync.RWMutex
+	clients          map[string]map[*realtimeClient]struct{}
+	loadState        func(context.Context, authenticatedPlayer) (lobbyStateResponse, error)
+	nextConnectionID atomic.Uint64
 }
 
 type realtimeClient struct {
+	id     string
 	player authenticatedPlayer
 	conn   *websocket.Conn
 	ctx    context.Context
 	cancel context.CancelFunc
 	send   chan struct{}
 	events chan websocketReactionEvent
+	probes chan websocketDiagnosticPong
 }
 
 // websocketReactionEvent is an ephemeral, non-persisted push used for the
@@ -45,21 +53,74 @@ type websocketAuthentication struct {
 }
 
 type websocketSnapshot struct {
-	Type  string             `json:"type"`
-	State lobbyStateResponse `json:"state"`
+	Type             string             `json:"type"`
+	State            lobbyStateResponse `json:"state"`
+	ServerInstanceID string             `json:"serverInstanceId"`
+	ConnectionID     string             `json:"connectionId"`
+}
+
+type websocketDiagnosticPing struct {
+	Type string `json:"type"`
+	ID   string `json:"id"`
+}
+
+type websocketDiagnosticPong struct {
+	Type             string `json:"type"`
+	ID               string `json:"id"`
+	ServerInstanceID string `json:"serverInstanceId"`
+	ConnectionID     string `json:"connectionId"`
+	PlayerID         string `json:"playerId"`
+}
+
+type websocketStateUnavailable struct {
+	Type             string `json:"type"`
+	RetryInMS        int64  `json:"retryInMs"`
+	ServerInstanceID string `json:"serverInstanceId"`
+	ConnectionID     string `json:"connectionId"`
+	PlayerID         string `json:"playerId"`
 }
 
 func newRealtimeHub(apiServer *api) *realtimeHub {
-	return &realtimeHub{
+	hub := &realtimeHub{
 		api:     apiServer,
 		clients: make(map[string]map[*realtimeClient]struct{}),
 	}
+	if apiServer != nil {
+		hub.loadState = apiServer.loadLobbyState
+	}
+	return hub
+}
+
+// Application close codes after which the client stops reconnecting on its
+// own. Every other close code, 1008 included, is treated as retryable.
+const (
+	closeInvalidSession   websocket.StatusCode = 4401
+	closeLobbyUnavailable websocket.StatusCode = 4404
+)
+
+func websocketSessionFailure(err error) (websocket.StatusCode, string) {
+	if errors.Is(err, errNotFound) {
+		return closeInvalidSession, "invalid player session"
+	}
+	return websocket.StatusTryAgainLater, "session verification temporarily unavailable"
+}
+
+// Compression is opt-in per connection: with permessage-deflate,
+// coder/websocket splits each message into continuation frames, a pattern
+// iOS WebKit is known to drop. The web client asks for it except on iOS;
+// connections without a preference (older builds) stay uncompressed.
+func acceptLobbyWebSocket(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
+	compression := websocket.CompressionDisabled
+	if r.URL.Query().Get("compression") == "on" {
+		compression = websocket.CompressionContextTakeover
+	}
+	return websocket.Accept(w, r, &websocket.AcceptOptions{
+		CompressionMode: compression,
+	})
 }
 
 func (a *api) handleLobbyWebSocket(w http.ResponseWriter, r *http.Request) {
-	connection, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionContextTakeover,
-	})
+	connection, err := acceptLobbyWebSocket(w, r)
 	if err != nil {
 		a.logger.Warn("websocket upgrade failed", "error", err)
 		return
@@ -71,45 +132,74 @@ func (a *api) handleLobbyWebSocket(w http.ResponseWriter, r *http.Request) {
 	err = wsjson.Read(authContext, connection, &authentication)
 	cancelAuthentication()
 	if err != nil || authentication.Type != "authenticate" {
+		a.logger.Warn("lobby websocket authentication required", "lobby_code", strings.ToUpper(r.PathValue("code")), "error", err)
 		_ = connection.Close(websocket.StatusPolicyViolation, "authentication required")
 		return
 	}
-	player, err := a.authenticatePlayerToken(context.Background(), strings.ToUpper(r.PathValue("code")), authentication.ReconnectToken)
+	verificationContext, cancelVerification := context.WithTimeout(context.Background(), 5*time.Second)
+	player, err := a.authenticatePlayerToken(verificationContext, strings.ToUpper(r.PathValue("code")), authentication.ReconnectToken)
+	cancelVerification()
 	if err != nil {
-		_ = connection.Close(websocket.StatusPolicyViolation, "invalid player session")
+		a.logger.Warn("lobby websocket session rejected", "lobby_code", strings.ToUpper(r.PathValue("code")), "error", err)
+		status, reason := websocketSessionFailure(err)
+		_ = connection.Close(status, reason)
 		return
 	}
 
 	connectionContext, cancelConnection := context.WithCancel(context.Background())
 	client := &realtimeClient{
+		id:     strconv.FormatUint(a.hub.nextConnectionID.Add(1), 10),
 		player: player,
 		conn:   connection,
 		ctx:    connectionContext,
 		cancel: cancelConnection,
 		send:   make(chan struct{}, 1),
 		events: make(chan websocketReactionEvent, 8),
+		probes: make(chan websocketDiagnosticPong, 1),
 	}
 	firstConnection := a.hub.register(client)
-	if firstConnection {
-		a.hub.markConnected(player)
-	}
+	connectedAt := time.Now()
+	var closeError error
+	a.logger.Info("lobby websocket connected", "lobby_code", player.Code, "player_id", player.ID,
+		"connection_id", client.id, "server_instance_id", a.instanceID, "first_player_connection", firstConnection)
 	defer func() {
 		cancelConnection()
 		lastConnection := a.hub.unregister(client)
+		a.logger.Info("lobby websocket disconnected", "lobby_code", player.Code, "player_id", player.ID,
+			"connection_id", client.id, "server_instance_id", a.instanceID,
+			"last_player_connection", lastConnection, "duration_ms", time.Since(connectedAt).Milliseconds(),
+			"close_status", websocket.CloseStatus(closeError), "error", closeError)
 		if lastConnection {
 			a.hub.markDisconnected(player)
 		}
 		_ = connection.Close(websocket.StatusNormalClosure, "")
 	}()
+	if firstConnection {
+		a.hub.markConnected(player)
+	}
 
 	go a.hub.writeLoop(client)
 	go a.hub.pingLoop(client)
 	a.hub.trigger(client)
 
+	closeError = a.hub.readLoop(client)
+}
+
+func (h *realtimeHub) readLoop(client *realtimeClient) error {
 	for {
-		_, _, err := connection.Read(connectionContext)
+		_, payload, err := client.conn.Read(client.ctx)
 		if err != nil {
-			return
+			return err
+		}
+		var ping websocketDiagnosticPing
+		if json.Unmarshal(payload, &ping) == nil && ping.Type == "diagnostic.ping" && len(ping.ID) > 0 && len(ping.ID) <= 80 {
+			select {
+			case client.probes <- websocketDiagnosticPong{
+				Type: "diagnostic.pong", ID: ping.ID, ServerInstanceID: h.api.instanceID,
+				ConnectionID: client.id, PlayerID: client.player.ID,
+			}:
+			default:
+			}
 		}
 	}
 }
@@ -195,38 +285,90 @@ func (h *realtimeHub) broadcastReaction(code string, event websocketReactionEven
 }
 
 func (h *realtimeHub) writeLoop(client *realtimeClient) {
+	retryTimer := time.NewTimer(time.Hour)
+	retryTimer.Stop()
+	defer retryTimer.Stop()
+	var retry <-chan time.Time
+	failures := 0
 	for {
 		select {
 		case <-client.ctx.Done():
 			return
 		case <-client.send:
-			requestContext, cancel := context.WithTimeout(client.ctx, 10*time.Second)
-			state, err := h.api.loadLobbyState(requestContext, client.player)
-			if err == nil {
-				err = wsjson.Write(requestContext, client.conn, websocketSnapshot{
-					Type:  "state.snapshot",
-					State: state,
-				})
+			if retry != nil {
+				continue
 			}
-			cancel()
-			if err != nil {
-				if !errors.Is(err, context.Canceled) {
-					h.api.logger.Debug("websocket snapshot failed", "player_id", client.player.ID, "error", err)
-				}
-				client.cancel()
-				return
-			}
+		case <-retry:
+			retry = nil
 		case event := <-client.events:
 			requestContext, cancel := context.WithTimeout(client.ctx, 10*time.Second)
 			err := wsjson.Write(requestContext, client.conn, event)
 			cancel()
 			if err != nil {
 				if !errors.Is(err, context.Canceled) {
-					h.api.logger.Debug("websocket reaction broadcast failed", "player_id", client.player.ID, "error", err)
+					h.api.logger.Warn("websocket reaction broadcast failed", "lobby_code", client.player.Code,
+						"player_id", client.player.ID, "error", err)
 				}
 				client.cancel()
 				return
 			}
+			continue
+		case probe := <-client.probes:
+			requestContext, cancel := context.WithTimeout(client.ctx, 10*time.Second)
+			err := wsjson.Write(requestContext, client.conn, probe)
+			cancel()
+			if err != nil {
+				client.cancel()
+				return
+			}
+			continue
+		}
+		requestContext, cancel := context.WithTimeout(client.ctx, 10*time.Second)
+		state, err := h.loadState(requestContext, client.player)
+		cancel()
+		if err != nil {
+			if client.ctx.Err() != nil {
+				return
+			}
+			if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, errNotFound) {
+				_ = client.conn.Close(closeLobbyUnavailable, "lobby unavailable")
+				client.cancel()
+				return
+			}
+			delays := [...]time.Duration{time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second, 15 * time.Second}
+			delay := delays[min(failures, len(delays)-1)]
+			failures++
+			h.api.logger.Warn("websocket snapshot load delayed", "lobby_code", client.player.Code,
+				"player_id", client.player.ID, "connection_id", client.id, "retry_in_ms", delay.Milliseconds(), "error", err)
+			requestContext, cancel = context.WithTimeout(client.ctx, 10*time.Second)
+			err = wsjson.Write(requestContext, client.conn, websocketStateUnavailable{
+				Type: "state.unavailable", RetryInMS: delay.Milliseconds(), ServerInstanceID: h.api.instanceID,
+				ConnectionID: client.id, PlayerID: client.player.ID,
+			})
+			cancel()
+			if err != nil {
+				client.cancel()
+				return
+			}
+			retryTimer.Reset(delay)
+			retry = retryTimer.C
+			continue
+		}
+		failures = 0
+		retryTimer.Stop()
+		retry = nil
+		requestContext, cancel = context.WithTimeout(client.ctx, 10*time.Second)
+		err = wsjson.Write(requestContext, client.conn, websocketSnapshot{
+			Type: "state.snapshot", State: state, ServerInstanceID: h.api.instanceID, ConnectionID: client.id,
+		})
+		cancel()
+		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				h.api.logger.Warn("websocket snapshot write failed", "lobby_code", client.player.Code,
+					"player_id", client.player.ID, "connection_id", client.id, "error", err)
+			}
+			client.cancel()
+			return
 		}
 	}
 }
@@ -243,12 +385,18 @@ func (h *realtimeHub) pingLoop(client *realtimeClient) {
 			err := client.conn.Ping(pingContext)
 			cancel()
 			if err != nil {
+				if !errors.Is(err, context.Canceled) {
+					h.api.logger.Warn("websocket heartbeat failed", "lobby_code", client.player.Code,
+						"player_id", client.player.ID, "error", err)
+				}
 				client.cancel()
 				return
 			}
-			_, _ = h.api.pool.Exec(context.Background(), `
+			presenceContext, cancelPresence := context.WithTimeout(client.ctx, 5*time.Second)
+			_, _ = h.api.pool.Exec(presenceContext, `
 				UPDATE players SET last_seen_at = now(), updated_at = now() WHERE id = $1
 			`, client.player.ID)
+			cancelPresence()
 		}
 	}
 }
@@ -275,7 +423,9 @@ func (h *realtimeHub) onlinePlayerIDs(code string) map[string]struct{} {
 }
 
 func (h *realtimeHub) markConnected(player authenticatedPlayer) {
-	_, err := h.api.pool.Exec(context.Background(), `
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := h.api.pool.Exec(ctx, `
 		WITH connected AS (
 		  UPDATE players
 		  SET disconnected_at = NULL, last_seen_at = now(), updated_at = now()
@@ -291,7 +441,9 @@ func (h *realtimeHub) markConnected(player authenticatedPlayer) {
 
 func (h *realtimeHub) markDisconnected(player authenticatedPlayer) {
 	disconnectedAt := time.Now().UTC()
-	_, err := h.api.pool.Exec(context.Background(), `
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := h.api.pool.Exec(ctx, `
 		WITH disconnected AS (
 		  UPDATE players
 		  SET disconnected_at = $1, last_seen_at = $1, updated_at = now()

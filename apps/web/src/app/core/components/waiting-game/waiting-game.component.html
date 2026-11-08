@@ -1,0 +1,38 @@
+<section class="surface-card overflow-hidden" aria-label="Mini-jeu pour patienter">
+  <header class="flex items-center justify-between gap-3 border-b border-peach-100 px-5 py-3">
+    <div class="min-w-0">
+      <p class="text-[10px] font-extrabold uppercase tracking-[0.14em] text-brand-600">Pour patienter</p>
+      <p class="truncate text-sm font-extrabold text-ink-900">{{ definition.title }}</p>
+    </div>
+    <p class="shrink-0 text-right text-[11px] font-semibold text-ink-500">
+      <span class="block text-sm font-extrabold text-ink-900">{{ score() }} pts</span>
+      Record {{ displayedBestScore() }}
+    </p>
+  </header>
+
+  <div class="relative">
+    <canvas
+      #gameCanvas
+      class="waiting-game-canvas block aspect-4/3 w-full touch-none select-none bg-peach-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500"
+      tabindex="0"
+      [attr.aria-label]="definition.title + ' : ' + definition.hint"
+    ></canvas>
+
+    @if (!isPlaying()) {
+      <button
+        class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/75 text-center focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-brand-500"
+        type="button"
+        (click)="onPlay()"
+      >
+        @if (status() === 'over') {
+          <span class="text-sm font-extrabold text-ink-900">{{ gameOverMessage() }}</span>
+        }
+        <span class="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-brand-500 px-5 text-sm font-extrabold text-white shadow-md">
+          <ion-icon name="play" aria-hidden="true" />
+          {{ playLabel() }}
+        </span>
+        <span class="px-8 text-xs font-semibold leading-5 text-ink-600">{{ definition.hint }}</span>
+      </button>
+    }
+  </div>
+</section>

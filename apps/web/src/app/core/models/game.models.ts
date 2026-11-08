@@ -6,7 +6,7 @@ export type LobbyStatus =
   | 'completed'
   | 'expired'
 
-export type LobbyMode = 'classic' | 'fast_bio' | 'zero_to_100' | 'situation'
+export type LobbyMode = 'classic' | 'fast_bio' | 'zero_to_100' | 'situation' | 'wavelength'
 
 export type FastBioGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
 
@@ -29,7 +29,11 @@ export type ZeroToHundredRoundPhase = 'guessing' | 'results' | 'completed'
 
 export type SituationGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
 
-export type SituationRoundPhase = 'proposing' | 'dueling' | 'revealing' | 'ranking' | 'results' | 'completed'
+export type SituationRoundPhase = 'proposing' | 'dueling' | 'ranking' | 'results' | 'completed'
+
+export type WavelengthGamePhase = 'collecting_themes' | 'ranking_themes' | 'playing' | 'completed'
+
+export type WavelengthRoundPhase = 'clue' | 'guessing' | 'results' | 'completed'
 
 /** Shared shape of the theme-collection-and-ranking step, common to every mode that uses it. */
 export interface ThemeSelectionState {
@@ -236,6 +240,7 @@ export interface LobbyStateResponse {
   fastBioGame?: FastBioStateView
   zeroToHundredGame?: ZeroToHundredStateView
   situationGame?: SituationStateView
+  wavelengthGame?: WavelengthStateView
 }
 
 export interface FastBioProposalView {
@@ -343,6 +348,20 @@ export interface SituationProposalView {
   reason: string
 }
 
+export interface SituationGroupMemberView {
+  playerId: string
+  displayName: string
+}
+
+/** One finalist on the results screen: every member of its group earns its points. */
+export interface SituationRoundResultView {
+  proposal: SituationProposalView
+  rank: number
+  points: number
+  members: readonly SituationGroupMemberView[]
+  isMine: boolean
+}
+
 export interface SituationDuelView {
   id: string
   opponentDisplayName: string
@@ -366,12 +385,42 @@ export interface SituationStateView extends ThemeSelectionState {
   submissionProgressCount?: number
   submissionProgressRequired?: number
   currentDuel?: SituationDuelView
-  proposalCount?: number
-  reviewIndex?: number
-  isHostReview?: boolean
-  currentProposal?: SituationProposalView
   rankingCandidates?: readonly SituationProposalView[]
   rankingSubmitted?: boolean
+  roundScore?: number
+  roundResults?: readonly SituationRoundResultView[]
+  leaderboard?: readonly FastBioLeaderboardEntryView[]
+}
+
+export interface WavelengthRevealEntryView {
+  playerId: string
+  displayName: string
+  position: number
+  points: number
+}
+
+/** The theme phases come back before every round: `roundNumber` is the round being prepared or played. */
+export interface WavelengthStateView extends ThemeSelectionState {
+  id: string
+  phase: WavelengthGamePhase
+  roundNumber?: number
+  totalRounds?: number
+  isLastRound?: boolean
+  roundPhase?: WavelengthRoundPhase
+  leftLabel?: string
+  rightLabel?: string
+  psychicPlayerId?: string
+  psychicDisplayName?: string
+  isPsychic?: boolean
+  /** Only sent to the psychic until the round is scored. */
+  target?: number
+  phaseDeadline?: string
+  submitted: boolean
+  myPosition?: number
+  submissionProgressCount?: number
+  submissionProgressRequired?: number
+  reveal?: readonly WavelengthRevealEntryView[]
+  psychicPoints?: number
   roundScore?: number
   leaderboard?: readonly FastBioLeaderboardEntryView[]
 }

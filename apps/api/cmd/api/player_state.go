@@ -65,6 +65,8 @@ func (a *api) requirePlayer(w http.ResponseWriter, r *http.Request) (authenticat
 }
 
 func (a *api) handleGetLobbyState(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Crush-Club-Server", a.instanceID)
 	player, ok := a.requirePlayer(w, r)
 	if !ok {
 		return
@@ -186,6 +188,18 @@ func (a *api) loadLobbyState(ctx context.Context, currentPlayer authenticatedPla
 			return lobbyStateResponse{}, err
 		}
 		state.SituationGame = &situationGame
+		return state, nil
+	}
+
+	if state.Mode == lobbyModeWavelength {
+		wavelengthGame, err := a.loadWavelengthState(ctx, currentPlayer)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return state, nil
+		}
+		if err != nil {
+			return lobbyStateResponse{}, err
+		}
+		state.WavelengthGame = &wavelengthGame
 		return state, nil
 	}
 

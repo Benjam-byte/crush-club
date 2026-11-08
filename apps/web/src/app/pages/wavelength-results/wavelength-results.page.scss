@@ -1,0 +1,42 @@
+// Lands once the dial's shutter is open and the needles are out.
+.score-reveal {
+  animation: score-reveal-in 420ms ease-out 1500ms both;
+}
+
+.points-badge {
+  min-width: 52px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--color-layer-soft);
+  color: var(--color-ink-600);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+
+  &[data-points='2'] {
+    background: var(--color-brand-100);
+    color: var(--color-brand-700);
+  }
+
+  &[data-points='3'] {
+    background: var(--color-brand-400);
+    color: white;
+  }
+
+  &[data-points='4'] {
+    background: var(--color-brand-600);
+    color: white;
+  }
+}
+
+@keyframes score-reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

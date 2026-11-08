@@ -3,6 +3,7 @@ import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
+import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { ZeroToHundredScaleComponent, nomineeColor, nomineeTextColor } from '@core/components/zero-to-100-scale/zero-to-100-scale.component';
 import type { ScalePoint } from '@core/components/zero-to-100-scale/zero-to-100-scale.component';
 import type { ZeroToHundredRevealEntryView } from '@core/models/game.models';
@@ -19,7 +20,7 @@ function nomineeLabel(entry: ZeroToHundredRevealEntryView): string {
 
 @Component({
   selector: 'app-zero-to-100-results-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, ZeroToHundredScaleComponent],
+  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent, ZeroToHundredScaleComponent],
   templateUrl: './zero-to-100-results.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

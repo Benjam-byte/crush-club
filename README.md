@@ -70,6 +70,26 @@ commandes passent par REST avec le jeton joueur dans `Authorization: Bearer ...`
 demande ce même jeton dans son premier message, puis diffuse des snapshots personnalisés et révisionnés.
 Le navigateur ne garde que sa session de reconnexion et ses brouillons non envoyés.
 
+Pour comparer les connexions avec et sans compression WebSocket, appuyez quatre fois en moins de deux
+secondes sur le logo à droite de « Crush Club » sur l’accueil. La page de diagnostic conserve ce réglage
+sur le navigateur utilisé et reconnecte automatiquement son lobby après un changement. Le client demande la
+compression par défaut (`?compression=on`), sauf sur iPhone et iPad : les messages compressés sont
+fragmentés et iOS est connu pour mal les gérer. Un choix fait sur la page de diagnostic remplace ce
+défaut pour l’appareil. Côté serveur, une connexion sans préférence (ancienne version) n’est pas compressée.
+
+Cette page permet aussi de comparer pendant 30 secondes une lecture HTTP authentifiée du lobby et
+un ping applicatif sur le WebSocket existant. Elle affiche les identifiants du joueur, de la connexion
+et des instances API/WebSocket, les délais de réponse et les 50 derniers événements. Les rapports
+copiables ou téléchargeables ne contiennent ni jeton de session, ni photo, ni réponse de jeu. Une
+reconnexion manuelle conserve la session. Les mesures s’arrêtent lorsque la page est quittée.
+
+Une erreur temporaire de chargement de snapshot déclenche des réessais côté serveur, sans fermer
+le WebSocket ; les véritables erreurs d’écriture ferment toujours la connexion. Une indisponibilité
+de la base pendant la vérification de session renvoie le code temporaire 1013, et un message
+d’authentification absent ou tardif renvoie 1008 ; le client réessaie dans ces deux cas. Seuls une
+session invalide (4401) et un lobby disparu (4404) arrêtent les tentatives automatiques. Les délais de
+reconnexion ne reviennent à leur minimum qu’après 20 secondes de connexion stable.
+
 Une partie accepte 2 à 10 joueurs et démarre quand tous les joueurs connectés ont envoyé exactement quatre
 photos. Chaque participant devient la cible d'une manche dans l'ordre d'arrivée. La cible fournit les
 réponses officielles et choisit anonymement une accroche; les autres envoient une prédiction et leur LOVER.

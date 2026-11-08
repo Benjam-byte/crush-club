@@ -1,5 +1,5 @@
 <ion-app>
-  <ion-router-outlet />
+  <ion-router-outlet [swipeGesture]="isSwipeBackEnabled()" />
   <app-host-disconnected-players />
 
   <ion-toast

@@ -5,6 +5,7 @@ import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import { primaryPhotoQuestionId } from '@core/models/game.models';
 import type { AnswerValue, QuestionDefinition } from '@core/models/game.models';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
+import { WaitingCardComponent } from '../../core/components/waiting-card/waiting-card.component';
 import { GameStateService } from '../../core/services/game-state.service';
 
 interface DisplayedAnswer {
@@ -15,7 +16,7 @@ interface DisplayedAnswer {
 
 @Component({
   selector: 'app-reveal-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent],
+  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent],
   templateUrl: './reveal.page.html',
   styleUrl: './reveal.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

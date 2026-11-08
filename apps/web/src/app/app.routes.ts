@@ -1,4 +1,5 @@
 import type { Routes } from "@angular/router";
+import { lobbyExitGuard } from "@core/guards/lobby-exit.guard";
 import { lobbySessionGuard } from "@core/guards/lobby-session.guard";
 
 export const routes: Routes = [
@@ -13,6 +14,14 @@ export const routes: Routes = [
     loadComponent: () =>
       import("./pages/join/join.page").then((module) => module.JoinPage),
     title: "Rejoindre Crush Club",
+  },
+  {
+    path: "diagnostics",
+    loadComponent: () =>
+      import("./pages/diagnostics/diagnostics.page").then(
+        (module) => module.DiagnosticsPage,
+      ),
+    title: "Diagnostic Crush Club",
   },
   {
     path: "game-configs/new",
@@ -41,6 +50,7 @@ export const routes: Routes = [
   {
     path: "lobby/:code",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/lobby/lobby.page").then((module) => module.LobbyPage),
     title: "Lobby Crush Club",
@@ -48,6 +58,7 @@ export const routes: Routes = [
   {
     path: "lobby/:code/photos",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/photos/photos.page").then((module) => module.PhotosPage),
     title: "Mes photos Crush Club",
@@ -55,6 +66,7 @@ export const routes: Routes = [
   {
     path: "game/:code/round/:roundNumber/role",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/role/role.page").then((module) => module.RolePage),
     title: "Ton rôle Crush Club",
@@ -62,6 +74,7 @@ export const routes: Routes = [
   {
     path: "game/:code/round/:roundNumber/profile",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/questionnaire/questionnaire.page").then(
         (module) => module.QuestionnairePage,
@@ -71,6 +84,7 @@ export const routes: Routes = [
   {
     path: "game/:code/round/:roundNumber/review",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/review/review.page").then((module) => module.ReviewPage),
     title: "Validation Crush Club",
@@ -78,6 +92,7 @@ export const routes: Routes = [
   {
     path: "game/:code/round/:roundNumber/reveal",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/reveal/reveal.page").then((module) => module.RevealPage),
     title: "Révélation Crush Club",
@@ -85,6 +100,7 @@ export const routes: Routes = [
   {
     path: "game/:code/round/:roundNumber/scores",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/comparison/comparison.page").then(
         (module) => module.ComparisonPage,
@@ -94,6 +110,7 @@ export const routes: Routes = [
   {
     path: "game/:code/round/:roundNumber/scores/:profileId",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/profile-comparison/profile-comparison.page").then(
         (module) => module.ProfileComparisonPage,
@@ -103,6 +120,7 @@ export const routes: Routes = [
   {
     path: "game/:code/final",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/final-results/final-results.page").then(
         (module) => module.FinalResultsPage,
@@ -112,6 +130,7 @@ export const routes: Routes = [
   {
     path: "game/:code/theme-selection",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/theme-selection/theme-selection.page").then(
         (module) => module.ThemeSelectionPage,
@@ -121,6 +140,7 @@ export const routes: Routes = [
   {
     path: "game/:code/fast-bio/:roundNumber/assignment",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/fast-bio-assignment/fast-bio-assignment.page").then(
         (module) => module.FastBioAssignmentPage,
@@ -130,6 +150,7 @@ export const routes: Routes = [
   {
     path: "game/:code/fast-bio/:roundNumber/review",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/fast-bio-review/fast-bio-review.page").then(
         (module) => module.FastBioReviewPage,
@@ -139,6 +160,7 @@ export const routes: Routes = [
   {
     path: "game/:code/fast-bio/final",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/fast-bio-final/fast-bio-final.page").then(
         (module) => module.FastBioFinalPage,
@@ -148,6 +170,7 @@ export const routes: Routes = [
   {
     path: "game/:code/zero-to-100/:roundNumber/guess",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/zero-to-100-guess/zero-to-100-guess.page").then(
         (module) => module.ZeroToHundredGuessPage,
@@ -157,6 +180,7 @@ export const routes: Routes = [
   {
     path: "game/:code/zero-to-100/:roundNumber/results",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/zero-to-100-results/zero-to-100-results.page").then(
         (module) => module.ZeroToHundredResultsPage,
@@ -166,6 +190,7 @@ export const routes: Routes = [
   {
     path: "game/:code/zero-to-100/final",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/zero-to-100-final/zero-to-100-final.page").then(
         (module) => module.ZeroToHundredFinalPage,
@@ -175,6 +200,7 @@ export const routes: Routes = [
   {
     path: "game/:code/situation/:roundNumber/propose",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/situation-propose/situation-propose.page").then(
         (module) => module.SituationProposePage,
@@ -184,6 +210,7 @@ export const routes: Routes = [
   {
     path: "game/:code/situation/:roundNumber/duel",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/situation-duel/situation-duel.page").then(
         (module) => module.SituationDuelPage,
@@ -191,17 +218,9 @@ export const routes: Routes = [
     title: "Duel Situation Crush Club",
   },
   {
-    path: "game/:code/situation/:roundNumber/review",
-    canActivate: [lobbySessionGuard],
-    loadComponent: () =>
-      import("./pages/situation-review/situation-review.page").then(
-        (module) => module.SituationReviewPage,
-      ),
-    title: "Revue Situation Crush Club",
-  },
-  {
     path: "game/:code/situation/:roundNumber/ranking",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/situation-ranking/situation-ranking.page").then(
         (module) => module.SituationRankingPage,
@@ -211,6 +230,7 @@ export const routes: Routes = [
   {
     path: "game/:code/situation/:roundNumber/results",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/situation-results/situation-results.page").then(
         (module) => module.SituationResultsPage,
@@ -220,11 +240,42 @@ export const routes: Routes = [
   {
     path: "game/:code/situation/final",
     canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/situation-final/situation-final.page").then(
         (module) => module.SituationFinalPage,
       ),
     title: "Classement Situation Crush Club",
+  },
+  {
+    path: "game/:code/wavelength/:roundNumber/play",
+    canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
+    loadComponent: () =>
+      import("./pages/wavelength-round/wavelength-round.page").then(
+        (module) => module.WavelengthRoundPage,
+      ),
+    title: "Manche Wavelength Crush Club",
+  },
+  {
+    path: "game/:code/wavelength/:roundNumber/results",
+    canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
+    loadComponent: () =>
+      import("./pages/wavelength-results/wavelength-results.page").then(
+        (module) => module.WavelengthResultsPage,
+      ),
+    title: "Révélation Wavelength Crush Club",
+  },
+  {
+    path: "game/:code/wavelength/final",
+    canActivate: [lobbySessionGuard],
+    canDeactivate: [lobbyExitGuard],
+    loadComponent: () =>
+      import("./pages/wavelength-final/wavelength-final.page").then(
+        (module) => module.WavelengthFinalPage,
+      ),
+    title: "Classement Wavelength Crush Club",
   },
   {
     path: "**",

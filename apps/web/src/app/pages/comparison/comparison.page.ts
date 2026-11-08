@@ -3,11 +3,12 @@ import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
+import { WaitingCardComponent } from '../../core/components/waiting-card/waiting-card.component';
 import { GameStateService } from '../../core/services/game-state.service';
 
 @Component({
   selector: 'app-comparison-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent],
+  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent],
   templateUrl: './comparison.page.html',
   styleUrl: './comparison.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -17,7 +18,6 @@ export class ComparisonPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly isAdvancing = signal(false);
-  protected readonly isLeaving = signal(false);
   protected readonly roundResults = computed(() => this.gameState.game()?.roundResults ?? []);
   protected readonly leaderboard = computed(() => this.gameState.game()?.leaderboard ?? []);
   protected readonly isLastRound = computed(() => {
@@ -55,17 +55,9 @@ export class ComparisonPage implements OnInit {
     }
   }
 
-  protected async onQuitGame(): Promise<void> {
-    if (this.isLeaving()) {
-      return;
-    }
-    this.isLeaving.set(true);
-    try {
-      await this.gameState.leaveGame();
-      await this.router.navigate(['/']);
-    } finally {
-      this.isLeaving.set(false);
-    }
+  protected onQuitGame(): void {
+    // The lobby exit guard asks for confirmation, then releases the player's place.
+    void this.router.navigate(['/']);
   }
 
   protected playerPhotoUrl(playerId: string): string | null {

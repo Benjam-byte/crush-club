@@ -8,10 +8,14 @@ import { IonButton, IonContent, IonIcon, IonInput } from '@ionic/angular/standal
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
+import { WaitingGameComponent } from '@core/components/waiting-game/waiting-game.component';
 import { ZeroToHundredScoringRulesComponent } from '@core/components/zero-to-100-scoring-rules/zero-to-100-scoring-rules.component';
 import { GameStateService } from '@core/services/game-state.service';
 
-/** Shared theme-collection-and-ranking screen, reused by every uncapped mode (Fast Bio, 0 à 100, Situation). */
+/**
+ * Shared theme-collection-and-ranking screen, reused by every uncapped mode (Fast Bio, 0 à 100, Situation,
+ * Wavelength). Wavelength comes back here before every round, with a two-pole spectrum instead of a theme.
+ */
 @Component({
   selector: 'app-theme-selection-page',
   imports: [
@@ -25,6 +29,7 @@ import { GameStateService } from '@core/services/game-state.service';
     PhaseConfirmationComponent,
     PhaseTimerComponent,
     ReactiveFormsModule,
+    WaitingGameComponent,
     ZeroToHundredScoringRulesComponent,
   ],
   templateUrl: './theme-selection.page.html',
@@ -61,6 +66,28 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
 
   protected readonly themeForm = new FormGroup({
     theme: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(80)] }),
+  });
+  protected readonly spectrumForm = new FormGroup({
+    left: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(40)] }),
+    right: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(40)] }),
+  });
+
+  protected readonly pageTitle = computed(() => {
+    if (this.gameState.isZeroToHundredMode()) {
+      return 'Thèmes 0 à 100';
+    }
+    if (this.gameState.isSituationMode()) {
+      return 'Situations';
+    }
+    if (this.gameState.isWavelengthMode()) {
+      return 'Wavelength';
+    }
+    return 'Thèmes Fast Bio';
+  });
+  /** "Manche X / Y" above each step, since Wavelength votes a new spectrum before every round. */
+  protected readonly wavelengthRoundLabel = computed(() => {
+    const wavelength = this.gameState.wavelengthGame();
+    return wavelength ? `Manche ${wavelength.roundNumber ?? 1} / ${wavelength.totalRounds ?? 1}` : null;
   });
 
   constructor() {
@@ -114,13 +141,39 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
     }
   }
 
+  protected isSpectrumComplete(): boolean {
+    const { left, right } = this.spectrumForm.getRawValue();
+    return left.trim() !== '' && right.trim() !== '';
+  }
+
+  protected async onSubmitSpectrum(): Promise<void> {
+    if (this.isSubmittingTheme() || this.spectrumForm.invalid || !this.isSpectrumComplete()) {
+      return;
+    }
+    const left = this.spectrumForm.controls.left.value.trim();
+    const right = this.spectrumForm.controls.right.value.trim();
+    this.isSubmittingTheme.set(true);
+    try {
+      await this.gameState.submitWavelengthTheme(left, right);
+      this.mySubmittedTheme.set(`${left} ↔ ${right}`);
+    } catch {
+      // GameState exposes the API error.
+    } finally {
+      this.isSubmittingTheme.set(false);
+    }
+  }
+
   protected async onSkipTheme(): Promise<void> {
     if (this.isSubmittingTheme()) {
       return;
     }
     this.isSubmittingTheme.set(true);
     try {
-      await this.gameState.submitTheme('');
+      if (this.gameState.isWavelengthMode()) {
+        await this.gameState.submitWavelengthTheme('', '');
+      } else {
+        await this.gameState.submitTheme('');
+      }
       this.mySubmittedTheme.set('');
     } catch {
       // GameState exposes the API error.

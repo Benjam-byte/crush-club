@@ -5,6 +5,7 @@ import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
+import { WaitingGameComponent } from '@core/components/waiting-game/waiting-game.component';
 import { ZeroToHundredScaleComponent, spreadPositions } from '@core/components/zero-to-100-scale/zero-to-100-scale.component';
 import type { ScalePoint, ScaleValueChange } from '@core/components/zero-to-100-scale/zero-to-100-scale.component';
 import { ZeroToHundredScoringRulesComponent } from '@core/components/zero-to-100-scoring-rules/zero-to-100-scoring-rules.component';
@@ -19,6 +20,7 @@ import { GameStateService } from '@core/services/game-state.service';
     PageHeaderComponent,
     PhaseConfirmationComponent,
     PhaseTimerComponent,
+    WaitingGameComponent,
     ZeroToHundredScaleComponent,
     ZeroToHundredScoringRulesComponent,
   ],

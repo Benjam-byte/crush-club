@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LobbyStateResponse } from '@core/models/game.models';
-import { permittedLobbyUrl, uncappedModeDestination } from './lobby-route';
+import { findLobbyCodeInUrl, permittedLobbyUrl, shouldConfirmLobbyExit, uncappedModeDestination } from './lobby-route';
 
 function baseState(overrides: Partial<LobbyStateResponse>): LobbyStateResponse {
   return {
@@ -76,8 +76,76 @@ describe('permittedLobbyUrl for the crowd-sourced-theme modes', () => {
     expect(uncappedModeDestination(state)).toBe('/game/ABCD/situation/2/duel');
   });
 
+  it('keeps the wavelength clue and guessing phases on the same round page', () => {
+    const wavelengthState = (roundPhase: 'clue' | 'guessing' | 'results') => baseState({
+      mode: 'wavelength',
+      wavelengthGame: {
+        id: 'g1',
+        phase: 'playing',
+        themeSubmitted: true,
+        themeRanked: true,
+        roundNumber: 2,
+        totalRounds: 4,
+        roundPhase,
+        submitted: false,
+      },
+    });
+    expect(uncappedModeDestination(wavelengthState('clue'))).toBe('/game/ABCD/wavelength/2/play');
+    expect(uncappedModeDestination(wavelengthState('guessing'))).toBe('/game/ABCD/wavelength/2/play');
+    expect(uncappedModeDestination(wavelengthState('results'))).toBe('/game/ABCD/wavelength/2/results');
+  });
+
+  it('sends a wavelength game back to theme selection between rounds', () => {
+    const state = baseState({
+      mode: 'wavelength',
+      wavelengthGame: {
+        id: 'g1',
+        phase: 'collecting_themes',
+        themeSubmitted: false,
+        themeRanked: false,
+        roundNumber: 3,
+        submitted: false,
+      },
+    });
+    expect(permittedLobbyUrl(state, '/game/ABCD/wavelength/2/results')).toBe('/game/ABCD/theme-selection');
+  });
+
   it('sends an uncapped-mode lobby that has not started back to the waiting room', () => {
     const state = baseState({ mode: 'zero_to_100', status: 'waiting_for_players' });
     expect(uncappedModeDestination(state)).toBe('/lobby/ABCD');
+  });
+});
+
+describe('findLobbyCodeInUrl', () => {
+  it('reads the code of lobby and game URLs', () => {
+    expect(findLobbyCodeInUrl('/lobby/abcd')).toBe('ABCD');
+    expect(findLobbyCodeInUrl('/lobby/ABCD/photos?step=2')).toBe('ABCD');
+    expect(findLobbyCodeInUrl('/game/ABCD/round/1/role')).toBe('ABCD');
+  });
+
+  it('returns null outside the lobby flow', () => {
+    expect(findLobbyCodeInUrl('/')).toBeNull();
+    expect(findLobbyCodeInUrl('/join?code=ABCD')).toBeNull();
+  });
+});
+
+describe('shouldConfirmLobbyExit', () => {
+  it('asks before leaving the lobby flow with a live session', () => {
+    expect(shouldConfirmLobbyExit('/lobby/ABCD', '/', 'ABCD')).toBe(true);
+    expect(shouldConfirmLobbyExit('/game/ABCD/round/2/reveal', '/join?code=ABCD', 'ABCD')).toBe(true);
+  });
+
+  it('lets the game move between its own pages', () => {
+    expect(shouldConfirmLobbyExit('/lobby/ABCD', '/game/ABCD/round/1/role', 'ABCD')).toBe(false);
+    expect(shouldConfirmLobbyExit('/game/ABCD/round/1/scores', '/lobby/ABCD', 'ABCD')).toBe(false);
+  });
+
+  it('lets the player go once the session is over or belongs to another lobby', () => {
+    expect(shouldConfirmLobbyExit('/lobby/ABCD', '/', null)).toBe(false);
+    expect(shouldConfirmLobbyExit('/lobby/ABCD', '/', 'WXYZ')).toBe(false);
+  });
+
+  it('never asks on pages outside the lobby flow', () => {
+    expect(shouldConfirmLobbyExit('/join', '/', 'ABCD')).toBe(false);
   });
 });
