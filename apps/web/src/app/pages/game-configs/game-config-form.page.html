@@ -1,19 +1,18 @@
 <div class="ion-page">
+  <app-page-header [title]="pageTitle()" backLink="/game-configs" />
   <ion-content>
-    <main class="app-shell min-h-full pb-8">
-      <app-page-header [title]="pageTitle()" backLink="/game-configs" />
-
-      <section class="space-y-4 px-5 pt-3">
+    <main class="app-shell editor-body">
+<div class="space-y-3">
         @if (gameConfigs.errorMessage(); as errorMessage) {
         <div class="rounded-2xl bg-danger-50 p-4 text-sm font-semibold text-danger-500">
           {{ errorMessage }}
         </div>
         } @if (isPageLoading()) {
-        <div class="surface-card p-6 text-center text-sm font-semibold text-ink-500">
+        <div class="surface-card p-4 text-center text-sm font-semibold text-ink-500">
           Chargement du formulaire…
         </div>
         } @else if (pageError(); as errorMessage) {
-        <div class="surface-card p-6 text-center">
+        <div class="surface-card p-4 text-center">
           <p class="text-sm font-semibold text-danger-500">
             {{ errorMessage }}
           </p>
@@ -27,21 +26,10 @@
           </div>
         </div>
         } @else {
-        <header class="rounded-[28px] bg-gradient-to-br from-brand-500 to-coral-400 p-6 text-white shadow-floating">
-          <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-white/75">
-            {{ editingConfig() ? 'Édition' : 'Création' }}
-          </p>
-          <h1 class="mt-1 text-2xl font-extrabold">
-            Construis ton questionnaire
-          </h1>
-          <p class="mt-2 text-sm leading-6 text-white/85">
-            Ajoute tes questions, choisis leur type et place-les dans l’ordre de
-            la partie.
-          </p>
-        </header>
+        
 
-        <section class="surface-card overflow-hidden">
-          <div class="space-y-5 p-5">
+        <section class="overflow-hidden">
+          <div class="space-y-3">
             <ion-input class="form-input" label="Nom du formulaire" labelPlacement="stacked" maxlength="80"
               [value]="editorName()" (ionInput)="onNameInput($event)" />
 
@@ -62,27 +50,22 @@
                 <h2 class="text-sm font-extrabold text-ink-900">
                   Questions du formulaire
                 </h2>
-                <p class="mt-1 text-xs text-ink-500">
-                  Configure chaque question comme dans un formulaire.
-                </p>
+                
               </div>
               <span class="rounded-full bg-peach-100 px-3 py-1.5 text-xs font-extrabold text-brand-600">
                 {{ editorQuestions().length }}
               </span>
             </div>
 
-            <ol class="space-y-4">
+            <ol class="space-y-2">
               @for (question of editorQuestions(); track question.key; let
               questionIndex = $index; let first = $first; let last = $last) {
-              <li class="question-editor-card overflow-hidden rounded-[24px] border border-peach-200 bg-white">
-                <header class="flex items-center gap-2 border-b border-peach-100 bg-peach-50 px-4 py-3">
-                  <span
-                    class="grid size-8 shrink-0 place-items-center rounded-xl bg-brand-100 text-xs font-extrabold text-brand-600">
-                    {{ questionIndex + 1 }}
-                  </span>
-                  <span class="min-w-0 flex-1 text-xs font-extrabold text-ink-900">
-                    Question personnalisée
-                  </span>
+              <li class="question-editor-card overflow-hidden rounded-2xl border border-peach-200 bg-white">
+                <header class="flex min-h-13 items-center gap-1 bg-peach-50 px-2 py-1">
+<button class="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left" type="button" [attr.aria-expanded]="expandedQuestionKey() === question.key" [attr.aria-controls]="question.key + '-content'" (click)="toggleQuestion(question.key)">
+  <span class="grid size-7 shrink-0 place-items-center rounded-lg bg-brand-100 text-xs font-bold text-brand-600">{{ questionIndex + 1 }}</span>
+  <span class="min-w-0"><span class="block truncate text-xs font-bold">{{ question.label || 'Nouvelle question' }}</span><span class="block text-[10px] text-ink-500">{{ question.type === 'integer_range' ? 'Curseur' : (question.type === 'single_choice' ? 'Liste' : 'Oui / Non') }}</span></span>
+</button>
                   <button class="icon-action" type="button" aria-label="Monter la question" [disabled]="first"
                     (click)="moveQuestion(question.key, -1)">
                     <ion-icon name="arrow-up" aria-hidden="true" />
@@ -96,7 +79,8 @@
                     <ion-icon name="trash-outline" aria-hidden="true" />
                   </button>
                 </header>
-                <div class="space-y-4 p-4">
+                @if (expandedQuestionKey() === question.key) {
+                <div class="space-y-3 border-t border-peach-100 p-3" [id]="question.key + '-content'">
                   <ion-input class="form-input" label="Label de la question" labelPlacement="stacked" maxlength="160"
                     placeholder="Ex. Quel est son niveau de patience ?" [value]="question.label"
                     (ionInput)="updateLabel(question.key, $event)" />
@@ -155,22 +139,9 @@
                       Ajouter une option
                     </button>
                   </fieldset>
-                  } @case ('binary_choice') {
-                  <div>
-                    <p class="text-xs font-extrabold text-ink-900">
-                      Réponses automatiques
-                    </p>
-                    <div class="mt-2 grid grid-cols-2 gap-2 text-center text-xs font-extrabold">
-                      <div class="rounded-2xl border border-peach-200 bg-peach-50 p-3 text-success-500">
-                        Oui
-                      </div>
-                      <div class="rounded-2xl border border-peach-200 bg-peach-50 p-3 text-danger-500">
-                        Non
-                      </div>
-                    </div>
-                  </div>
                   } }
                 </div>
+                }
               </li>
               }
             </ol>
@@ -185,25 +156,29 @@
               </span>
             </button>
 
-            @if (!canSave() && editorQuestions().length > 0) {
-            <p class="rounded-2xl bg-warning-50 p-3 text-xs leading-5 text-ink-600">
+            
+
+
+          </div>
+        </section>
+        }
+      </div>
+    </main>
+  </ion-content>
+  <footer class="screen-footer">
+@if (isReady()) {@if (!canSave() && editorQuestions().length > 0) {
+            <p class="mb-2 text-xs text-ink-600">
               Complète le nom, les labels et les paramètres de chaque question
               pour enregistrer.
             </p>
-            }
-
-            <div class="grid grid-cols-2 gap-3">
+            }            <div class="grid grid-cols-2 gap-3">
               <ion-button class="action-button action-button--secondary" expand="block" (click)="goBack()">
                 Annuler
               </ion-button>
               <ion-button class="action-button" expand="block" [disabled]="!canSave()" (click)="save()">
                 {{ isSaving() ? 'Enregistrement…' : 'Enregistrer' }}
               </ion-button>
-            </div>
-          </div>
-        </section>
-        }
-      </section>
-    </main>
-  </ion-content>
+            </div>}
+  </footer>
+
 </div>

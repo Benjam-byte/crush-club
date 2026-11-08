@@ -44,6 +44,10 @@ import {
 export class GameConfigFormPage implements OnInit {
   protected readonly gameConfigs = inject(GameConfigService);
   protected readonly editingConfig = signal<GameConfig | null>(null);
+  protected readonly expandedQuestionKey = signal<string | null>(null);
+  protected toggleQuestion(key: string): void {
+    this.expandedQuestionKey.update(current => current === key ? null : key);
+  }
   protected readonly editorName = signal('');
   protected readonly editorIsPublic = signal(false);
   protected readonly editorQuestions = signal<readonly EditorQuestion[]>([]);
@@ -80,13 +84,13 @@ export class GameConfigFormPage implements OnInit {
   }
 
   protected addCustomQuestion(): void {
-    this.editorQuestions.update((questions) => [
-      ...questions,
-      createBlankEditorQuestion(this.createQuestionKey()),
-    ]);
+    const question = createBlankEditorQuestion(this.createQuestionKey());
+    this.editorQuestions.update(questions => [...questions, question]);
+    this.expandedQuestionKey.set(question.key);
   }
 
   protected removeQuestion(key: string): void {
+    if (this.expandedQuestionKey() === key) this.expandedQuestionKey.set(null);
     this.editorQuestions.update((questions) => {
       return questions.filter((question) => question.key !== key);
     });
@@ -218,6 +222,7 @@ export class GameConfigFormPage implements OnInit {
         this.editorIsPublic.set(false);
         this.editorQuestions.set([createBlankEditorQuestion(this.createQuestionKey())]);
       }
+      this.expandedQuestionKey.set(this.editorQuestions()[0]?.key ?? null);
       this.isReady.set(true);
     } catch {
       this.pageError.set('Impossible de charger l’éditeur pour le moment.');
