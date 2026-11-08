@@ -1,64 +1,15 @@
 <div class="ion-page">
-  <ion-content>
-    <main class="app-shell min-h-full pb-8">
-      <app-page-header title="Classement final" backLink="/" />
-
-      <section class="space-y-4 px-5 pt-3">
-        @if (winner(); as champion) {
-          @let championPhoto = playerPhotoUrl(champion.playerId);
-          <section class="winner-card relative overflow-hidden rounded-[28px] p-6 text-center text-white">
-            <p class="relative text-xs font-bold uppercase tracking-[0.18em] text-white/75">Grand·e gagnant·e</p>
-            <div class="relative mx-auto mt-4 size-20 overflow-hidden rounded-[24px] border-4 border-white/70 bg-white/10 text-2xl font-extrabold">
-              @if (championPhoto) {
-                <img class="h-full w-full object-cover" [src]="championPhoto" [alt]="'Photo de ' + champion.displayName" />
-              } @else {
-                <span class="grid h-full place-items-center">{{ initials(champion.displayName) }}</span>
-              }
-            </div>
-            <h1 class="relative mt-3 text-2xl font-extrabold">{{ champion.displayName }}</h1>
-            <p class="relative mt-1 text-sm font-semibold text-white/85">
-              {{ champion.score }} points · {{ champion.exactCount }} réponses exactes
-            </p>
-          </section>
-        }
-
-        <section class="surface-card overflow-hidden">
-          <header class="border-b border-peach-100 px-5 py-4">
-            <h2 class="text-base font-extrabold text-ink-900">Classement final</h2>
-          </header>
-          <ol class="divide-y divide-peach-100">
-            @for (entry of leaderboard(); track entry.playerId; let rank = $index) {
-              @let photoUrl = playerPhotoUrl(entry.playerId);
-              <li class="flex min-h-[64px] items-center gap-3 px-4 py-3">
-                <span class="grid size-8 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">{{ rank + 1 }}</span>
-                <span class="size-10 shrink-0 overflow-hidden rounded-xl bg-brand-100">
-                  @if (photoUrl) {
-                    <img class="h-full w-full object-cover" [src]="photoUrl" [alt]="'Photo de ' + entry.displayName" />
-                  } @else {
-                    <span class="grid h-full place-items-center text-[10px] font-extrabold text-brand-600">{{ initials(entry.displayName) }}</span>
-                  }
-                </span>
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-sm font-extrabold text-ink-900">{{ entry.displayName }}</span>
-                  <span class="text-[11px] text-ink-500">
-                    {{ entry.exactCount }} exactes · {{ entry.taglineBonusCount }} accroche{{ entry.taglineBonusCount > 1 ? 's' : '' }}
-                  </span>
-                </span>
-                <span class="text-sm font-extrabold text-brand-600">{{ entry.score }} pts</span>
-              </li>
-            }
-          </ol>
-        </section>
-
-        <ion-button class="action-button w-full" expand="block" [disabled]="isLeaving()" (click)="onReplay()">
-          <ion-icon name="refresh" slot="start" aria-hidden="true" />
-          {{ gameState.isHost() ? 'Créer un nouveau lobby' : 'Rejoindre un nouveau lobby' }}
-        </ion-button>
-
-        <ion-button class="w-full" expand="block" fill="clear" [disabled]="isLeaving()" (click)="onNewLobby()">
-          Retour à l’accueil
-        </ion-button>
-      </section>
+  <app-page-header title="Classement final" backLink="/" />
+  <ion-content [scrollY]="false">
+    <main class="app-shell screen-body">
+<app-final-leaderboard [entries]="finalEntries()" />
     </main>
   </ion-content>
+  <footer class="screen-footer">
+<div class="grid grid-cols-[auto_1fr] gap-3">
+  <ion-button class="action-button action-button--secondary" [disabled]="isLeaving()" (click)="onNewLobby()">Quitter</ion-button>
+  <ion-button class="action-button" [disabled]="isLeaving()" (click)="onReplay()">{{ gameState.isHost() ? 'Rejouer' : 'Rejoindre un lobby' }}</ion-button>
+</div>
+  </footer>
+
 </div>

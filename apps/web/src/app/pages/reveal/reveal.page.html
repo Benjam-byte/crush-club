@@ -1,98 +1,54 @@
 <div class="ion-page">
-  <ion-content>
-    <main class="app-shell min-h-full pb-8">
-      <app-page-header
+  <app-page-header
         [title]="gameState.role() === 'lover' ? 'Choix de l’accroche' : 'Révélation'"
         [centerTitle]="true"
         [showDecoration]="false"
       />
-
-      <section class="space-y-5 px-5 pt-2">
-        <header class="text-center">
-          <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
-            Manche {{ gameState.game()?.roundNumber }}/{{ gameState.game()?.totalRounds }}
-          </p>
-          @if (gameState.role() === 'lover') {
-            <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-ink-900">
-              Choisis ta phrase préférée
-            </h1>
-            <p class="mt-2 text-sm leading-6 text-ink-500">
-              Les propositions sont anonymes. Choisis seulement celle qui te plaît le plus.
-            </p>
-          } @else {
-            <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-ink-900">
-              Le vrai profil de {{ gameState.subjectPlayer().displayName }}
-            </h1>
-          }
-        </header>
-
-        @if (gameState.role() !== 'lover') {
-          <article class="surface-card overflow-hidden">
-            <div class="grid grid-cols-[7rem_minmax(0,1fr)]">
-              @if (subjectPhotoUrl()) {
-                <img class="h-full min-h-36 w-full object-cover" [src]="subjectPhotoUrl()" [alt]="'Photo de ' + gameState.subjectPlayer().displayName" />
-              } @else {
-                <span class="grid min-h-36 place-items-center bg-brand-100 text-2xl font-extrabold text-brand-600">
-                  {{ initials(gameState.subjectPlayer().displayName) }}
-                </span>
-              }
-              <div class="flex flex-col justify-center p-4">
-                <span class="w-fit rounded-full bg-brand-100 px-3 py-1 text-[10px] font-extrabold text-brand-600">Profil officiel</span>
-                <h2 class="mt-2 text-lg font-extrabold text-ink-900">{{ gameState.subjectPlayer().displayName }}</h2>
-                <p class="mt-1 text-xs leading-5 text-ink-500">Les réponses ci-dessous servent de référence au score.</p>
-              </div>
-            </div>
-          </article>
-
-          <section class="grid grid-cols-2 gap-3">
-            @for (answer of officialAnswerList(); track answer.id) {
-              <article class="surface-card p-4">
-                <p class="text-[10px] font-extrabold uppercase tracking-wide text-brand-600">{{ answer.label }}</p>
-                <p class="mt-2 text-sm font-extrabold leading-5 text-ink-900">{{ answer.value }}</p>
-              </article>
-            }
-          </section>
-        }
-
-        <section>
-          <div class="mb-3 text-center">
-            <h2 class="text-xl font-extrabold text-ink-900">
-              {{ gameState.role() === 'lover' ? 'Les phrases proposées' : 'Les profils proposés' }}
-            </h2>
-            <p class="mt-1 text-xs leading-5 text-ink-500">
-              @if (gameState.role() === 'lover') {
-                Choisis anonymement la phrase d’accroche que tu préfères.
-              } @else {
-                Le vote de {{ gameState.subjectPlayer().displayName }} est en cours.
-              }
-            </p>
-          </div>
-
-          <div class="space-y-3">
-            @for (submission of gameState.game()?.submissions ?? []; track submission.id) {
-              <button
-                class="vote-card surface-card flex w-full items-start gap-3 p-4 text-left transition"
-                [class.vote-card--selected]="selectedSubmissionId() === submission.id"
-                [disabled]="gameState.role() !== 'lover'"
-                type="button"
-                (click)="selectSubmission(submission.id)"
-              >
-                <span class="grid size-10 shrink-0 place-items-center rounded-2xl bg-peach-100 text-brand-500">
-                  <ion-icon [name]="selectedSubmissionId() === submission.id ? 'heart' : 'heart-outline'" aria-hidden="true" />
-                </span>
-                <span class="min-w-0">
-                  <span class="block text-sm font-extrabold leading-5 text-ink-900">“{{ submission.tagline }}”</span>
-                  @if (gameState.role() !== 'lover' && submissionBio(submission.id); as bio) {
-                    <span class="mt-1 block text-[11px] leading-4 text-ink-500">{{ bio }}</span>
-                  }
-                </span>
-              </button>
-            }
-          </div>
-        </section>
-
-        @if (gameState.role() === 'lover') {
-          <ion-button
+  <ion-content [scrollY]="false">
+    <main class="app-shell screen-body">
+@if (gameState.role() === 'lover') {
+  <p class="text-sm text-ink-600">Choisis ta phrase préférée. Les propositions sont anonymes.</p>
+  <div class="screen-scroll space-y-3">
+    @for (submission of gameState.game()?.submissions ?? []; track submission.id) {
+      <button class="vote-card surface-card flex w-full items-center gap-3 p-3 text-left" [class.vote-card--selected]="selectedSubmissionId() === submission.id" [attr.aria-pressed]="selectedSubmissionId() === submission.id" type="button" (click)="selectSubmission(submission.id)">
+        <ion-icon class="shrink-0 text-xl text-brand-500" [name]="selectedSubmissionId() === submission.id ? 'heart' : 'heart-outline'" aria-hidden="true" />
+        <span class="text-sm font-bold">“{{ submission.tagline }}”</span>
+      </button>
+    }
+  </div>
+} @else {
+  <ion-segment [value]="activeTab()" (ionChange)="onTabChange($event)" aria-label="Contenu de la révélation">
+    <ion-segment-button value="profile"><ion-label>Vrai profil</ion-label></ion-segment-button>
+    <ion-segment-button value="proposals"><ion-label>Propositions</ion-label></ion-segment-button>
+  </ion-segment>
+  @if (activeTab() === 'profile') {
+    <div class="flex shrink-0 items-center gap-3">
+      @if (subjectPhotoUrl()) { <img class="size-12 rounded-2xl object-cover" [src]="subjectPhotoUrl()" alt="Photo principale" /> }
+      <h2 class="text-lg font-extrabold">{{ gameState.subjectPlayer().displayName }}</h2>
+    </div>
+    <dl class="screen-scroll grid auto-rows-min grid-cols-2 gap-x-4 gap-y-3">
+      @for (answer of officialAnswerList(); track answer.id) {
+        <div class="min-w-0 border-b border-peach-100 pb-2">
+          <dt class="text-xs text-ink-500">{{ answer.label }}</dt>
+          <dd class="text-sm font-bold">{{ answer.value }}</dd>
+        </div>
+      }
+    </dl>
+  } @else {
+    <ul class="screen-scroll divide-y divide-peach-200">
+      @for (submission of gameState.game()?.submissions ?? []; track submission.id) {
+        <li class="py-3">
+          <p class="text-sm font-bold">“{{ submission.tagline }}”</p>
+          @if (submissionBio(submission.id); as bio) { <p class="mt-1 text-xs text-ink-500">{{ bio }}</p> }
+        </li>
+      }
+    </ul>
+  }
+}
+    </main>
+  </ion-content>
+  <footer class="screen-footer">
+@if (gameState.role() === 'lover') {<ion-button
             class="action-button w-full"
             expand="block"
             [disabled]="selectedSubmissionId() === null || isVoting() || !gameState.isRealtimeConnected()"
@@ -100,15 +56,7 @@
           >
             {{ isVoting() ? 'Vote en cours…' : 'Confirmer mon vote' }}
             <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-          </ion-button>
-        } @else {
-          <app-waiting-card title="En attente du vote" message="Les scores apparaîtront automatiquement sur tous les appareils." />
-        }
+          </ion-button>} @else { <app-waiting-card title="En attente du vote" /> }
+  </footer>
 
-        @if (gameState.errorMessage(); as errorMessage) {
-          <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
-        }
-      </section>
-    </main>
-  </ion-content>
 </div>

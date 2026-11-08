@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import type { OnInit } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { IonButton, IonContent } from '@ionic/angular/standalone';
+import { ActivatedRoute, Router, } from '@angular/router';
+import { IonContent } from '@ionic/angular/standalone';
 import { primaryPhotoQuestionId } from '@core/models/game.models';
 import type { AnswerValue } from '@core/models/game.models';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
@@ -9,7 +9,7 @@ import { GameStateService } from '../../core/services/game-state.service';
 
 @Component({
   selector: 'app-profile-comparison-page',
-  imports: [IonButton, IonContent, PageHeaderComponent, RouterLink],
+  imports: [IonContent, PageHeaderComponent, ],
   templateUrl: './profile-comparison.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

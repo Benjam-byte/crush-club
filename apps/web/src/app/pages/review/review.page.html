@@ -1,65 +1,21 @@
 <div class="ion-page">
-  <ion-content>
-    <main class="app-shell min-h-full pb-8">
-      <app-page-header title="Validation du profil" [backLink]="profileLink()" />
-
-      <section class="space-y-4 px-5 pt-2">
-        @if (gameState.role() !== 'lover') {
-        <div class="rounded-[26px] bg-gradient-to-br from-brand-500 to-coral-400 p-5 text-white shadow-floating">
-          <div class="flex items-start gap-3">
-            <div class="grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20">
-              <ion-icon class="text-2xl" name="heart" aria-hidden="true" />
-            </div>
-            <div>
-              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-white/75">
-                Ton pouvoir
-              </p>
-              <h2 class="mt-1 text-xl font-extrabold">Mise ton unique LOVER</h2>
-              <p class="mt-2 text-xs leading-5 text-white/85">
-                Mets ton cœur sur une réponse. Si tu as tout bon, tu gagnes deux fois plus de points.
-                Si tu te trompes, tu perds des points.
-              </p>
-            </div>
-          </div>
-        </div>
-        } @else {
-          <div class="rounded-[26px] bg-gradient-to-br from-brand-500 to-coral-400 p-5 text-white shadow-floating">
-            <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-white/75">Tes vraies réponses</p>
-            <h2 class="mt-1 text-xl font-extrabold">Elles serviront de référence</h2>
-            <p class="mt-2 text-xs leading-5 text-white/85">Vérifie-les bien : les Cupidons seront notés à partir de ce profil.</p>
-          </div>
-        }
-
-        <section class="surface-card overflow-hidden">
-          <header class="flex items-start justify-between gap-4 border-b border-peach-100 px-5 py-4">
-            <div class="min-w-0 flex-1">
-              <h2 class="text-base font-extrabold text-ink-900">
-                Tes réponses
-              </h2>
-              <p class="mt-1 text-xs text-ink-500">
-                {{ gameState.role() === 'lover' ? 'Vérifie les réponses qui te décrivent.' : 'Appuie sur un cœur pour déplacer ton LOVER.' }}
-              </p>
-            </div>
-            <button
-              class="grid size-10 shrink-0 place-items-center rounded-2xl text-brand-600 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
-              type="button" aria-label="Modifier mes réponses" title="Modifier mes réponses"
-              [routerLink]="profileLink()">
-              <ion-icon name="create-outline" aria-hidden="true" />
-            </button>
-          </header>
-
-          <ul class="divide-y divide-peach-100">
+  <app-page-header title="Validation du profil" [backLink]="profileLink()" />
+  <ion-content [scrollY]="false">
+    <main class="app-shell screen-body">
+@if (gameState.isProfileLocked()) {
+<app-phase-confirmation
+            title="Profil envoyé !"
+            [progressCount]="gameState.game()?.submittedCount ?? 0"
+            [progressRequired]="gameState.game()?.requiredCount ?? 0"
+            progressLabel="joueurs ont terminé"
+            message="La révélation s’ouvrira automatiquement."
+          />
+} @else {
+<p class="text-xs text-ink-600">{{ gameState.role() === 'lover' ? 'Vérifie tes réponses : elles serviront de référence.' : 'Mise ton LOVER sur une réponse : points doublés si elle est juste, pénalité sinon.' }}</p>          <ul class="screen-scroll divide-y divide-peach-100">
             @for (reviewItem of reviewItemList(); track reviewItem.id) {
-            <li class="review-row flex items-center gap-3 px-4 py-3"
+            <li class="review-row flex items-center min-h-13 gap-3 px-2 py-1"
               [class.review-row--lover]="gameState.loverQuestionId() === reviewItem.id">
-              <div class="grid size-9 shrink-0 place-items-center rounded-2xl"
-                [class.bg-brand-100]="gameState.loverQuestionId() !== reviewItem.id"
-                [class.text-brand-600]="gameState.loverQuestionId() !== reviewItem.id"
-                [class.bg-brand-500]="gameState.loverQuestionId() === reviewItem.id"
-                [class.text-white]="gameState.loverQuestionId() === reviewItem.id">
-                <ion-icon [name]="gameState.loverQuestionId() === reviewItem.id ? 'heart' : 'heart-outline'"
-                  aria-hidden="true" />
-              </div>
+              
               <div class="min-w-0 flex-1">
                 <p class="truncate text-xs font-extrabold text-ink-900">
                   {{ reviewItem.label }}
@@ -87,36 +43,19 @@
             </li>
             }
           </ul>
-        </section>
 
-        @if (gameState.isProfileLocked()) {
-          <app-phase-confirmation
-            title="Profil envoyé !"
-            [progressCount]="gameState.game()?.submittedCount ?? 0"
-            [progressRequired]="gameState.game()?.requiredCount ?? 0"
-            progressLabel="joueurs ont terminé"
-            message="La révélation s’ouvrira automatiquement."
-          />
-        } @else {
-        <div class="rounded-2xl bg-warning-50 px-4 py-3 text-xs leading-5 text-ink-600">
-          <strong class="text-warning-500">Attention&nbsp;:</strong>
-          après le verrouillage, plus aucune réponse{{ gameState.role() === 'lover' ? '' : ' ni mise LOVER' }} ne pourra être modifiée.
-        </div>
-
-        @if (gameState.errorMessage(); as errorMessage) {
-          <p class="rounded-2xl bg-danger-50 px-4 py-3 text-xs font-bold leading-5 text-danger-500" role="alert">
-            {{ errorMessage }}
-          </p>
-        }
-
-        <ion-button class="action-button action-button--lover w-full" expand="block" [disabled]="!canLockProfile() || !gameState.isRealtimeConnected() || isLocking()" (click)="onLockProfile()">
+}
+    </main>
+  </ion-content>
+  <footer class="screen-footer">
+@if (!gameState.isProfileLocked()) {
+  <p class="mb-2 text-center text-xs text-ink-500">Après validation, tes réponses seront définitives.</p>
+<ion-button class="action-button action-button--lover w-full" expand="block" [disabled]="!canLockProfile() || !gameState.isRealtimeConnected() || isLocking()" (click)="onLockProfile()">
           <ion-icon name="lock-closed" slot="start" aria-hidden="true" />
           {{ isLocking() ? 'Verrouillage…' : 'Verrouiller mon profil' }}
           <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
         </ion-button>
-        }
-      </section>
-    </main>
+}
+  </footer>
 
-  </ion-content>
 </div>

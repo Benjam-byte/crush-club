@@ -1,3 +1,4 @@
+import { FinalLeaderboardComponent } from '@core/components/final-leaderboard/final-leaderboard.component';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -7,9 +8,8 @@ import { GameStateService } from '../../core/services/game-state.service';
 
 @Component({
   selector: 'app-final-results-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent],
+  imports: [FinalLeaderboardComponent, IonButton, IonContent, IonIcon, PageHeaderComponent],
   templateUrl: './final-results.page.html',
-  styleUrl: './final-results.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FinalResultsPage implements OnInit {
@@ -17,7 +17,10 @@ export class FinalResultsPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly leaderboard = computed(() => this.gameState.game()?.leaderboard ?? []);
-  protected readonly winner = computed(() => this.leaderboard()[0]);
+  protected readonly finalEntries = computed(() => this.leaderboard().map(entry => ({
+    id: entry.playerId, name: entry.displayName, score: entry.score,
+    subtitle: `${entry.exactCount} exactes`, photo: this.playerPhotoUrl(entry.playerId),
+  })));
   protected readonly isLeaving = signal(false);
 
   async ngOnInit(): Promise<void> {

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router, } from '@angular/router';
 import {
   IonButton,
   IonContent,
@@ -20,7 +20,7 @@ interface ReviewItem {
 
 @Component({
   selector: 'app-review-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, PhaseConfirmationComponent, RouterLink],
+  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, PhaseConfirmationComponent, ],
   templateUrl: './review.page.html',
   styleUrl: './review.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

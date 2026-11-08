@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
+import { IonButton, IonContent, IonIcon, IonSegment, IonSegmentButton, IonLabel } from '@ionic/angular/standalone';
 import { primaryPhotoQuestionId } from '@core/models/game.models';
 import type { AnswerValue, QuestionDefinition } from '@core/models/game.models';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
@@ -16,7 +16,7 @@ interface DisplayedAnswer {
 
 @Component({
   selector: 'app-reveal-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent],
+  imports: [IonButton, IonContent, IonIcon, IonSegment, IonSegmentButton, IonLabel, PageHeaderComponent, WaitingCardComponent],
   templateUrl: './reveal.page.html',
   styleUrl: './reveal.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,6 +26,10 @@ export class RevealPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly selectedSubmissionId = signal<string | null>(null);
+  protected readonly activeTab = signal<'profile' | 'proposals'>('profile');
+  protected onTabChange(event: CustomEvent): void {
+    this.activeTab.set(event.detail.value === 'proposals' ? 'proposals' : 'profile');
+  }
   protected readonly isVoting = signal(false);
   protected readonly subjectPhotoUrl = computed(() => {
     const photoAnswer = this.gameState.game()?.officialSubmission?.questionAnswers[primaryPhotoQuestionId];
