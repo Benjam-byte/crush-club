@@ -1,3 +1,4 @@
+import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -12,7 +13,7 @@ import { RealtimeLobbyService } from '@core/services/realtime-lobby.service';
 
 @Component({
   selector: 'app-fast-bio-review-page',
-  imports: [
+  imports: [PhaseConfirmationComponent, 
     AwaitingPlayersComponent,
     IonButton,
     IonContent,

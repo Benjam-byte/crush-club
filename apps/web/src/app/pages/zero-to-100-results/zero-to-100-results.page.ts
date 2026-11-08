@@ -1,3 +1,4 @@
+import { InfoSheetComponent } from '@core/components/info-sheet/info-sheet.component';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -20,7 +21,7 @@ function nomineeLabel(entry: ZeroToHundredRevealEntryView): string {
 
 @Component({
   selector: 'app-zero-to-100-results-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent, ZeroToHundredScaleComponent],
+  imports: [InfoSheetComponent, IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent, ZeroToHundredScaleComponent],
   templateUrl: './zero-to-100-results.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

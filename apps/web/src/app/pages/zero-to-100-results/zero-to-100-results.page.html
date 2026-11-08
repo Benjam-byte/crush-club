@@ -1,25 +1,10 @@
 <div class="ion-page">
-  <ion-content>
-    <main class="app-shell min-h-full pb-8">
-      <app-page-header title="Résultats de la manche" backLink="/" />
-
-      <section class="space-y-4 px-5 pt-3">
-        @if (!gameState.isRealtimeConnected()) {
-          <p class="rounded-2xl bg-warning-50 px-4 py-3 text-xs font-semibold text-warning-500">
-            Reconnexion au lobby en cours…
-          </p>
-        }
-
-        <header class="text-center">
-          <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
-            Manche {{ gameState.zeroToHundredGame()?.roundNumber }} / {{ gameState.zeroToHundredGame()?.totalRounds }}
-          </p>
-          <h1 class="mt-2 text-xl font-extrabold text-ink-900">{{ gameState.zeroToHundredGame()?.themeLabel }}</h1>
-        </header>
-
-        <section class="surface-card p-5">
+  <app-page-header [title]="gameState.zeroToHundredGame()?.themeLabel ?? 'Résultats'" backLink="/" />
+  <ion-content [scrollY]="false">
+    <main class="app-shell screen-body">
+        <section class="surface-card p-4">
           <!-- Equal rows: every bar takes the height of the tallest one. -->
-          <div class="grid auto-rows-fr gap-6">
+          <div class="grid auto-rows-fr gap-3">
             <div>
               <div class="flex items-center justify-between gap-3">
                 <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">Ta réponse</p>
@@ -75,29 +60,9 @@
             </div>
           </div>
 
-          <p class="mt-6 text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">Selon les concerné·es</p>
-          <ul class="mt-2 space-y-1.5 text-xs leading-5 text-ink-700">
-            @for (line of selfPlacementLines(); track line.playerId) {
-              <li class="flex items-start gap-2">
-                <span class="mt-1.5 size-2.5 shrink-0 rounded-full" [style.background]="line.color" aria-hidden="true"></span>
-                <span>
-                  <strong class="font-extrabold text-ink-900">{{ line.name }}</strong>
-                  @if (line.value === undefined) {
-                    {{ line.isCurrentPlayer ? 'ne t’es pas placé·e à temps' : 'ne s’est pas placé·e à temps' }}
-                  } @else {
-                    {{ line.isCurrentPlayer ? 't’es mis·e' : 's’est mis·e' }}
-                    <strong class="font-extrabold" [style.color]="line.textColor">{{ line.value }}</strong>
-                    en «&nbsp;{{ themeLabel() }}&nbsp;»
-                  }
-                </span>
-              </li>
-            }
-          </ul>
-        </section>
 
-        <section class="surface-card overflow-hidden">
-          <!-- Ionic's unlayered normalize.css zeroes td/th padding, hence the ! on cell paddings. -->
-          <table class="w-full table-fixed text-xs">
+</section>
+<div class="flex items-center justify-between gap-3"><p class="text-sm font-extrabold text-brand-600">Total {{ roundScoreLabel() }} pts</p><app-info-sheet label="Détail des points"><table class="w-full table-fixed text-xs">
             <caption class="px-4 pt-4 pb-2 text-left text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">
               Détail de tes points
               <span class="mt-1 block text-[10px] font-semibold normal-case tracking-normal">
@@ -161,15 +126,11 @@
                 </td>
               </tr>
             </tbody>
-          </table>
-          <footer class="flex items-center justify-between gap-3 border-t border-peach-100 bg-peach-50 px-4 py-2.5">
-            <span class="text-xs font-extrabold text-ink-900">Total de la manche</span>
-            <span class="text-sm font-extrabold text-brand-600">{{ roundScoreLabel() }}</span>
-          </footer>
-        </section>
-
-        @if (gameState.isHost()) {
-          <ion-button
+          </table></app-info-sheet></div>
+    </main>
+  </ion-content>
+  <footer class="screen-footer">
+@if (gameState.isHost()) {<ion-button
             class="action-button w-full"
             expand="block"
             [disabled]="isStartingNextRound()"
@@ -178,18 +139,7 @@
             <ion-icon name="rocket" slot="start" aria-hidden="true" />
             {{ isStartingNextRound() ? 'Lancement…' : (isLastRound() ? 'Voir le classement final' : 'Lancer la manche suivante') }}
             <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-          </ion-button>
-        } @else {
-          <app-waiting-card
-            title="En attente de l’hôte"
-            [message]="isLastRound() ? 'Le classement final s’ouvrira quand l’hôte le lancera.' : 'La manche suivante s’ouvrira quand l’hôte la lancera.'"
-          />
-        }
+          </ion-button>} @else { <app-waiting-card title="En attente de l’hôte" /> }
+  </footer>
 
-        @if (gameState.errorMessage(); as errorMessage) {
-          <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
-        }
-      </section>
-    </main>
-  </ion-content>
 </div>

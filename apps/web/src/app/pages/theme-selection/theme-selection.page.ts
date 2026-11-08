@@ -1,3 +1,5 @@
+import { CdkScrollable } from '@angular/cdk/scrolling';
+import { InfoSheetComponent } from '@core/components/info-sheet/info-sheet.component';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import type { OnDestroy, OnInit } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -9,7 +11,6 @@ import { PageHeaderComponent } from '@core/components/page-header/page-header.co
 import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
 import { SecretRankingRulesComponent } from '@core/components/secret-ranking-rules/secret-ranking-rules.component';
-import { WaitingGameComponent } from '@core/components/waiting-game/waiting-game.component';
 import { ZeroToHundredScoringRulesComponent } from '@core/components/zero-to-100-scoring-rules/zero-to-100-scoring-rules.component';
 import { GameStateService } from '@core/services/game-state.service';
 import { secretRankingQuestion, secretRankingQuestionEnd, secretRankingQuestionStart } from '@core/services/secret-ranking';
@@ -23,7 +24,7 @@ import { wavelengthProposalHint, wavelengthRankingHint, wavelengthRoundsLabel } 
  */
 @Component({
   selector: 'app-theme-selection-page',
-  imports: [
+  imports: [CdkScrollable, InfoSheetComponent, 
     CdkDrag,
     CdkDropList,
     IonButton,
@@ -35,7 +36,6 @@ import { wavelengthProposalHint, wavelengthRankingHint, wavelengthRoundsLabel } 
     PhaseTimerComponent,
     ReactiveFormsModule,
     SecretRankingRulesComponent,
-    WaitingGameComponent,
     ZeroToHundredScoringRulesComponent,
   ],
   templateUrl: './theme-selection.page.html',
