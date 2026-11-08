@@ -6,7 +6,6 @@ import { AwaitingPlayersComponent } from '@core/components/awaiting-players/awai
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
-import { WaitingGameComponent } from '@core/components/waiting-game/waiting-game.component';
 import { WavelengthDialComponent } from '@core/components/wavelength-dial/wavelength-dial.component';
 import { GameStateService } from '@core/services/game-state.service';
 
@@ -21,11 +20,9 @@ import { GameStateService } from '@core/services/game-state.service';
     PageHeaderComponent,
     PhaseConfirmationComponent,
     PhaseTimerComponent,
-    WaitingGameComponent,
     WavelengthDialComponent,
   ],
   templateUrl: './wavelength-round.page.html',
-  styleUrl: './wavelength-round.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WavelengthRoundPage implements OnInit, OnDestroy {

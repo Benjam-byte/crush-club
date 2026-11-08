@@ -1,51 +1,33 @@
 <div class="ion-page">
-  <ion-content>
-    <main class="app-shell min-h-full pb-8">
-      <app-page-header
+  <app-page-header
         [title]="'Manche ' + (gameState.situationGame()?.roundNumber ?? 1) + ' / ' + (gameState.situationGame()?.totalRounds ?? 3)"
         backLink="/"
       />
+  <ion-content [scrollY]="false">
+    <main class="app-shell screen-body">
 
-      <section class="space-y-4 px-5 pt-3">
-        @if (!gameState.isRealtimeConnected()) {
-          <p class="rounded-2xl bg-warning-50 px-4 py-3 text-xs font-semibold text-warning-500">
-            Reconnexion au lobby en cours…
-          </p>
-        }
+        
 
         @if (!gameState.situationGame()?.submitted) {
-          <p class="text-center text-xs font-bold text-ink-500">
-            {{ gameState.situationGame()?.submissionProgressCount ?? 0 }}/{{ gameState.situationGame()?.submissionProgressRequired ?? 0 }}
-            joueurs ont envoyé leur proposition
-          </p>
+          
 
-          <app-phase-timer label="Temps restant pour proposer" [remainingSeconds]="remainingSeconds()" />
+          <app-phase-timer [detail]="(gameState.situationGame()?.submissionProgressCount ?? 0) + '/' + (gameState.situationGame()?.submissionProgressRequired ?? 0) + ' ont proposé'" label="Temps restant pour proposer" [remainingSeconds]="remainingSeconds()" />
 
-          <div class="lobby-code-card relative overflow-hidden rounded-[28px] p-6 text-center text-white">
-            <p class="relative text-xs font-bold uppercase tracking-[0.18em] text-white/75">Situation</p>
-            <h1 class="relative mt-2 text-xl font-extrabold">{{ gameState.situationGame()?.themeLabel }}</h1>
-            <p class="relative mt-3 text-xs font-semibold text-white/80">
-              Qui s’en sortirait le mieux ? Choisis un autre joueur et explique pourquoi.
-            </p>
-          </div>
+          <div class="hero-card"><h2 class="text-base font-extrabold">{{ gameState.situationGame()?.themeLabel }}</h2></div>
 
-          <div class="surface-card overflow-hidden">
-            <header class="border-b border-peach-100 px-5 py-4">
-              <h2 class="text-sm font-extrabold text-ink-900">Choisis un joueur</h2>
-            </header>
-            <ul class="divide-y divide-peach-100">
+          <form id="reason-form" class="surface-card flex min-h-0 flex-1 flex-col gap-3 p-3" [formGroup]="reasonForm" (ngSubmit)="onSubmit()">
+            <p class="text-xs font-bold">Qui s’en sortirait le mieux ?</p>
+            <ul class="screen-scroll grid auto-rows-min grid-cols-2 gap-2">
               @for (player of otherPlayers(); track player.id) {
                 <li>
                   <button
                     type="button"
                     class="player-pick-row"
-                    [class.player-pick-row--active]="selectedPlayerId() === player.id"
+                    [attr.aria-pressed]="selectedPlayerId() === player.id" [class.player-pick-row--active]="selectedPlayerId() === player.id"
                     (click)="onSelectPlayer(player.id)"
                   >
-                    <span class="grid size-10 shrink-0 place-items-center rounded-2xl bg-peach-100 text-xs font-extrabold text-brand-600">
-                      {{ initials(player.displayName) }}
-                    </span>
-                    <span class="min-w-0 flex-1 truncate text-left text-sm font-extrabold text-ink-900">{{ player.displayName }}</span>
+                    
+                    <span class="min-w-0 flex-1 truncate text-left text-xs font-extrabold text-ink-900">{{ player.displayName }}</span>
                     @if (selectedPlayerId() === player.id) {
                       <ion-icon class="text-lg text-brand-600" name="checkmark-circle" aria-hidden="true" />
                     }
@@ -53,35 +35,21 @@
                 </li>
               }
             </ul>
-          </div>
 
-          <form class="surface-card space-y-4 p-5" [formGroup]="reasonForm" (ngSubmit)="onSubmit()">
             <ion-textarea
               class="form-input"
               formControlName="reason"
-              label="Pourquoi ?"
+              [label]="'Pourquoi ? · ' + reasonForm.controls.reason.value.length + '/100'"
               labelPlacement="stacked"
-              [autoGrow]="true"
+              [autoGrow]="false" [rows]="2"
               maxlength="100"
               placeholder="Explique en quelques mots…"
             />
-            <p class="text-right text-[10px] font-bold text-ink-500">
-              {{ reasonForm.controls.reason.value.length }}/100
-            </p>
+            
 
-            @if (gameState.errorMessage(); as errorMessage) {
-              <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
-            }
+            
 
-            <ion-button
-              class="action-button w-full"
-              expand="block"
-              type="submit"
-              [disabled]="isSubmitting() || reasonForm.invalid || !selectedPlayerId()"
-            >
-              {{ isSubmitting() ? 'Envoi…' : 'Envoyer ma proposition' }}
-              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-            </ion-button>
+            
           </form>
         } @else {
           <app-phase-confirmation
@@ -92,7 +60,19 @@
             message="Les duels s’ouvriront automatiquement."
           />
         }
-      </section>
+      
     </main>
   </ion-content>
+  <footer class="screen-footer">
+@if (!gameState.situationGame()?.submitted) {<ion-button
+              class="action-button w-full"
+              expand="block"
+              type="submit" form="reason-form"
+              [disabled]="isSubmitting() || reasonForm.invalid || !selectedPlayerId()"
+            >
+              {{ isSubmitting() ? 'Envoi…' : 'Envoyer ma proposition' }}
+              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+            </ion-button>}
+  </footer>
+
 </div>

@@ -1,16 +1,16 @@
+import { FinalLeaderboardComponent } from '@core/components/final-leaderboard/final-leaderboard.component';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
+import { IonButton, IonContent, } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { GameStateService } from '@core/services/game-state.service';
 
 @Component({
   selector: 'app-situation-final-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent],
+  imports: [FinalLeaderboardComponent, IonButton, IonContent, PageHeaderComponent, WaitingCardComponent],
   templateUrl: './situation-final.page.html',
-  styleUrl: './situation-final.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SituationFinalPage implements OnInit {
@@ -19,7 +19,7 @@ export class SituationFinalPage implements OnInit {
   private readonly router = inject(Router);
 
   protected readonly leaderboard = computed(() => this.gameState.situationGame()?.leaderboard ?? []);
-  protected readonly winner = computed(() => this.leaderboard()[0]);
+  protected readonly finalEntries = computed(() => this.leaderboard().map(entry => ({ id: entry.playerId, name: entry.displayName, score: entry.score })));
   protected readonly isReplaying = signal(false);
 
   async ngOnInit(): Promise<void> {

@@ -1,3 +1,4 @@
+import { InfoSheetComponent } from '@core/components/info-sheet/info-sheet.component';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -40,7 +41,7 @@ const podiumTierStyleMap: Record<PodiumTier, Pick<PodiumPlace, 'badgeClass' | 'p
 
 @Component({
   selector: 'app-situation-ranking-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, PhaseConfirmationComponent],
+  imports: [InfoSheetComponent, IonButton, IonContent, IonIcon, PageHeaderComponent, PhaseConfirmationComponent],
   templateUrl: './situation-ranking.page.html',
   styleUrl: './situation-ranking.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -1,3 +1,4 @@
+import { InfoSheetComponent } from '@core/components/info-sheet/info-sheet.component';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -10,7 +11,7 @@ import { placeLabel, pointsForPlace, pointsLabel } from '@core/services/situatio
 
 @Component({
   selector: 'app-situation-results-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent],
+  imports: [InfoSheetComponent, IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent],
   templateUrl: './situation-results.page.html',
   styleUrl: './situation-results.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

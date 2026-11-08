@@ -1,45 +1,10 @@
 <div class="ion-page">
-  <ion-content>
-    <main class="app-shell min-h-full pb-8">
-      <app-page-header title="Résultats de la manche" backLink="/" />
-
-      <section class="space-y-4 px-5 pt-3">
-        @if (!gameState.isRealtimeConnected()) {
-          <p class="rounded-2xl bg-warning-50 px-4 py-3 text-xs font-semibold text-warning-500">
-            Reconnexion au lobby en cours…
-          </p>
-        }
-
-        <header class="text-center">
-          <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
-            Manche {{ gameState.situationGame()?.roundNumber }} / {{ gameState.situationGame()?.totalRounds }}
-          </p>
-          <h1 class="mt-2 text-xl font-extrabold text-ink-900">{{ gameState.situationGame()?.themeLabel }}</h1>
-        </header>
-
-        <div class="surface-card p-6 text-center">
-          <p class="text-xs font-bold uppercase tracking-[0.14em] text-ink-500">Ton score cette manche</p>
-          <p class="mt-2 text-4xl font-extrabold text-brand-600">{{ gameState.situationGame()?.roundScore ?? 0 }}</p>
-          <p class="mt-1 text-xs text-ink-500">points</p>
-          @if (results().length > 0) {
-            <p class="mt-3 text-xs font-semibold text-ink-700">
-              @if (myResult(); as mine) {
-                Ton équipe a fini {{ placeLabel(mine.rank) }}.
-              } @else {
-                Tu n’as rien proposé à temps.
-              }
-            </p>
-          }
-        </div>
-
-        @if (results().length > 0) {
-          <section class="surface-card overflow-hidden">
-            <header class="border-b border-peach-100 px-5 py-4">
-              <h2 class="text-base font-extrabold text-ink-900">Classement de la manche</h2>
-            </header>
-            <ol class="divide-y divide-peach-100">
+  <app-page-header title="Résultats de la manche" backLink="/" />
+  <ion-content [scrollY]="false">
+    <main class="app-shell screen-body">
+<div class="flex shrink-0 items-center gap-3"><h2 class="min-w-0 flex-1 text-base font-bold">{{ gameState.situationGame()?.themeLabel }}</h2><span class="shrink-0 rounded-xl bg-brand-100 px-3 py-2 text-sm font-extrabold text-brand-600">+{{ gameState.situationGame()?.roundScore ?? 0 }} pts</span></div>            <ol class="screen-scroll divide-y divide-peach-100">
               @for (result of results(); track result.proposal.id) {
-                <li class="flex items-start gap-3 px-4 py-4" [class.bg-peach-50]="result.isMine">
+                <li class="flex items-start gap-3 px-2 py-2" [class.bg-peach-50]="result.isMine">
                   <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">
                     {{ result.rank }}
                   </span>
@@ -50,21 +15,17 @@
                         <span class="ml-1 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-extrabold text-brand-600">Ton équipe</span>
                       }
                     </p>
-                    <p class="mt-0.5 text-xs text-ink-700">« {{ result.proposal.reason }} »</p>
+                    <p class="mt-0.5 line-clamp-2 text-xs text-ink-700">« {{ result.proposal.reason }} »</p>
                     <p class="mt-1 text-[11px] text-ink-500">Équipe : {{ memberNames(result) }}</p>
                   </div>
                   <span class="shrink-0 text-sm font-extrabold text-brand-600">{{ result.points }} pts</span>
                 </li>
               }
-            </ol>
-          </section>
-          <p class="text-center text-[11px] text-ink-500">
-            Chaque vote rapporte des points selon la place : {{ pointScale() }}.
-          </p>
-        }
-
-        @if (gameState.isHost()) {
-          <ion-button
+            </ol><app-info-sheet><p class="text-sm">Chaque vote rapporte des points selon la place : {{ pointScale() }}. Les points de tous les votes s’additionnent.</p></app-info-sheet>
+    </main>
+  </ion-content>
+  <footer class="screen-footer">
+@if (gameState.isHost()) {<ion-button
             class="action-button w-full"
             expand="block"
             [disabled]="isStartingNextRound()"
@@ -73,18 +34,7 @@
             <ion-icon name="rocket" slot="start" aria-hidden="true" />
             {{ isStartingNextRound() ? 'Lancement…' : (isLastRound() ? 'Voir le classement final' : 'Lancer la manche suivante') }}
             <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-          </ion-button>
-        } @else {
-          <app-waiting-card
-            title="En attente de l’hôte"
-            [message]="isLastRound() ? 'Le classement final s’ouvrira quand l’hôte le lancera.' : 'La manche suivante s’ouvrira quand l’hôte la lancera.'"
-          />
-        }
+          </ion-button>} @else { <app-waiting-card title="En attente de l’hôte" /> }
+  </footer>
 
-        @if (gameState.errorMessage(); as errorMessage) {
-          <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
-        }
-      </section>
-    </main>
-  </ion-content>
 </div>

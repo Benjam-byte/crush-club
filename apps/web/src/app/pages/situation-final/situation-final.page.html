@@ -1,52 +1,17 @@
 <div class="ion-page">
-  <ion-content>
-    <main class="app-shell min-h-full pb-8">
-      <app-page-header title="Classement Situation" backLink="/" />
-
-      <section class="space-y-4 px-5 pt-3">
-        @if (winner(); as topPlayer) {
-          <div class="winner-card relative overflow-hidden rounded-[28px] p-6 text-center text-white">
-            <p class="relative text-xs font-bold uppercase tracking-[0.18em] text-white/75">Grand·e gagnant·e</p>
-            <div class="relative mx-auto mt-4 grid size-20 place-items-center rounded-[24px] border-4 border-white/70 bg-white/10 text-2xl font-extrabold">
-              {{ initials(topPlayer.displayName) }}
-            </div>
-            <h1 class="relative mt-3 text-2xl font-extrabold">{{ topPlayer.displayName }}</h1>
-            <p class="relative mt-1 text-sm font-semibold text-white/85">{{ topPlayer.score }} points</p>
-          </div>
-        }
-
-        <section class="surface-card overflow-hidden">
-          <header class="border-b border-peach-100 px-5 py-4">
-            <h2 class="text-base font-extrabold text-ink-900">Classement final</h2>
-          </header>
-          <ol class="divide-y divide-peach-100">
-            @for (entry of leaderboard(); track entry.playerId; let rank = $index) {
-              <li class="flex min-h-[64px] items-center gap-3 px-4 py-3">
-                <span class="grid size-8 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">{{ rank + 1 }}</span>
-                <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{ entry.displayName }}</span>
-                <span class="text-sm font-extrabold text-brand-600">{{ entry.score }} pts</span>
-              </li>
-            }
-          </ol>
-        </section>
-
-        @if (gameState.isHost()) {
-          <ion-button class="action-button w-full" expand="block" [disabled]="isReplaying()" (click)="onReplay()">
-            <ion-icon name="refresh" slot="start" aria-hidden="true" />
-            {{ isReplaying() ? 'Lancement…' : 'Rejouer avec le même groupe' }}
-          </ion-button>
-        } @else {
-          <app-waiting-card title="En attente de l’hôte" message="L’hôte peut relancer une nouvelle manche." />
-        }
-
-        <ion-button class="w-full" expand="block" fill="clear" (click)="onLeave()">
-          Quitter le lobby
-        </ion-button>
-
-        @if (gameState.errorMessage(); as errorMessage) {
-          <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ errorMessage }}</p>
-        }
-      </section>
+  <app-page-header title="Classement Situation" backLink="/" />
+  <ion-content [scrollY]="false">
+    <main class="app-shell screen-body">
+<app-final-leaderboard [entries]="finalEntries()" accent="coral" />
     </main>
   </ion-content>
+  <footer class="screen-footer">
+
+@if (gameState.isHost()) {<div class="grid grid-cols-[auto_1fr] gap-3">
+<ion-button class="action-button action-button--secondary" (click)="onLeave()">Quitter</ion-button>
+<ion-button class="action-button" [disabled]="isReplaying()" (click)="onReplay()">{{ isReplaying() ? 'Lancement…' : 'Rejouer' }}</ion-button>
+</div>} @else {<app-waiting-card title="En attente de l’hôte" />}
+
+  </footer>
+
 </div>
