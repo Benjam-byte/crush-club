@@ -2,6 +2,7 @@
   #rail
   class="scale"
   [class.scale--editable]="editable()"
+  [class.scale--compact]="compact()"
   [style.height.px]="layout().height"
   [attr.role]="editable() ? 'group' : 'img'"
   [attr.aria-label]="editable() ? ariaLabel() : summary()"
@@ -37,6 +38,9 @@
       <span class="scale__swatch" [style.background]="point.color"></span>
       <span class="scale__rank">{{ point.rankLabel }}</span>
       <span class="scale__name-text">{{ point.label }}</span>
+      @if (compact()) {
+        <span class="shrink-0" [style.color]="point.textColor">· {{ point.displayValue }}</span>
+      }
     </span>
     <span
       class="scale__dot"
@@ -54,7 +58,7 @@
       [attr.aria-valuetext]="editable() ? point.displayValue + ', ' + point.rankLabel : null"
       (keydown)="onKeydown($event, point)"
     ></span>
-    <span
+    @if (!compact()) {<span
       class="scale__value"
       [class.is-active]="point.id === activeId()"
       [attr.data-point-id]="point.id"
@@ -63,6 +67,6 @@
       [style.transform]="point.labelShift"
       [style.color]="point.textColor"
       aria-hidden="true"
-    >{{ point.displayValue }}</span>
+    >{{ point.displayValue }}</span>}
   }
 </div>

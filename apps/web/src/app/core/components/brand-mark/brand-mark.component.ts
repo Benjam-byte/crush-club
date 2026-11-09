@@ -9,5 +9,5 @@ import { IonIcon } from '@ionic/angular/standalone';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BrandMarkComponent {
-  readonly size = input<'small' | 'large'>('small');
+  readonly size = input<'compact' | 'small' | 'large'>('small');
 }

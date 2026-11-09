@@ -35,6 +35,7 @@
                 <app-zero-to-100-scale
                   class="mt-2"
                   ariaLabel="Ta réponse"
+                  [compact]="true"
                   [points]="myBar()"
                   [focusId]="activeFocusId()"
                   [reservedNames]="reveal().length"
@@ -50,6 +51,7 @@
                 <app-zero-to-100-scale
                   class="mt-2"
                   ariaLabel="Cible"
+                  [compact]="true"
                   [points]="targetBar()"
                   [focusId]="activeFocusId()"
                   [reservedNames]="reveal().length"
@@ -62,7 +64,7 @@
 
 
 </section>
-<div class="flex items-center justify-between gap-3"><p class="text-sm font-extrabold text-brand-600">Total {{ roundScoreLabel() }} pts</p><app-info-sheet label="Détail des points"><table class="w-full table-fixed text-xs">
+<div class="flex shrink-0 items-center justify-between gap-3"><p class="text-sm font-extrabold text-brand-600">Total {{ roundScoreLabel() }}</p><app-info-sheet label="Détail des points"><table class="w-full table-fixed text-xs">
             <caption class="px-4 pt-4 pb-2 text-left text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">
               Détail de tes points
               <span class="mt-1 block text-[10px] font-semibold normal-case tracking-normal">

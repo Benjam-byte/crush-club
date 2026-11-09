@@ -101,6 +101,10 @@
   text-overflow: ellipsis;
 }
 
+.scale--compact .scale__name {
+  max-width: 168px;
+}
+
 .scale__rank {
   flex-shrink: 0;
   color: var(--color-ink-500);

@@ -156,6 +156,8 @@ export class ZeroToHundredScaleComponent {
   readonly points = input.required<readonly ScalePoint[]>();
   readonly ariaLabel = input.required<string>();
   readonly editable = input(false);
+  /** Places each value beside its name so two result scales fit on a small screen. */
+  readonly compact = input(false);
   /** Shows a single point, by id; null shows them all. */
   readonly focusId = input<string | null>(null);
   /**
@@ -196,8 +198,9 @@ export class ZeroToHundredScaleComponent {
     this.fontsLoaded();
     const nameLanes = assignLabelLanes(
       points.map((point) => {
-        const textWidth = this.textWidth(point.label, NAME_FONT) + this.textWidth(point.rankLabel, RANK_FONT);
-        return labelSpan(point.value, Math.min(NAME_MAX_WIDTH, textWidth + NAME_CHROME_WIDTH), trackWidth);
+        const valueWidth = this.compact() ? this.textWidth(` · ${Math.round(point.value)}`, NAME_FONT) : 0;
+        const textWidth = this.textWidth(point.label, NAME_FONT) + this.textWidth(point.rankLabel, RANK_FONT) + valueWidth;
+        return labelSpan(point.value, Math.min(this.compact() ? 168 : NAME_MAX_WIDTH, textWidth + NAME_CHROME_WIDTH), trackWidth);
       }),
     );
     // The 0 and 100 end labels sit on the first value lane, so values move out of their way.
@@ -214,7 +217,7 @@ export class ZeroToHundredScaleComponent {
     const valueLaneCount = Math.max(reservedNames > 0 ? RESERVED_VALUE_LANES : 1, ...allValueLanes.map((lane) => lane + 1));
     const valuesTop = namesHeight + STEM_GAP + TRACK_ROW_HEIGHT;
     return {
-      height: valuesTop + valueLaneCount * VALUE_LANE_HEIGHT,
+      height: valuesTop + (this.compact() ? 1 : valueLaneCount) * VALUE_LANE_HEIGHT,
       trackCenter: namesHeight + STEM_GAP + TRACK_ROW_HEIGHT / 2,
       valuesTop,
       points: points.map((point, index) => {

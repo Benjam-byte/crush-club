@@ -101,8 +101,8 @@
                   <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">
                     {{ index + 1 }}
                   </span>
-                  <span class="min-w-0 flex-1 text-sm font-extrabold leading-snug text-ink-900 [overflow-wrap:anywhere]">{{ gameState.isSecretRankingMode() ? '…' + secretRankingQuestionEnd(theme) : theme }}</span>
-                  <ion-icon class="shrink-0 text-lg text-ink-500" name="reorder-two-outline" cdkDragHandle aria-hidden="true" />
+                  <span class="min-w-0 flex-1 line-clamp-2 text-sm font-extrabold leading-snug text-ink-900 [overflow-wrap:anywhere]" [title]="theme">{{ gameState.isSecretRankingMode() ? '…' + secretRankingQuestionEnd(theme) : theme }}</span>
+                  <button class="grid size-11 shrink-0 place-items-center text-lg text-ink-500" type="button" cdkDragHandle [attr.aria-label]="'Déplacer le thème ' + (index + 1)"><ion-icon name="reorder-two-outline" aria-hidden="true" /></button>
                 </li>
               }
             </ol></div>

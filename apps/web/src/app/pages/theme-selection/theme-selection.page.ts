@@ -4,7 +4,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, u
 import type { OnDestroy, OnInit } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CdkDrag, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDragHandle, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { IonButton, IonContent, IonIcon, IonInput } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
@@ -26,6 +26,7 @@ import { wavelengthProposalHint, wavelengthRankingHint, wavelengthRoundsLabel } 
   selector: 'app-theme-selection-page',
   imports: [CdkScrollable, InfoSheetComponent, 
     CdkDrag,
+    CdkDragHandle,
     CdkDropList,
     IonButton,
     IonContent,

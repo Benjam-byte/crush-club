@@ -1,5 +1,5 @@
-<article class="surface-card p-5">
-  <header>
+<article class="surface-card flex min-h-0 w-full flex-col p-4">
+  <header class="shrink-0">
     <div class="flex items-center gap-3">
       <div class="grid size-9 shrink-0 place-items-center rounded-2xl bg-peach-100 text-brand-600">
         <ion-icon
@@ -39,10 +39,10 @@
     }
 
     @case ('single_choice') {
-      <div class="mt-4 grid gap-2">
+      <div class="mt-3 grid min-h-0 content-start gap-2 overflow-y-auto">
         @for (option of question().options ?? []; track option.id) {
           <label
-            class="radio-option flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-bold transition"
+            class="radio-option flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-2xl border px-4 py-2 text-left text-sm font-bold transition"
             [class.radio-option--selected]="answer() === option.id"
           >
             <span>{{ option.label }}</span>
@@ -60,10 +60,10 @@
     }
 
     @case ('binary_choice') {
-      <div class="mt-5 grid gap-3">
+      <div class="mt-3 grid min-h-0 content-start gap-2 overflow-y-auto">
         @for (option of question().options ?? []; track option.id) {
           <button
-            class="option-button binary-option relative grid min-h-24 w-full place-items-center rounded-3xl border px-12 py-6 text-center text-sm font-extrabold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+            class="option-button binary-option relative grid min-h-11 w-full place-items-center rounded-2xl border px-12 py-3 text-center text-sm font-extrabold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
             [class.option-button--selected]="answer() === option.id"
             type="button"
             [attr.aria-pressed]="answer() === option.id"
@@ -85,7 +85,7 @@
     }
 
     @default {
-      <div class="mt-4 grid gap-2">
+      <div class="mt-3 grid min-h-0 content-start gap-2 overflow-y-auto">
         @for (option of question().options ?? []; track option.id) {
           <button
             class="option-button flex min-h-12 items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-left text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"

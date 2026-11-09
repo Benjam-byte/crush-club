@@ -87,6 +87,7 @@
                   <ion-select
                     class="form-input"
                     formControlName="maxPlayers"
+                    [selectedText]="joinForm.controls.maxPlayers.value.toString()"
                     label="Joueurs"
                     labelPlacement="stacked"
                     interface="action-sheet"

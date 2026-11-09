@@ -1,12 +1,13 @@
+@layer theme, base, components, utilities;
 @import "@fontsource/plus-jakarta-sans/400.css";
 @import "@fontsource/plus-jakarta-sans/500.css";
 @import "@fontsource/plus-jakarta-sans/600.css";
 @import "@fontsource/plus-jakarta-sans/700.css";
 @import "@fontsource/plus-jakarta-sans/800.css";
 @import "@ionic/angular/css/core.css";
-@import "@ionic/angular/css/normalize.css";
+@import "@ionic/angular/css/normalize.css" layer(base);
 @import "@ionic/angular/css/structure.css";
-@import "@ionic/angular/css/typography.css";
+@import "@ionic/angular/css/typography.css" layer(base);
 @import "@ionic/angular/css/display.css";
 @import "tailwindcss";
 
@@ -88,10 +89,16 @@ body {
   color: var(--color-text-primary);
 }
 
-button,
-input,
-textarea {
-  font: inherit;
+@layer base {
+  h1, h2, h3, h4, h5, h6, p, ol, ul, figure {
+    margin: 0;
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
 }
 
 button,
@@ -154,6 +161,10 @@ ion-button::part(native) {
   min-height: 48px;
   --padding-top: 10px;
   --padding-bottom: 10px;
+}
+
+.screen-footer:empty {
+  display: none;
 }
 
 .hero-card {
