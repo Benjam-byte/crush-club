@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import type { OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import type { AnswerValue } from '@core/models/game.models';
@@ -18,7 +17,7 @@ const taglineMaximumLength = 100;
   styleUrl: './questionnaire.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class QuestionnairePage implements OnInit {
+export class QuestionnairePage {
   protected readonly gameState = inject(GameStateService);
   private readonly router = inject(Router);
 
@@ -99,15 +98,20 @@ export class QuestionnairePage implements OnInit {
     return this.isFinalStep() ? this.canContinue() : this.currentStepAnswered();
   });
 
-  async ngOnInit(): Promise<void> {
+  private viewedGameId: string | null = null;
+
+  async ionViewWillEnter(): Promise<void> {
     try {
+      // Ionic reuses round 1's page on a rematch: restore the new game's draft
+      // on every entry, before deciding which step to show.
       await this.gameState.loadQuestionnaire();
-      const incompleteStep = this.gameState.firstIncompleteDraftStep();
-      if (incompleteStep !== null) {
-        this.currentStepIndex.set(incompleteStep);
+      const gameId = this.gameState.game()?.id ?? null;
+      if (gameId !== this.viewedGameId) {
+        this.currentStepIndex.set(this.gameState.firstIncompleteDraftStep() ?? 0);
+        this.viewedGameId = gameId;
       }
     } catch {
-      // GameState exposes the load error in the template.
+      // GameState exposes the load error through the global toast.
     }
   }
 

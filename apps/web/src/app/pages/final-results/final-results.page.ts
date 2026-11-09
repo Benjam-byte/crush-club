@@ -2,13 +2,14 @@ import { FinalLeaderboardComponent } from '@core/components/final-leaderboard/fi
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
+import { IonButton, IonContent } from '@ionic/angular/standalone';
+import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
 import { GameStateService } from '../../core/services/game-state.service';
 
 @Component({
   selector: 'app-final-results-page',
-  imports: [FinalLeaderboardComponent, IonButton, IonContent, IonIcon, PageHeaderComponent],
+  imports: [WaitingCardComponent, FinalLeaderboardComponent, IonButton, IonContent, PageHeaderComponent],
   templateUrl: './final-results.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -32,14 +33,12 @@ export class FinalResultsPage implements OnInit {
   }
 
   protected async onReplay(): Promise<void> {
-    if (this.isLeaving()) {
-      return;
-    }
+    if (this.isLeaving() || !this.gameState.isHost()) return;
     this.isLeaving.set(true);
-    const wasHost = this.gameState.isHost();
     try {
-      await this.gameState.leaveGame();
-      await this.router.navigate(['/join'], { queryParams: wasHost ? { mode: 'create' } : undefined });
+      await this.gameState.replayClassic();
+    } catch {
+      // GameState displays the API error in the global toast.
     } finally {
       this.isLeaving.set(false);
     }

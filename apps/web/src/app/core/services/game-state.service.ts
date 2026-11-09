@@ -440,6 +440,13 @@ export class GameStateService {
     );
   }
 
+  async replayClassic(): Promise<void> {
+    await this.runStateCommand(
+      (code, token) => this.lobbyApi.replayClassic(code, token),
+      'La revanche n’a pas pu démarrer.',
+    );
+  }
+
   async startFastBioGame(): Promise<void> {
     if (!this.canStartFastBioGame()) {
       return;
@@ -1025,7 +1032,7 @@ export class GameStateService {
   private currentDraftStorageKey(): string {
     const session = this.storedSessionState();
     const game = this.game();
-    return `crush-club-draft:${session?.lobbyCode ?? 'none'}:${session?.playerId ?? 'none'}:${game?.roundNumber ?? 0}:${this.gameConfigVersion()}`;
+    return `crush-club-draft:${session?.lobbyCode ?? 'none'}:${session?.playerId ?? 'none'}:${game?.id ?? 'none'}:${game?.roundNumber ?? 0}:${this.gameConfigVersion()}`;
   }
 
   private readStoredSession(): StoredPlayerSession | null {
@@ -1196,6 +1203,7 @@ export class GameStateService {
         photos_too_large: 'Les photos sont trop volumineuses pour être envoyées.',
         unsupported_photo: 'Le format reçu n’est pas pris en charge.',
         invalid_photo: 'Cette image est illisible ou ses dimensions ne sont pas valides.',
+        game_not_completed: 'La partie doit être terminée avant de lancer une revanche.',
         invalid_photo_count: 'Sélectionne une seule photo à la fois.',
         invalid_photo_position: 'Cet emplacement photo n’est pas valide.',
         photo_limit_reached: 'Les quatre emplacements sont déjà remplis.',

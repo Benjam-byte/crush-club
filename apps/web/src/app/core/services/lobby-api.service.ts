@@ -302,6 +302,12 @@ export class LobbyApiService {
     );
   }
 
+  replayClassic(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
+    return firstValueFrom(this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/replay`, null, {
+      headers: this.authorizationHeaders(reconnectToken),
+    }));
+  }
+
   replayFastBio(code: string, reconnectToken: string): Promise<LobbyStateResponse> {
     return firstValueFrom(
       this.http.post<LobbyStateResponse>(`/api/v1/lobbies/${code}/fast-bio/replay`, null, {

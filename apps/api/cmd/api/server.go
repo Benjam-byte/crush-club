@@ -199,6 +199,7 @@ func (a *api) routes() *http.ServeMux {
 	mux.HandleFunc("PUT /api/v1/lobbies/{code}/game-config", a.handleChangeLobbyConfig)
 	mux.HandleFunc("GET /api/v1/lobbies/{code}/questionnaire", a.handleGetQuestionnaire)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/start", a.handleStartMultiplayerGame)
+	mux.HandleFunc("POST /api/v1/lobbies/{code}/replay", a.handleReplayClassicGame)
 	mux.HandleFunc("PUT /api/v1/lobbies/{code}/rounds/current/submission", a.handleSubmitCurrentRound)
 	mux.HandleFunc("PUT /api/v1/lobbies/{code}/rounds/current/vote", a.handleVoteCurrentRound)
 	mux.HandleFunc("POST /api/v1/lobbies/{code}/rounds/current/next", a.handleNextRound)

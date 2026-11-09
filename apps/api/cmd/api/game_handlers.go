@@ -42,6 +42,16 @@ type scoreLine struct {
 }
 
 func (a *api) handleStartMultiplayerGame(w http.ResponseWriter, r *http.Request) {
+	a.startClassicGame(w, r, false)
+}
+
+func (a *api) handleReplayClassicGame(w http.ResponseWriter, r *http.Request) {
+	a.startClassicGame(w, r, true)
+}
+
+// Both paths take the lobby lock before checking readiness. A replay replaces only
+// the completed game's scores and rounds, retaining players, sessions and photos.
+func (a *api) startClassicGame(w http.ResponseWriter, r *http.Request, replay bool) {
 	player, ok := a.requirePlayer(w, r)
 	if !ok {
 		return
@@ -56,15 +66,23 @@ func (a *api) handleStartMultiplayerGame(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	defer tx.Rollback(r.Context())
-	var status string
+	var status, mode string
 	err = tx.QueryRow(r.Context(), `
-		SELECT status FROM lobbies WHERE id = $1 FOR UPDATE
-	`, player.LobbyID).Scan(&status)
+		SELECT status, mode FROM lobbies WHERE id = $1 FOR UPDATE
+	`, player.LobbyID).Scan(&status, &mode)
 	if err != nil {
 		a.internalError(w, r, err)
 		return
 	}
-	if status == "in_game" || status == "completed" {
+	if mode != lobbyModeClassic {
+		writeError(w, http.StatusConflict, "wrong_mode", "This lobby does not use classic mode")
+		return
+	}
+	if replay && status != "completed" {
+		writeError(w, http.StatusConflict, "game_not_completed", "Finish the current game before starting a rematch")
+		return
+	}
+	if !replay && (status == "in_game" || status == "completed") {
 		state, stateErr := a.loadLobbyState(r.Context(), player)
 		if stateErr != nil {
 			a.internalError(w, r, stateErr)
@@ -107,6 +125,20 @@ func (a *api) handleStartMultiplayerGame(w http.ResponseWriter, r *http.Request)
 		}
 		if !a.hub.isOnline(player.Code, candidate.ID) {
 			writeError(w, http.StatusConflict, "players_offline", "Every player must be connected before the game starts")
+			return
+		}
+	}
+
+	if replay {
+		// The unique game per lobby owns its rounds and submissions via cascading FKs.
+		// Readiness was checked first, so a failed rematch leaves the final results intact.
+		result, err := tx.Exec(r.Context(), `DELETE FROM games WHERE lobby_id = $1 AND phase = 'completed'`, player.LobbyID)
+		if err != nil {
+			a.internalError(w, r, err)
+			return
+		}
+		if result.RowsAffected() != 1 {
+			writeError(w, http.StatusConflict, "game_not_completed", "No completed classic game to replay")
 			return
 		}
 	}

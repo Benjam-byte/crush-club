@@ -97,8 +97,8 @@ Les photos sont ajoutées et persistées une par une, puis validées ensemble. L
 formats HEIC/HEIF et normalise les images en JPEG avant leur envoi afin de prendre en charge les photothèques
 iPhone et les clichés haute résolution.
 Après chaque résultat, l'hôte ramène tout le groupe au lobby d'entracte, puis lance manuellement la manche
-suivante. La dernière manche ouvre le classement final. Une revanche crée toujours un nouveau lobby, de
-nouvelles sessions et exige quatre nouvelles photos par joueur.
+suivante. La dernière manche ouvre le classement final. En mode classique, l’hôte peut lancer une revanche avec le même groupe, le même code et les mêmes
+photos. Les scores et les réponses repartent de zéro ; tous les joueurs doivent être connectés et prêts.
 Les photos privées et les lobbies expirent après 24 heures. Une déconnexion conserve la place 90 secondes,
 puis autorise l'exclusion et, pour l'hôte, le transfert de ses droits au plus ancien joueur connecté.
 
