@@ -47,17 +47,20 @@
               }}
             </p>
           </section>
-          <app-wavelength-dial
-            [leftLabel]="round.leftLabel ?? ''"
-            [rightLabel]="round.rightLabel ?? ''"
-            [target]="round.target"
-            [interactive]="canPlaceNeedle()"
-            [value]="needleValue()"
-            (valueChange)="position.set($event ?? 50)"
-          />
-          @if (!round.isPsychic && !isGuessing()) {
-            <app-awaiting-players />
-          }
+          <!-- Auto margins centre the dial in the free space under the card, and never push it above. -->
+          <div class="my-auto flex flex-col gap-3">
+            <app-wavelength-dial
+              [leftLabel]="round.leftLabel ?? ''"
+              [rightLabel]="round.rightLabel ?? ''"
+              [target]="round.target"
+              [interactive]="canPlaceNeedle()"
+              [value]="needleValue()"
+              (valueChange)="position.set($event ?? 50)"
+            />
+            @if (!round.isPsychic && !isGuessing()) {
+              <app-awaiting-players />
+            }
+          </div>
         }
       }
     </main>

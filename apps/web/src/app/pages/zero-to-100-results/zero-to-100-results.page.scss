@@ -2,11 +2,32 @@
   display: block;
 }
 
-// Cards list five rows at most: the carousel takes their height instead of the whole screen, and
-// shrinks down to this minimum (the cards then scroll) so the podium keeps its room on small screens.
+// The free space under the podium. The carousel keeps its cards' height and sits in the middle of that
+// space (auto margins rather than justify-content, so it never spills above the area); on small screens
+// it shrinks down to 8rem, the cards scroll, and the area keeps room for it and its dots.
+.carousel-area {
+  display: flex;
+  min-height: calc(8rem + 28px);
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+
+  > :first-child {
+    margin-top: auto;
+  }
+
+  > :last-child {
+    margin-bottom: auto;
+  }
+}
+
+// Every card is centred when it snaps, the neighbours peeking 20px on each side: the padding is the peek
+// plus the gap, and a card fills the rest. carouselGapPx in the page still matches the 12px gap.
 .results-carousel {
   min-height: 8rem;
   flex: 0 1 auto;
+  padding-inline: 32px;
+  scroll-padding-inline: 0;
 }
 
 // Fades in once the podium's 1st place has risen; the delay comes from the template.
@@ -26,12 +47,15 @@
 }
 
 // Place colours come from the global [data-tier] rules: gold for a perfect order.
+// Positioned so the rows' sr-only labels stay clipped by the card when it scrolls on a small screen,
+// instead of spilling out of the page body.
 .guesser-card {
+  position: relative;
   display: flex;
   min-height: 0;
-  flex: 0 0 82%;
+  flex: 0 0 100%;
   flex-direction: column;
-  padding: 12px 14px;
+  padding: 16px 18px;
   overflow-y: auto;
   border: 2px solid var(--tier-color);
   border-radius: 24px;
@@ -48,12 +72,21 @@
 
 .guesser-card__score {
   flex-shrink: 0;
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
   background: var(--tier-color);
   color: white;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
+}
+
+// Roomy rows on a tall phone, tighter ones on a small screen where the card would otherwise scroll.
+.guesser-card__row {
+  display: flex;
+  min-height: clamp(1.75rem, 5.2dvh, 2.75rem);
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
 }
 
 .guesser-card__perfect {
@@ -72,8 +105,8 @@
 }
 
 .guesser-card__mark {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .guesser-card__miss {
