@@ -1,78 +1,91 @@
 <div class="ion-page">
   <app-page-header
-        [title]="'Manche ' + (gameState.situationGame()?.roundNumber ?? 1) + ' / ' + (gameState.situationGame()?.totalRounds ?? 3)"
-        backLink="/"
-      />
+    [title]="
+      'Manche ' + (gameState.situationGame()?.roundNumber ?? 1) + ' / ' + (gameState.situationGame()?.totalRounds ?? 3)
+    "
+    backLink="/"
+  />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
+      @if (!gameState.situationGame()?.submitted) {
+        <app-phase-timer
+          [detail]="
+            (gameState.situationGame()?.submissionProgressCount ?? 0) +
+            '/' +
+            (gameState.situationGame()?.submissionProgressRequired ?? 0) +
+            ' ont proposé'
+          "
+          label="Temps restant pour proposer"
+          [remainingSeconds]="remainingSeconds()"
+        />
 
-        
+        <div class="hero-card">
+          <h2 class="text-base font-extrabold">{{ gameState.situationGame()?.themeLabel }}</h2>
+        </div>
 
-        @if (!gameState.situationGame()?.submitted) {
-          
+        <!-- The minimum keeps the card around its list and text area; below it the screen body scrolls. -->
+        <form
+          id="reason-form"
+          class="surface-card flex min-h-60 flex-1 flex-col gap-3 p-3"
+          [formGroup]="reasonForm"
+          (ngSubmit)="onSubmit()"
+        >
+          <p class="text-xs font-bold">Qui s’en sortirait le mieux ?</p>
+          <ul class="screen-scroll grid auto-rows-min grid-cols-2 gap-2">
+            @for (player of otherPlayers(); track player.id) {
+              <li>
+                <button
+                  type="button"
+                  class="player-pick-row"
+                  [attr.aria-pressed]="selectedPlayerId() === player.id"
+                  [class.player-pick-row--active]="selectedPlayerId() === player.id"
+                  (click)="onSelectPlayer(player.id)"
+                >
+                  <span class="min-w-0 flex-1 truncate text-left text-xs font-extrabold text-ink-900">{{
+                    player.displayName
+                  }}</span>
+                  @if (selectedPlayerId() === player.id) {
+                    <ion-icon class="text-lg text-brand-600" name="checkmark-circle" aria-hidden="true" />
+                  }
+                </button>
+              </li>
+            }
+          </ul>
 
-          <app-phase-timer [detail]="(gameState.situationGame()?.submissionProgressCount ?? 0) + '/' + (gameState.situationGame()?.submissionProgressRequired ?? 0) + ' ont proposé'" label="Temps restant pour proposer" [remainingSeconds]="remainingSeconds()" />
-
-          <div class="hero-card"><h2 class="text-base font-extrabold">{{ gameState.situationGame()?.themeLabel }}</h2></div>
-
-          <form id="reason-form" class="surface-card flex min-h-0 flex-1 flex-col gap-3 p-3" [formGroup]="reasonForm" (ngSubmit)="onSubmit()">
-            <p class="text-xs font-bold">Qui s’en sortirait le mieux ?</p>
-            <ul class="screen-scroll grid auto-rows-min grid-cols-2 gap-2">
-              @for (player of otherPlayers(); track player.id) {
-                <li>
-                  <button
-                    type="button"
-                    class="player-pick-row"
-                    [attr.aria-pressed]="selectedPlayerId() === player.id" [class.player-pick-row--active]="selectedPlayerId() === player.id"
-                    (click)="onSelectPlayer(player.id)"
-                  >
-                    
-                    <span class="min-w-0 flex-1 truncate text-left text-xs font-extrabold text-ink-900">{{ player.displayName }}</span>
-                    @if (selectedPlayerId() === player.id) {
-                      <ion-icon class="text-lg text-brand-600" name="checkmark-circle" aria-hidden="true" />
-                    }
-                  </button>
-                </li>
-              }
-            </ul>
-
-            <ion-textarea
-              class="form-input"
-              formControlName="reason"
-              [label]="'Pourquoi ? · ' + reasonForm.controls.reason.value.length + '/100'"
-              labelPlacement="stacked"
-              [autoGrow]="false" [rows]="2"
-              maxlength="100"
-              placeholder="Explique en quelques mots…"
-            />
-            
-
-            
-
-            
-          </form>
-        } @else {
-          <app-phase-confirmation
-            title="Proposition envoyée !"
-            [progressCount]="gameState.situationGame()?.submissionProgressCount ?? 0"
-            [progressRequired]="gameState.situationGame()?.submissionProgressRequired ?? 0"
-            progressLabel="joueurs ont envoyé leur proposition"
-            message="Les duels s’ouvriront automatiquement."
+          <ion-textarea
+            class="form-input"
+            formControlName="reason"
+            [label]="'Pourquoi ? · ' + reasonForm.controls.reason.value.length + '/100'"
+            labelPlacement="stacked"
+            [autoGrow]="false"
+            [rows]="2"
+            maxlength="100"
+            placeholder="Explique en quelques mots…"
           />
-        }
-      
+        </form>
+      } @else {
+        <app-phase-confirmation
+          title="Proposition envoyée !"
+          [progressCount]="gameState.situationGame()?.submissionProgressCount ?? 0"
+          [progressRequired]="gameState.situationGame()?.submissionProgressRequired ?? 0"
+          progressLabel="joueurs ont envoyé leur proposition"
+          message="Les duels s’ouvriront automatiquement."
+        />
+      }
     </main>
   </ion-content>
   <footer class="screen-footer">
-@if (!gameState.situationGame()?.submitted) {<ion-button
-              class="action-button w-full"
-              expand="block"
-              type="submit" form="reason-form"
-              [disabled]="isSubmitting() || reasonForm.invalid || !selectedPlayerId()"
-            >
-              {{ isSubmitting() ? 'Envoi…' : 'Envoyer ma proposition' }}
-              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-            </ion-button>}
+    @if (!gameState.situationGame()?.submitted) {
+      <ion-button
+        class="action-button w-full"
+        expand="block"
+        type="submit"
+        form="reason-form"
+        [disabled]="isSubmitting() || reasonForm.invalid || !selectedPlayerId()"
+      >
+        {{ isSubmitting() ? 'Envoi…' : 'Envoyer ma proposition' }}
+        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+      </ion-button>
+    }
   </footer>
-
 </div>

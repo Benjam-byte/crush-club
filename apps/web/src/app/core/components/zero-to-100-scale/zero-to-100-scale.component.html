@@ -58,15 +58,18 @@
       [attr.aria-valuetext]="editable() ? point.displayValue + ', ' + point.rankLabel : null"
       (keydown)="onKeydown($event, point)"
     ></span>
-    @if (!compact()) {<span
-      class="scale__value"
-      [class.is-active]="point.id === activeId()"
-      [attr.data-point-id]="point.id"
-      [style.left.%]="point.value"
-      [style.top.px]="point.valueTop"
-      [style.transform]="point.labelShift"
-      [style.color]="point.textColor"
-      aria-hidden="true"
-    >{{ point.displayValue }}</span>}
+    @if (!compact()) {
+      <span
+        class="scale__value"
+        [class.is-active]="point.id === activeId()"
+        [attr.data-point-id]="point.id"
+        [style.left.%]="point.value"
+        [style.top.px]="point.valueTop"
+        [style.transform]="point.labelShift"
+        [style.color]="point.textColor"
+        aria-hidden="true"
+        >{{ point.displayValue }}</span
+      >
+    }
   }
 </div>

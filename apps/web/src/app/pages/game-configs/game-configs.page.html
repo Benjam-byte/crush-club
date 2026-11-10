@@ -2,13 +2,13 @@
   <app-page-header title="Mes configurations" backLink="/" />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-<div class="screen-scroll space-y-3">
-        
-
+      <div class="screen-scroll space-y-3">
         @if (gameConfigs.errorMessage(); as errorMessage) {
           <div class="rounded-2xl bg-danger-50 p-4 text-sm font-semibold text-danger-500">
             <p>{{ errorMessage }}</p>
-            <button class="mt-3 underline" type="button" (click)="retry()">Réessayer</button>
+            <button class="mt-1 inline-flex min-h-11 items-center underline" type="button" (click)="retry()">
+              Réessayer
+            </button>
           </div>
         }
 
@@ -17,21 +17,20 @@
             Chargement des configurations…
           </div>
         } @else {
-
-
           <section class="overflow-hidden">
             <header class="flex items-center justify-between gap-4 border-b border-peach-100 px-4 py-2.5">
               <div>
                 <h2 class="text-base font-extrabold text-ink-900">Mes questionnaires</h2>
-                
               </div>
-              
             </header>
-<ul class="divide-y divide-peach-100">
+            <ul class="divide-y divide-peach-100">
               @for (config of systemConfigList(); track config.id) {
                 <li class="flex items-center gap-3 px-4 py-2.5">
                   <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-extrabold text-ink-900">{{ config.name }} <span class="rounded-full bg-peach-100 px-2 py-1 text-[10px] text-brand-600">Modèle</span></p>
+                    <p class="truncate text-sm font-extrabold text-ink-900">
+                      {{ config.name }}
+                      <span class="rounded-full bg-peach-100 px-2 py-1 text-[10px] text-brand-600">Modèle</span>
+                    </p>
                     <p class="mt-1 text-xs text-ink-500">{{ config.questionIds.length }} questions</p>
                   </div>
                   <ion-button fill="outline" size="small" [disabled]="isBusy()" (click)="duplicate(config)">
@@ -43,20 +42,16 @@
             @if (personalConfigList().length === 0) {
               <div class="px-4 py-3 text-center">
                 <p class="text-sm text-ink-500">Aucun formulaire personnel pour le moment.</p>
-                <a class="mt-3 inline-flex text-sm font-extrabold text-brand-600 underline" routerLink="/game-configs/new">
-                  Créer mon premier formulaire
-                </a>
               </div>
             } @else {
               <ul class="divide-y divide-peach-100">
                 @for (config of personalConfigList(); track config.id) {
                   <li class="flex items-center gap-2 px-4 py-2.5">
-                    <a
-                      class="min-w-0 flex-1 text-left"
-                      [routerLink]="['/game-configs', config.id, 'edit']"
-                    >
+                    <a class="min-w-0 flex-1 text-left" [routerLink]="['/game-configs', config.id, 'edit']">
                       <span class="flex items-center gap-2">
-                        <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{ config.name }}</span>
+                        <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{
+                          config.name
+                        }}</span>
                         <span
                           class="shrink-0 rounded-full px-2 py-1 text-[10px] font-extrabold"
                           [class.bg-success-50]="config.isPublic"
@@ -69,10 +64,21 @@
                       </span>
                       <span class="mt-1 block text-xs text-ink-500">{{ config.questionIds.length }} questions </span>
                     </a>
-                    <button class="icon-action" type="button" aria-label="Dupliquer" [disabled]="isBusy()" (click)="duplicate(config)">
+                    <button
+                      class="icon-action"
+                      type="button"
+                      aria-label="Dupliquer"
+                      [disabled]="isBusy()"
+                      (click)="duplicate(config)"
+                    >
                       <ion-icon name="copy-outline" aria-hidden="true" />
                     </button>
-                    <button class="icon-action text-danger-500" type="button" aria-label="Supprimer" (click)="delete(config)">
+                    <button
+                      class="icon-action text-danger-500"
+                      type="button"
+                      aria-label="Supprimer"
+                      (click)="delete(config)"
+                    >
                       <ion-icon name="trash-outline" aria-hidden="true" />
                     </button>
                   </li>
@@ -85,7 +91,6 @@
             <section class="overflow-hidden">
               <header class="border-b border-peach-100 px-4 py-2.5">
                 <h2 class="text-base font-extrabold text-ink-900">Partagés par la communauté</h2>
-                
               </header>
               <ul class="divide-y divide-peach-100">
                 @for (config of sharedConfigList(); track config.id) {
@@ -107,7 +112,8 @@
     </main>
   </ion-content>
   <footer class="screen-footer">
-<ion-button class="action-button w-full" expand="block" routerLink="/game-configs/new"><ion-icon name="add" slot="start" aria-hidden="true" />Nouveau formulaire</ion-button>
+    <ion-button class="action-button w-full" expand="block" routerLink="/game-configs/new"
+      ><ion-icon name="add" slot="start" aria-hidden="true" />Nouveau formulaire</ion-button
+    >
   </footer>
-
 </div>

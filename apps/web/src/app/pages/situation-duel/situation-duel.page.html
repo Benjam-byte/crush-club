@@ -2,77 +2,75 @@
   <app-page-header title="Duel" backLink="/" />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
+      @if (duel(); as currentDuel) {
+        <app-phase-timer
+          [detail]="duelVoteCount() + '/2 votes'"
+          label="Mettez-vous d’accord avant"
+          [remainingSeconds]="remainingSeconds()"
+          [warningAt]="15"
+        />
 
-        
+        <p class="text-center text-xs text-ink-500">
+          Retrouve <strong class="text-ink-900">{{ currentDuel.opponentDisplayName }}</strong> et décidez ensemble
+          laquelle des deux réponses mérite d’être gardée.
+        </p>
 
-        @if (duel(); as currentDuel) {
-          <app-phase-timer [detail]="duelVoteCount() + '/2 votes'"
-            label="Mettez-vous d’accord avant"
-            [remainingSeconds]="remainingSeconds()"
-            [warningAt]="15"
-          />
-
-          <p class="text-center text-xs text-ink-500">
-            Retrouve <strong class="text-ink-900">{{ currentDuel.opponentDisplayName }}</strong> et décidez ensemble laquelle des deux réponses mérite d’être gardée.
-          </p>
-
-          <div class="screen-scroll space-y-3">
-            <button
-              type="button"
-              class="duel-option"
-              [class.duel-option--selected]="currentDuel.myVoteProposalId === currentDuel.proposalA.id"
-              [disabled]="isVoting()"
-              (click)="onVote(currentDuel.proposalA.id)"
-            >
-              <p class="text-xs font-bold uppercase tracking-[0.14em] text-brand-600">{{ currentDuel.proposalA.chosenDisplayName }}</p>
-              <p class="mt-2 text-sm font-semibold leading-6 text-ink-900">{{ currentDuel.proposalA.reason }}</p>
-              @if (currentDuel.myVoteProposalId === currentDuel.proposalA.id) {
-                <span class="duel-option__badge">
-                  <ion-icon name="checkmark-circle" aria-hidden="true" /> Ton choix
-                </span>
-              }
-            </button>
-
-            <button
-              type="button"
-              class="duel-option"
-              [class.duel-option--selected]="currentDuel.myVoteProposalId === currentDuel.proposalB.id"
-              [disabled]="isVoting()"
-              (click)="onVote(currentDuel.proposalB.id)"
-            >
-              <p class="text-xs font-bold uppercase tracking-[0.14em] text-brand-600">{{ currentDuel.proposalB.chosenDisplayName }}</p>
-              <p class="mt-2 text-sm font-semibold leading-6 text-ink-900">{{ currentDuel.proposalB.reason }}</p>
-              @if (currentDuel.myVoteProposalId === currentDuel.proposalB.id) {
-                <span class="duel-option__badge">
-                  <ion-icon name="checkmark-circle" aria-hidden="true" /> Ton choix
-                </span>
-              }
-            </button>
-          </div>
-
-          
-
-          <p class="text-center text-xs text-ink-500">
-            @if (currentDuel.myVoteProposalId) {
-              @if (currentDuel.opponentHasVoted) {
-                Vous avez tous les deux voté. Si vos choix diffèrent, le tirage au sort tranchera à la fin du temps imparti.
-              } @else {
-                Ton choix est enregistré. En attente du vote de {{ currentDuel.opponentDisplayName }}…
-              }
-            } @else {
-              Choisis la réponse qui doit être gardée.
+        <div class="screen-scroll space-y-3">
+          <button
+            type="button"
+            class="duel-option"
+            [class.duel-option--selected]="currentDuel.myVoteProposalId === currentDuel.proposalA.id"
+            [disabled]="isVoting()"
+            (click)="onVote(currentDuel.proposalA.id)"
+          >
+            <p class="text-xs font-bold uppercase tracking-[0.14em] text-brand-600">
+              {{ currentDuel.proposalA.chosenDisplayName }}
+            </p>
+            <p class="mt-2 text-sm font-semibold leading-6 text-ink-900">{{ currentDuel.proposalA.reason }}</p>
+            @if (currentDuel.myVoteProposalId === currentDuel.proposalA.id) {
+              <span class="duel-option__badge">
+                <ion-icon name="checkmark-circle" aria-hidden="true" /> Ton choix
+              </span>
             }
-          </p>
+          </button>
 
-          
-        } @else {
-          <app-phase-confirmation
-            title="Duels en cours dans le groupe…"
-            message="Tu n’as pas de duel à disputer pour cette vague. La suite arrive automatiquement."
-          />
-        }
-      
+          <button
+            type="button"
+            class="duel-option"
+            [class.duel-option--selected]="currentDuel.myVoteProposalId === currentDuel.proposalB.id"
+            [disabled]="isVoting()"
+            (click)="onVote(currentDuel.proposalB.id)"
+          >
+            <p class="text-xs font-bold uppercase tracking-[0.14em] text-brand-600">
+              {{ currentDuel.proposalB.chosenDisplayName }}
+            </p>
+            <p class="mt-2 text-sm font-semibold leading-6 text-ink-900">{{ currentDuel.proposalB.reason }}</p>
+            @if (currentDuel.myVoteProposalId === currentDuel.proposalB.id) {
+              <span class="duel-option__badge">
+                <ion-icon name="checkmark-circle" aria-hidden="true" /> Ton choix
+              </span>
+            }
+          </button>
+        </div>
+
+        <p class="text-center text-xs text-ink-500">
+          @if (currentDuel.myVoteProposalId) {
+            @if (currentDuel.opponentHasVoted) {
+              Vous avez tous les deux voté. Si vos choix diffèrent, le tirage au sort tranchera à la fin du temps
+              imparti.
+            } @else {
+              Ton choix est enregistré. En attente du vote de {{ currentDuel.opponentDisplayName }}…
+            }
+          } @else {
+            Choisis la réponse qui doit être gardée.
+          }
+        </p>
+      } @else {
+        <app-phase-confirmation
+          title="Duels en cours dans le groupe…"
+          message="Tu n’as pas de duel à disputer pour cette vague. La suite arrive automatiquement."
+        />
+      }
     </main>
   </ion-content>
-
 </div>

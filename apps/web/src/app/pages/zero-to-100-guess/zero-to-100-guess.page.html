@@ -1,60 +1,63 @@
 <div class="ion-page">
   <app-page-header
-        [title]="'Manche ' + (gameState.zeroToHundredGame()?.roundNumber ?? 1) + ' / ' + (gameState.zeroToHundredGame()?.totalRounds ?? 3)"
-        backLink="/"
-      />
+    [title]="
+      'Manche ' +
+      (gameState.zeroToHundredGame()?.roundNumber ?? 1) +
+      ' / ' +
+      (gameState.zeroToHundredGame()?.totalRounds ?? 3)
+    "
+    backLink="/"
+  />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
+      @if (!gameState.zeroToHundredGame()?.submitted) {
+        <app-phase-timer
+          [detail]="
+            (gameState.zeroToHundredGame()?.submissionProgressCount ?? 0) +
+            '/' +
+            (gameState.zeroToHundredGame()?.submissionProgressRequired ?? 0) +
+            ' ont répondu'
+          "
+          label="Temps restant pour répondre"
+          [remainingSeconds]="remainingSeconds()"
+        />
 
-        
+        <div class="hero-card">
+          <h1 class="text-base font-extrabold">{{ gameState.zeroToHundredGame()?.themeLabel }}</h1>
+          @if (gameState.zeroToHundredGame()?.isNominee) {
+            <p class="mt-1 text-xs font-semibold text-white/80">Tu es nominé·e : place-toi aussi sur l’échelle.</p>
+          }
+        </div>
 
-        @if (!gameState.zeroToHundredGame()?.submitted) {
-          
-
-          <app-phase-timer [detail]="(gameState.zeroToHundredGame()?.submissionProgressCount ?? 0) + '/' + (gameState.zeroToHundredGame()?.submissionProgressRequired ?? 0) + ' ont répondu'" label="Temps restant pour répondre" [remainingSeconds]="remainingSeconds()" />
-
-          <div class="hero-card">
-            
-            <h1 class="text-base font-extrabold">{{ gameState.zeroToHundredGame()?.themeLabel }}</h1>
-            @if (gameState.zeroToHundredGame()?.isNominee) {
-              <p class="mt-1 text-xs font-semibold text-white/80">Tu es nominé·e : place-toi aussi sur l’échelle.</p>
-            }
-          </div>
-
-          <div class="surface-card p-4">
-            <p class="text-xs text-ink-600">Place les nominés de 0 à 100 · bon ordre : +30 pts.</p>
-            <app-zero-to-100-scale
-              class="mt-4"
-              ariaLabel="Tes positions"
-              [points]="scalePoints()"
-              [reservedNames]="nominees().length"
-              [editable]="true"
-              (valueChange)="onPositionChange($event)"
-            />
-          </div>
-
-          
-
-          
-        } @else {
-          <app-phase-confirmation
-            title="Positions envoyées !"
-            [progressCount]="gameState.zeroToHundredGame()?.submissionProgressCount ?? 0"
-            [progressRequired]="gameState.zeroToHundredGame()?.submissionProgressRequired ?? 0"
-            progressLabel="joueurs ont validé leurs positions"
-            message="Les résultats de la manche s’ouvriront automatiquement."
+        <div class="surface-card p-4">
+          <p class="text-xs text-ink-600">Place les nominés de 0 à 100 · bon ordre : +30 pts.</p>
+          <app-zero-to-100-scale
+            class="mt-4"
+            ariaLabel="Tes positions"
+            [points]="scalePoints()"
+            [reservedNames]="nominees().length"
+            [editable]="true"
+            (valueChange)="onPositionChange($event)"
           />
-          <app-info-sheet><app-zero-to-100-scoring-rules /></app-info-sheet>
-          
-        }
-      
+        </div>
+      } @else {
+        <app-phase-confirmation
+          title="Positions envoyées !"
+          [progressCount]="gameState.zeroToHundredGame()?.submissionProgressCount ?? 0"
+          [progressRequired]="gameState.zeroToHundredGame()?.submissionProgressRequired ?? 0"
+          progressLabel="joueurs ont validé leurs positions"
+          message="Les résultats de la manche s’ouvriront automatiquement."
+        />
+        <app-info-sheet><app-zero-to-100-scoring-rules /></app-info-sheet>
+      }
     </main>
   </ion-content>
   <footer class="screen-footer">
-@if (!gameState.zeroToHundredGame()?.submitted) {<ion-button class="action-button w-full" expand="block" [disabled]="isSubmitting()" (click)="onSubmit()">
-            {{ isSubmitting() ? 'Envoi…' : 'Valider mes positions' }}
-            <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-          </ion-button>}
+    @if (!gameState.zeroToHundredGame()?.submitted) {
+      <ion-button class="action-button w-full" expand="block" [disabled]="isSubmitting()" (click)="onSubmit()">
+        {{ isSubmitting() ? 'Envoi…' : 'Valider mes positions' }}
+        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+      </ion-button>
+    }
   </footer>
-
 </div>

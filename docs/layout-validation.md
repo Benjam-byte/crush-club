@@ -21,6 +21,16 @@ Cas limites supplémentaires vérifiés : vingt choix dans une question ; cinq n
 deux échelles de résultats de 0 à 100 ; listes de dix joueurs ; thèmes longs. Les noms, rangs et valeurs
 des échelles compactes restent disponibles dans leur description accessible.
 
+### Petits écrans et texte agrandi (10 novembre 2026)
+
+L’émulation Chrome n’affiche pas les barres de Safari : un iPhone SE dans Safari n’offre que 375 × 553.
+Les écrans d’entrée (accueil, rejoindre, créer, bibliothèque, éditeur) tiennent sans défilement en
+375 × 667, 390 × 664, 360 × 640, 375 × 553 et 320 × 568.
+
+`.screen-body` défile désormais en secours au lieu de couper son contenu : avec le texte à 125 %
+(réglage d’accessibilité) en 375 × 553, la création de lobby dépasse de 88 px et reste lisible en
+défilant, sans débordement latéral. Les listes `.screen-scroll` gardent 6rem minimum dans ce cas.
+
 ## Interactions et parties
 
 - Mini-jeux : canvas au ratio 4:3 ; modale sans breakpoints, restant ouverte après un swipe ; fermeture explicite opérationnelle.
@@ -39,14 +49,17 @@ corepack pnpm --filter @crush-club/web typecheck
 corepack pnpm --filter @crush-club/web test
 corepack pnpm --filter @crush-club/web lint
 corepack pnpm --filter @crush-club/web build
+# Après le build, Chrome local (CHROME_PATH si introuvable) : écrans d’entrée en 5 formats + texte 125 %
+corepack pnpm layout:check
 # Depuis apps/api :
 go test ./...
 $env:API_INTEGRATION_URL = 'http://localhost:8080'
 go test ./cmd/api -run TestMultiplayerClassicReplayKeepsGroupAndResetsGame -count=1 -v
 ```
 
-Toutes passent : 162 tests web. Le build signale un avertissement non bloquant sur le bundle initial
-(1,17 Mo pour un budget d’avertissement de 1 Mo).
+Toutes passent : 164 tests web. Le build signale un avertissement non bloquant sur le bundle initial
+(1,17 Mo pour un budget d’avertissement de 1 Mo). `layout:check` ne couvre que les écrans accessibles
+sans partie : les écrans de jeu demandent l’API et plusieurs joueurs.
 
 ## Limites du contrôle
 

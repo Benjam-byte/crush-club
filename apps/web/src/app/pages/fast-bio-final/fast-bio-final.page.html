@@ -2,16 +2,19 @@
   <app-page-header title="Classement Fast Bio" backLink="/" />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-<app-final-leaderboard [entries]="finalEntries()" accent="coral" />
+      <app-final-leaderboard [entries]="finalEntries()" accent="coral" />
     </main>
   </ion-content>
   <footer class="screen-footer">
-
-@if (gameState.isHost()) {<div class="grid grid-cols-[auto_1fr] gap-3">
-<ion-button class="action-button action-button--secondary" (click)="onLeave()">Quitter</ion-button>
-<ion-button class="action-button" [disabled]="isReplaying()" (click)="onReplay()">{{ isReplaying() ? 'Lancement…' : 'Rejouer' }}</ion-button>
-</div>} @else {<app-waiting-card title="En attente de l’hôte" />}
-
+    @if (gameState.isHost()) {
+      <div class="grid grid-cols-[auto_1fr] gap-3">
+        <ion-button class="action-button action-button--secondary" (click)="onLeave()">Quitter</ion-button>
+        <ion-button class="action-button" [disabled]="isReplaying()" (click)="onReplay()">{{
+          isReplaying() ? 'Lancement…' : 'Rejouer'
+        }}</ion-button>
+      </div>
+    } @else {
+      <app-waiting-card title="En attente de l’hôte" />
+    }
   </footer>
-
 </div>

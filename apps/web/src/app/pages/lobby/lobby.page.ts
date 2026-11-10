@@ -9,6 +9,7 @@ import {
   IonSelectOption,
   IonToast,
 } from '@ionic/angular/standalone';
+import type { LobbyPlayer } from '../../core/models/game.models';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
 import { WaitingCardComponent } from '../../core/components/waiting-card/waiting-card.component';
 import { WaitingGameLauncherComponent } from '../../core/components/waiting-game-launcher/waiting-game-launcher.component';
@@ -51,6 +52,17 @@ export class LobbyPage implements OnInit {
     return this.gameState.playerList().some(player => player.id === playerId && player.connected);
   }
 
+  /** An icon and a label per status, so a status never relies on its color alone. */
+  protected playerStatus(player: LobbyPlayer): { icon: string; label: string; colorClass: string } {
+    if (!player.connected) {
+      return { icon: 'cloud-offline-outline', label: 'Hors ligne', colorClass: 'text-warning-500' };
+    }
+    if (!this.gameState.isUncappedMode() && player.readyStatus !== 'ready') {
+      return { icon: 'images-outline', label: 'Prépare ses photos', colorClass: 'text-ink-500' };
+    }
+    return { icon: 'checkmark-circle', label: this.gameState.isUncappedMode() ? 'En ligne' : 'Prêt', colorClass: 'text-success-500' };
+  }
+
   async ngOnInit(): Promise<void> {
     try {
       await this.gameState.refreshLobby(this.route.snapshot.paramMap.get('code') ?? undefined);
@@ -61,7 +73,7 @@ export class LobbyPage implements OnInit {
       // Services expose their error messages in the template.
     }
   }
-  protected async onCopyLink(): Promise<void> {
+  protected async onShareLink(): Promise<void> {
     try {
       const invitationPath = this.router.serializeUrl(
         this.router.createUrlTree(['/join'], {
@@ -69,10 +81,19 @@ export class LobbyPage implements OnInit {
         }),
       );
       const invitationUrl = new URL(invitationPath, window.location.origin).toString();
+      // Phones open their share sheet (Messages, WhatsApp…); elsewhere the link is copied.
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title: 'Crush Club', text: `Rejoins ma partie : code ${this.gameState.lobbyCode()}`, url: invitationUrl });
+        return;
+      }
       await navigator.clipboard.writeText(invitationUrl);
       this.isToastOpen.set(true);
     } catch (error: unknown) {
-      console.error('Unable to copy the lobby link', error);
+      // Closing the share sheet rejects with an AbortError: nothing went wrong.
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
+      console.error('Unable to share the lobby link', error);
     }
   }
 

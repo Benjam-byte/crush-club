@@ -1,5 +1,18 @@
-<button class="min-h-10 text-xs font-extrabold text-brand-600 underline underline-offset-4" type="button" (click)="isOpen.set(true)">{{ label() }}</button>
-<ion-modal [isOpen]="isOpen()" [initialBreakpoint]="0.75" [breakpoints]="[0, 0.75, 1]" handleBehavior="cycle" (didDismiss)="isOpen.set(false)" [attr.aria-label]="label()">
+<button
+  class="min-h-11 px-1 text-xs font-extrabold text-brand-600 underline underline-offset-4"
+  type="button"
+  (click)="isOpen.set(true)"
+>
+  {{ label() }}
+</button>
+<ion-modal
+  [isOpen]="isOpen()"
+  [initialBreakpoint]="0.75"
+  [breakpoints]="[0, 0.75, 1]"
+  handleBehavior="cycle"
+  (didDismiss)="isOpen.set(false)"
+  [attr.aria-label]="label()"
+>
   <ng-template>
     <ion-content>
       <section class="safe-bottom px-5 pt-3">

@@ -2,27 +2,58 @@
   <app-page-header title="Résultats de la manche" [centerTitle]="true" [showDecoration]="false" />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-<h2 class="text-base font-extrabold">Qui connaît le mieux {{ gameState.subjectPlayer().displayName }} ?</h2>
-<div class="screen-scroll divide-y divide-peach-100">
-  @for (entry of leaderboard(); track entry.playerId; let rank = $index) {
-    @let result = roundResult(entry.playerId);
-    @let photo = playerPhotoUrl(entry.playerId);
-    <button class="result-profile-card flex min-h-13 w-full items-center gap-2 px-2 py-1 text-left" type="button" [disabled]="!result" (click)="onProfileSelect(entry.playerId)">
-      <span class="w-5 shrink-0 text-xs font-bold text-brand-600">{{ rank + 1 }}</span>
-      <span class="grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-brand-100 text-xs font-bold text-brand-600">@if (photo) { <img class="size-full object-cover" [src]="photo" alt="" /> } @else { {{ initials(entry.displayName) }} }</span>
-      <span class="min-w-0 flex-1"><span class="block truncate text-sm font-bold">{{ entry.displayName }}</span><span class="block text-[10px] text-ink-500">{{ result ? result.exactCount + ' exactes' : 'Amoureux' }}</span></span>
-      <span class="shrink-0 text-right"><strong class="block text-sm text-brand-600">+{{ entry.roundScore }}</strong><span class="block text-[10px] text-ink-500">Total {{ entry.score }}</span></span>
-      @if (result) { <ion-icon class="shrink-0 text-ink-500" name="chevron-forward" aria-hidden="true" /> }
-    </button>
-  }
-</div>
+      <h2 class="text-base font-extrabold">Qui connaît le mieux {{ gameState.subjectPlayer().displayName }} ?</h2>
+      <div class="screen-scroll divide-y divide-peach-100">
+        @for (entry of leaderboard(); track entry.playerId; let rank = $index) {
+          @let result = roundResult(entry.playerId);
+          @let photo = playerPhotoUrl(entry.playerId);
+          <button
+            class="result-profile-card flex min-h-13 w-full items-center gap-2 px-2 py-1 text-left"
+            type="button"
+            [disabled]="!result"
+            (click)="onProfileSelect(entry.playerId)"
+          >
+            <span class="w-5 shrink-0 text-xs font-bold text-brand-600">{{ rank + 1 }}</span>
+            <span
+              class="grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-brand-100 text-xs font-bold text-brand-600"
+            >
+              @if (photo) {
+                <img class="size-full object-cover" [src]="photo" alt="" />
+              } @else {
+                {{ initials(entry.displayName) }}
+              }
+            </span>
+            <span class="min-w-0 flex-1"
+              ><span class="block truncate text-sm font-bold">{{ entry.displayName }}</span
+              ><span class="block text-[10px] text-ink-500">{{
+                result ? result.exactCount + ' exactes' : 'Amoureux'
+              }}</span></span
+            >
+            <span class="shrink-0 text-right"
+              ><strong class="block text-sm text-brand-600">+{{ entry.roundScore }}</strong
+              ><span class="block text-[10px] text-ink-500">Total {{ entry.score }}</span></span
+            >
+            @if (result) {
+              <ion-icon class="shrink-0 text-ink-500" name="chevron-forward" aria-hidden="true" />
+            }
+          </button>
+        }
+      </div>
     </main>
   </ion-content>
   <footer class="screen-footer">
-@if (gameState.isHost()) {<ion-button class="action-button w-full" expand="block" [disabled]="isAdvancing() || !gameState.isRealtimeConnected()" (click)="onNextRound()">
-            {{ isAdvancing() ? 'Synchronisation…' : (isLastRound() ? 'Voir le classement final' : 'Retour au lobby') }}
-            <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-          </ion-button>} @else { <app-waiting-card title="En attente de l’hôte" /> }
+    @if (gameState.isHost()) {
+      <ion-button
+        class="action-button w-full"
+        expand="block"
+        [disabled]="isAdvancing() || !gameState.isRealtimeConnected()"
+        (click)="onNextRound()"
+      >
+        {{ isAdvancing() ? 'Synchronisation…' : isLastRound() ? 'Voir le classement final' : 'Retour au lobby' }}
+        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+      </ion-button>
+    } @else {
+      <app-waiting-card title="En attente de l’hôte" />
+    }
   </footer>
-
 </div>

@@ -1,6 +1,10 @@
 <label class="block">
   <span class="money-input__label">{{ label() }}</span>
-  <span class="money-input__field" [class.money-input__field--bump-a]="bumpParity()" [class.money-input__field--bump-b]="!bumpParity()">
+  <span
+    class="money-input__field"
+    [class.money-input__field--bump-a]="bumpParity()"
+    [class.money-input__field--bump-b]="!bumpParity()"
+  >
     <input
       class="money-input__digits"
       type="text"
@@ -23,7 +27,12 @@
 <div class="mt-3 flex justify-center gap-2">
   <button class="money-input__chip" type="button" [disabled]="disabled()" (click)="multiply(1000)">× 1 000</button>
   <button class="money-input__chip" type="button" [disabled]="disabled()" (click)="multiply(1_000_000)">× 1 M</button>
-  <button class="money-input__chip money-input__chip--clear" type="button" [disabled]="disabled() || value() === null" (click)="clear()">
+  <button
+    class="money-input__chip money-input__chip--clear"
+    type="button"
+    [disabled]="disabled() || value() === null"
+    (click)="clear()"
+  >
     Effacer
   </button>
 </div>

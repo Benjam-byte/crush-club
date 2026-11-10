@@ -2,14 +2,16 @@
   <app-page-header title="Demande envoyée" backLink="/" />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-<app-phase-confirmation [title]="waitingTitle()" message="Tu rejoindras la partie dès que l’hôte t’aura accepté·e." />
+      <app-phase-confirmation
+        [title]="waitingTitle()"
+        message="Garde cette page ouverte : tu rejoindras la partie dès que l’hôte t’aura accepté·e."
+      />
     </main>
   </ion-content>
   <footer class="screen-footer">
-<ion-button class="w-full" expand="block" fill="outline" (click)="onCancel()">
-          <ion-icon name="exit-outline" slot="start" aria-hidden="true" />
-          Annuler ma demande
-        </ion-button>
+    <ion-button class="w-full" expand="block" fill="outline" (click)="onCancel()">
+      <ion-icon name="exit-outline" slot="start" aria-hidden="true" />
+      Annuler ma demande
+    </ion-button>
   </footer>
-
 </div>

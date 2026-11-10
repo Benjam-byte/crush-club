@@ -2,39 +2,64 @@
   <app-page-header title="Résultats de la manche" backLink="/" />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-<div class="flex shrink-0 items-center gap-3"><h2 class="min-w-0 flex-1 text-base font-bold">{{ gameState.situationGame()?.themeLabel }}</h2><span class="shrink-0 rounded-xl bg-brand-100 px-3 py-2 text-sm font-extrabold text-brand-600">+{{ gameState.situationGame()?.roundScore ?? 0 }} pts</span></div>            <ol class="screen-scroll divide-y divide-peach-100">
-              @for (result of results(); track result.proposal.id) {
-                <li class="flex items-start gap-3 px-2 py-2" [class.bg-peach-50]="result.isMine">
-                  <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">
-                    {{ result.rank }}
-                  </span>
-                  <div class="min-w-0 flex-1">
-                    <p class="text-sm font-extrabold text-ink-900">
-                      {{ result.proposal.chosenDisplayName }}
-                      @if (result.isMine) {
-                        <span class="ml-1 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-extrabold text-brand-600">Ton équipe</span>
-                      }
-                    </p>
-                    <p class="mt-0.5 line-clamp-2 text-xs text-ink-700">« {{ result.proposal.reason }} »</p>
-                    <p class="mt-1 text-[11px] text-ink-500">Équipe : {{ memberNames(result) }}</p>
-                  </div>
-                  <span class="shrink-0 text-sm font-extrabold text-brand-600">{{ result.points }} pts</span>
-                </li>
-              }
-            </ol><app-info-sheet><p class="text-sm">Chaque vote rapporte des points selon la place : {{ pointScale() }}. Les points de tous les votes s’additionnent.</p></app-info-sheet>
+      <div class="flex shrink-0 items-center gap-3">
+        <h2 class="min-w-0 flex-1 text-base font-bold">{{ gameState.situationGame()?.themeLabel }}</h2>
+        <span class="shrink-0 rounded-xl bg-brand-100 px-3 py-2 text-sm font-extrabold text-brand-600"
+          >+{{ gameState.situationGame()?.roundScore ?? 0 }} pts</span
+        >
+      </div>
+      <ol class="screen-scroll divide-y divide-peach-100">
+        @for (result of results(); track result.proposal.id) {
+          <li class="flex items-start gap-3 px-2 py-2" [class.bg-peach-50]="result.isMine">
+            <span
+              class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600"
+            >
+              {{ result.rank }}
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-extrabold text-ink-900">
+                {{ result.proposal.chosenDisplayName }}
+                @if (result.isMine) {
+                  <span class="ml-1 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-extrabold text-brand-600"
+                    >Ton équipe</span
+                  >
+                }
+              </p>
+              <p class="mt-0.5 line-clamp-2 text-xs text-ink-700">« {{ result.proposal.reason }} »</p>
+              <p class="mt-1 text-[11px] text-ink-500">Équipe : {{ memberNames(result) }}</p>
+            </div>
+            <span class="shrink-0 text-sm font-extrabold text-brand-600">{{ result.points }} pts</span>
+          </li>
+        }
+      </ol>
+      <app-info-sheet
+        ><p class="text-sm">
+          Chaque vote rapporte des points selon la place : {{ pointScale() }}. Les points de tous les votes
+          s’additionnent.
+        </p></app-info-sheet
+      >
     </main>
   </ion-content>
   <footer class="screen-footer">
-@if (gameState.isHost()) {<ion-button
-            class="action-button w-full"
-            expand="block"
-            [disabled]="isStartingNextRound()"
-            (click)="onStartNextRound()"
-          >
-            <ion-icon name="rocket" slot="start" aria-hidden="true" />
-            {{ isStartingNextRound() ? 'Lancement…' : (isLastRound() ? 'Voir le classement final' : 'Lancer la manche suivante') }}
-            <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-          </ion-button>} @else { <app-waiting-card title="En attente de l’hôte" /> }
+    @if (gameState.isHost()) {
+      <ion-button
+        class="action-button w-full"
+        expand="block"
+        [disabled]="isStartingNextRound()"
+        (click)="onStartNextRound()"
+      >
+        <ion-icon name="rocket" slot="start" aria-hidden="true" />
+        {{
+          isStartingNextRound()
+            ? 'Lancement…'
+            : isLastRound()
+              ? 'Voir le classement final'
+              : 'Lancer la manche suivante'
+        }}
+        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+      </ion-button>
+    } @else {
+      <app-waiting-card title="En attente de l’hôte" />
+    }
   </footer>
-
 </div>

@@ -1,71 +1,86 @@
 <div class="ion-page">
   <app-page-header
-        [title]="'Manche ' + (gameState.fastBioGame()?.roundNumber ?? 1) + ' / ' + (gameState.fastBioGame()?.totalRounds ?? 3)"
-        backLink="/"
-      />
+    [title]="
+      'Manche ' + (gameState.fastBioGame()?.roundNumber ?? 1) + ' / ' + (gameState.fastBioGame()?.totalRounds ?? 3)
+    "
+    backLink="/"
+  />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
+      @if (!gameState.fastBioGame()?.submitted) {
+        <app-phase-timer
+          [detail]="
+            (gameState.fastBioGame()?.submissionProgressCount ?? 0) +
+            '/' +
+            (gameState.fastBioGame()?.submissionProgressRequired ?? 0) +
+            ' ont proposé'
+          "
+          label="Temps restant pour proposer"
+          [remainingSeconds]="remainingSeconds()"
+        />
 
-        
+        <div class="hero-card">
+          <h2 class="text-base font-extrabold">{{ gameState.fastBioGame()?.themeLabel }}</h2>
+          <p class="mt-1 text-xs">Une photo et une bio pour {{ gameState.fastBioGame()?.targetDisplayName }}</p>
+        </div>
 
-        @if (!gameState.fastBioGame()?.submitted) {
-          
-
-          <app-phase-timer [detail]="(gameState.fastBioGame()?.submissionProgressCount ?? 0) + '/' + (gameState.fastBioGame()?.submissionProgressRequired ?? 0) + ' ont proposé'" label="Temps restant pour proposer" [remainingSeconds]="remainingSeconds()" />
-
-          <div class="hero-card"><h2 class="text-base font-extrabold">{{ gameState.fastBioGame()?.themeLabel }}</h2><p class="mt-1 text-xs">Une photo et une bio pour {{ gameState.fastBioGame()?.targetDisplayName }}</p></div>
-
-          <form id="bio-form" class="flex min-h-0 flex-1 flex-col gap-3" [formGroup]="bioForm" (ngSubmit)="onSubmit()">
-            <div class="flex min-h-0 flex-1 flex-col">
-              <input #photoInput type="file" accept="image/*" class="hidden-file-input" (change)="onPhotoInputChange($event)" />
-              <button type="button" class="photo-picker" (click)="onPickPhoto(photoInput)">
-                @if (selectedPreviewUrl(); as previewUrl) {
-                  <img [src]="previewUrl" alt="Photo choisie" class="photo-picker__preview" />
-                } @else {
-                  <ion-icon class="text-3xl text-brand-500" name="image-outline" aria-hidden="true" />
-                  <span class="mt-2 text-xs font-bold text-brand-600">Choisir une photo</span>
-                }
-              </button>
-            </div>
-
-            <ion-textarea
-              class="form-input"
-              formControlName="bio"
-              label="Bio inventée"
-              labelPlacement="stacked"
-              [autoGrow]="false" [rows]="2"
-              maxlength="280"
-              placeholder="Écris une bio qui colle au thème…"
+        <form id="bio-form" class="flex min-h-0 flex-1 flex-col gap-3" [formGroup]="bioForm" (ngSubmit)="onSubmit()">
+          <div class="flex min-h-0 flex-1 flex-col">
+            <input
+              #photoInput
+              type="file"
+              accept="image/*"
+              class="hidden-file-input"
+              (change)="onPhotoInputChange($event)"
             />
+            <button type="button" class="photo-picker" (click)="onPickPhoto(photoInput)">
+              @if (selectedPreviewUrl(); as previewUrl) {
+                <img [src]="previewUrl" alt="Photo choisie" class="photo-picker__preview" />
+              } @else {
+                <ion-icon class="text-3xl text-brand-500" name="image-outline" aria-hidden="true" />
+                <span class="mt-2 text-xs font-bold text-brand-600">Choisir une photo</span>
+              }
+            </button>
+          </div>
 
-            @if (errorMessage(); as message) {
-              <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ message }}</p>
-            }
-
-            
-          </form>
-        } @else {
-          <app-phase-confirmation
-            title="Proposition envoyée !"
-            [progressCount]="gameState.fastBioGame()?.submissionProgressCount ?? 0"
-            [progressRequired]="gameState.fastBioGame()?.submissionProgressRequired ?? 0"
-            progressLabel="joueurs ont envoyé leur proposition"
-            message="La revue des propositions s’ouvrira automatiquement."
+          <ion-textarea
+            class="form-input"
+            formControlName="bio"
+            label="Bio inventée"
+            labelPlacement="stacked"
+            [autoGrow]="false"
+            [rows]="2"
+            maxlength="280"
+            placeholder="Écris une bio qui colle au thème…"
           />
-        }
-      
+
+          @if (errorMessage(); as message) {
+            <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">{{ message }}</p>
+          }
+        </form>
+      } @else {
+        <app-phase-confirmation
+          title="Proposition envoyée !"
+          [progressCount]="gameState.fastBioGame()?.submissionProgressCount ?? 0"
+          [progressRequired]="gameState.fastBioGame()?.submissionProgressRequired ?? 0"
+          progressLabel="joueurs ont envoyé leur proposition"
+          message="La revue des propositions s’ouvrira automatiquement."
+        />
+      }
     </main>
   </ion-content>
   <footer class="screen-footer">
-@if (!gameState.fastBioGame()?.submitted) {<ion-button
-              class="action-button w-full"
-              expand="block"
-              type="submit" form="bio-form"
-              [disabled]="isSubmitting() || bioForm.invalid || !selectedPreviewUrl()"
-            >
-              {{ isSubmitting() ? 'Envoi…' : 'Envoyer ma proposition' }}
-              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-            </ion-button>}
+    @if (!gameState.fastBioGame()?.submitted) {
+      <ion-button
+        class="action-button w-full"
+        expand="block"
+        type="submit"
+        form="bio-form"
+        [disabled]="isSubmitting() || bioForm.invalid || !selectedPreviewUrl()"
+      >
+        {{ isSubmitting() ? 'Envoi…' : 'Envoyer ma proposition' }}
+        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+      </ion-button>
+    }
   </footer>
-
 </div>

@@ -5,8 +5,9 @@
   transform: rotate(-2deg);
 }
 
-.action-button {
-  margin-top: 2.5rem;
+@media (max-height: 700px) {
+  .role-portrait {
+    width: 128px;
+    height: 128px;
+  }
 }
-
-@media (max-height: 700px) { .role-portrait { width: 128px; height: 128px; } }

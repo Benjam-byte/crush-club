@@ -5,30 +5,31 @@
   </header>
   <div class="waiting-game-space">
     <div class="waiting-game-board">
+      <canvas
+        #gameCanvas
+        class="waiting-game-canvas block h-full w-full touch-none select-none bg-peach-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500"
+        tabindex="0"
+        [attr.aria-label]="definition.title + ' : ' + definition.hint"
+      ></canvas>
 
-    <canvas
-      #gameCanvas
-      class="waiting-game-canvas block h-full w-full touch-none select-none bg-peach-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500"
-      tabindex="0"
-      [attr.aria-label]="definition.title + ' : ' + definition.hint"
-    ></canvas>
-
-    @if (!isPlaying()) {
-      <button
-        class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/75 text-center focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-brand-500"
-        type="button"
-        (click)="onPlay()"
-      >
-        @if (status() === 'over') {
-          <span class="text-sm font-extrabold text-ink-900">{{ gameOverMessage() }}</span>
-        }
-        <span class="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-brand-500 px-5 text-sm font-extrabold text-white shadow-md">
-          <ion-icon name="play" aria-hidden="true" />
-          {{ playLabel() }}
-        </span>
-        <span class="px-8 text-xs font-semibold leading-5 text-ink-600">{{ definition.hint }}</span>
-      </button>
-    }
-  </div>
+      @if (!isPlaying()) {
+        <button
+          class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/75 text-center focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-brand-500"
+          type="button"
+          (click)="onPlay()"
+        >
+          @if (status() === 'over') {
+            <span class="text-sm font-extrabold text-ink-900">{{ gameOverMessage() }}</span>
+          }
+          <span
+            class="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-brand-500 px-5 text-sm font-extrabold text-white shadow-md"
+          >
+            <ion-icon name="play" aria-hidden="true" />
+            {{ playLabel() }}
+          </span>
+          <span class="px-8 text-xs font-semibold leading-5 text-ink-600">{{ definition.hint }}</span>
+        </button>
+      }
+    </div>
   </div>
 </section>

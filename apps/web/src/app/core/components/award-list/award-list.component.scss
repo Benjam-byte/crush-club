@@ -1,0 +1,27 @@
+:host {
+  display: block;
+  flex-shrink: 0;
+}
+
+.award__summary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+// Safari still draws its own disclosure triangle without this.
+.award__summary::-webkit-details-marker {
+  display: none;
+}
+
+.award__chevron {
+  transition: transform 160ms ease;
+}
+
+.award[open] .award__chevron {
+  transform: rotate(180deg);
+}

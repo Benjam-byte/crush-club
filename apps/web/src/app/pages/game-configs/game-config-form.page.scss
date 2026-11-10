@@ -27,7 +27,9 @@
   border-radius: 1.25rem;
   padding: 8px 12px;
   background: #fffaf7;
-  transition: border-color 160ms ease, transform 160ms ease;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease;
 }
 
 .add-custom-question-button:active {
@@ -39,4 +41,6 @@
   box-shadow: 0 0 0 3px rgb(239 127 104 / 10%);
 }
 
-.editor-body { padding: 12px 20px; }
+.editor-body {
+  padding: 12px 20px;
+}

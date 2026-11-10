@@ -2,14 +2,21 @@
   <app-page-header title="Classement final" backLink="/" />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-<app-final-leaderboard [entries]="finalEntries()" />
+      <app-final-leaderboard [entries]="finalEntries()" />
     </main>
   </ion-content>
   <footer class="screen-footer">
-@if (gameState.isHost()) {<div class="grid grid-cols-[auto_1fr] gap-3">
-  <ion-button class="action-button action-button--secondary" [disabled]="isLeaving()" (click)="onNewLobby()">Quitter</ion-button>
-  <ion-button class="action-button" [disabled]="isLeaving()" (click)="onReplay()">{{ isLeaving() ? 'Lancement…' : 'Rejouer' }}</ion-button>
-</div>} @else { <app-waiting-card title="En attente de la revanche" /> }
+    @if (gameState.isHost()) {
+      <div class="grid grid-cols-[auto_1fr] gap-3">
+        <ion-button class="action-button action-button--secondary" [disabled]="isLeaving()" (click)="onNewLobby()"
+          >Quitter</ion-button
+        >
+        <ion-button class="action-button" [disabled]="isLeaving()" (click)="onReplay()">{{
+          isLeaving() ? 'Lancement…' : 'Rejouer'
+        }}</ion-button>
+      </div>
+    } @else {
+      <app-waiting-card title="En attente de la revanche" />
+    }
   </footer>
-
 </div>

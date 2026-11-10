@@ -2,49 +2,74 @@
   <app-page-header title="Révélation" backLink="/" />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-@if (wavelength(); as round) {
-  <div class="flex shrink-0 items-center justify-between gap-3"><p class="text-xs text-ink-600">Manche {{ round.roundNumber }}/{{ round.totalRounds }} · {{ round.isPsychic ? 'Tu es médium' : round.psychicDisplayName }}</p><strong class="rounded-xl bg-brand-100 px-3 py-2 text-sm text-brand-600">+{{ round.roundScore ?? 0 }} pts</strong></div>
-<app-wavelength-dial
-              [leftLabel]="round.leftLabel ?? ''"
-              [rightLabel]="round.rightLabel ?? ''"
-              [target]="round.target"
-              [animateReveal]="true"
-              [needles]="needles()"
-            /><ul class="screen-scroll divide-y divide-peach-100">
-              <li class="flex min-h-11 items-center gap-3 bg-peach-50 px-2 py-1">
-                <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-lover-50 text-xs font-extrabold text-lover-500">
-                  {{ initials(round.psychicDisplayName ?? '') }}
-                </span>
-                <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">
-                  {{ round.psychicDisplayName }} <span class="text-[10px] font-bold text-ink-500">· médium</span>
-                </span>
-                <span class="text-sm font-extrabold text-lover-500">{{ pointsLabel(round.psychicPoints ?? 0) }}</span>
-              </li>
-              @for (entry of reveal(); track entry.playerId) {
-                <li class="flex min-h-11 items-center gap-3 px-2 py-1">
-                  <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600">
-                    {{ initials(entry.displayName) }}
-                  </span>
-                  <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{ entry.displayName }}</span>
-                  <span class="points-badge" [attr.data-points]="entry.points">{{ pointsLabel(entry.points) }}</span>
-                </li>
-              } @empty {
-                <li class="px-4 py-4 text-center text-xs text-ink-500">Personne n’a placé d’aiguille à temps.</li>
-              }
-            </ul>}
+      @if (wavelength(); as round) {
+        <div class="flex shrink-0 items-center justify-between gap-3">
+          <p class="text-xs text-ink-600">
+            Manche {{ round.roundNumber }}/{{ round.totalRounds }} ·
+            {{ round.isPsychic ? 'Tu es médium' : round.psychicDisplayName }}
+          </p>
+          <strong class="rounded-xl bg-brand-100 px-3 py-2 text-sm text-brand-600"
+            >+{{ round.roundScore ?? 0 }} pts</strong
+          >
+        </div>
+        <app-wavelength-dial
+          [leftLabel]="round.leftLabel ?? ''"
+          [rightLabel]="round.rightLabel ?? ''"
+          [target]="round.target"
+          [animateReveal]="true"
+          [needles]="needles()"
+        />
+        <ul class="screen-scroll divide-y divide-peach-100">
+          <li class="flex min-h-11 items-center gap-3 bg-peach-50 px-2 py-1">
+            <span
+              class="grid size-8 shrink-0 place-items-center rounded-xl bg-lover-50 text-xs font-extrabold text-lover-500"
+            >
+              {{ initials(round.psychicDisplayName ?? '') }}
+            </span>
+            <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">
+              {{ round.psychicDisplayName }} <span class="text-[10px] font-bold text-ink-500">· médium</span>
+            </span>
+            <span class="text-sm font-extrabold text-lover-500">{{ pointsLabel(round.psychicPoints ?? 0) }}</span>
+          </li>
+          @for (entry of reveal(); track entry.playerId) {
+            <li class="flex min-h-11 items-center gap-3 px-2 py-1">
+              <span
+                class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600"
+              >
+                {{ initials(entry.displayName) }}
+              </span>
+              <span class="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-900">{{ entry.displayName }}</span>
+              <span class="points-badge" [attr.data-points]="entry.points">{{ pointsLabel(entry.points) }}</span>
+            </li>
+          } @empty {
+            <li class="px-4 py-4 text-center text-xs text-ink-500">Personne n’a placé d’aiguille à temps.</li>
+          }
+        </ul>
+      }
     </main>
   </ion-content>
   <footer class="screen-footer">
-@if (wavelength(); as round) { @if (gameState.isHost()) {<ion-button
-              class="action-button w-full"
-              expand="block"
-              [disabled]="isStartingNextRound()"
-              (click)="onStartNextRound()"
-            >
-              <ion-icon name="rocket" slot="start" aria-hidden="true" />
-              {{ isStartingNextRound() ? 'Lancement…' : (round.isLastRound ? 'Voir le classement final' : 'Lancer la manche suivante') }}
-              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-            </ion-button>} @else { <app-waiting-card title="En attente de l’hôte" /> } }
+    @if (wavelength(); as round) {
+      @if (gameState.isHost()) {
+        <ion-button
+          class="action-button w-full"
+          expand="block"
+          [disabled]="isStartingNextRound()"
+          (click)="onStartNextRound()"
+        >
+          <ion-icon name="rocket" slot="start" aria-hidden="true" />
+          {{
+            isStartingNextRound()
+              ? 'Lancement…'
+              : round.isLastRound
+                ? 'Voir le classement final'
+                : 'Lancer la manche suivante'
+          }}
+          <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+        </ion-button>
+      } @else {
+        <app-waiting-card title="En attente de l’hôte" />
+      }
+    }
   </footer>
-
 </div>

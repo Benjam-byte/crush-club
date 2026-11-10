@@ -34,7 +34,9 @@
     @if (exclusionError(); as message) {
       <div class="flex items-start gap-3 bg-danger-50 px-4 py-3 text-xs font-semibold text-danger-500" role="alert">
         <p class="min-w-0 flex-1">{{ message }}</p>
-        <button class="shrink-0 font-extrabold underline" type="button" (click)="dismissError()">Fermer</button>
+        <button class="-my-3 min-h-11 shrink-0 px-1 font-extrabold underline" type="button" (click)="dismissError()">
+          Fermer
+        </button>
       </div>
     }
   </aside>

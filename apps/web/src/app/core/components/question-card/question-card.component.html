@@ -2,10 +2,7 @@
   <header class="shrink-0">
     <div class="flex items-center gap-3">
       <div class="grid size-9 shrink-0 place-items-center rounded-2xl bg-peach-100 text-brand-600">
-        <ion-icon
-          [name]="question().type === 'integer_range' ? 'sparkles' : 'heart-outline'"
-          aria-hidden="true"
-        />
+        <ion-icon [name]="question().type === 'integer_range' ? 'sparkles' : 'heart-outline'" aria-hidden="true" />
       </div>
       <h3 class="min-w-0 flex-1 text-[15px] font-extrabold leading-5 text-ink-900">
         {{ question().label }}

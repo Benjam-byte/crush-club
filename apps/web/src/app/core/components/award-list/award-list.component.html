@@ -1,0 +1,17 @@
+@if (awards().length > 0) {
+  <section class="surface-card divide-y divide-peach-100" aria-label="Récompenses">
+    @for (award of awards(); track award.key) {
+      <details class="award">
+        <summary class="award__summary">
+          <span class="shrink-0 text-xl" aria-hidden="true">{{ award.emoji }}</span>
+          <span class="min-w-0 flex-1 truncate text-xs font-bold text-brand-600">{{ award.title }}</span>
+          <span class="max-w-[45%] truncate text-xs font-bold">{{ awardNames(award) }}</span>
+          <ion-icon class="award__chevron shrink-0 text-ink-500" name="chevron-down" aria-hidden="true" />
+        </summary>
+        <p class="px-3 pb-2 text-xs text-ink-600">
+          <strong class="text-ink-900">{{ awardNames(award) }}</strong> · {{ award.detail }}
+        </p>
+      </details>
+    }
+  </section>
+}

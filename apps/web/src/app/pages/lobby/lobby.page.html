@@ -2,116 +2,183 @@
   <app-page-header title="Le lobby" backLink="/" />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-<section class="hero-card flex items-center justify-between gap-3">
-  <div class="min-w-0">
-    <p class="text-3xl font-extrabold tracking-widest">{{ gameState.lobbyCode() }}</p>
-    <p class="truncate text-xs">{{ gameState.isUncappedMode() ? uncappedModeLabel() : 'Classique' }} · {{ gameState.playerList().length }} joueurs</p>
-  </div>
-  <button class="grid size-11 shrink-0 place-items-center rounded-xl bg-white/20 text-xl" type="button" aria-label="Partager le lien du lobby" (click)="onCopyLink()"><ion-icon name="share-social" aria-hidden="true" /></button>
-</section>
-@if (gameState.game()?.phase === 'between_rounds' && gameState.game()?.isParticipant) {
-  @let nextSubject = gameState.nextSubjectPlayer();
-  @let photo = gameState.photoUrl(nextSubject.photoIds[0]);
-  <div class="flex shrink-0 items-center gap-3">
-    @if (photo) { <img class="size-12 rounded-2xl object-cover" [src]="photo" alt="" /> }
-    <p class="text-sm"><strong>{{ nextSubject.displayName }}</strong>, prochain Amoureux<br /><span class="text-xs text-ink-500">Manche {{ nextRoundNumber() }}/{{ gameState.game()?.totalRounds }}</span></p>
-  </div>
-  <ol class="screen-scroll divide-y divide-peach-100" aria-label="Classement cumulé">
-    @for (entry of leaderboard(); track entry.playerId; let rank = $index) {
-      <li class="flex min-h-12 items-center gap-3 py-2">
-        <span class="text-xs font-bold text-ink-500">{{ rank + 1 }}</span>
-        <span class="size-2 shrink-0 rounded-full" [class.bg-success-500]="isPlayerConnected(entry.playerId)" [class.bg-warning-500]="!isPlayerConnected(entry.playerId)" [attr.aria-label]="isPlayerConnected(entry.playerId) ? 'En ligne' : 'Hors ligne'" role="img"></span>
-        <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ entry.displayName }}</span>
-        <span class="text-xs text-success-500">+{{ entry.roundScore }}</span>
-        <strong class="text-sm text-brand-600">{{ entry.score }} pts</strong>
-      </li>
-    }
-  </ol>
-} @else {
-  @if (!gameState.isUncappedMode()) {
-    @if (gameState.isHost() && gameState.lobbyStatus() !== 'in_game') {
-<ion-select
-                class="form-input"
-                label="Questionnaire"
-                labelPlacement="start"
-                interface="action-sheet"
-                [value]="gameState.gameConfigId()"
-                [disabled]="isConfigUpdating() || !gameState.isRealtimeConnected()"
-                (ionChange)="onConfigChange($event)"
-              >
-                @for (config of gameConfigs.configList(); track config.id) {
-                  <ion-select-option [value]="config.id">
-                    {{ config.name }} · {{ config.questionIds.length }} questions{{ config.isPublic && !config.isOwner ? ' · partagé' : '' }}
-                  </ion-select-option>
-                }
-              </ion-select>
-    } @else { <p class="text-sm font-bold">{{ gameState.gameConfigName() }}</p> }
-    @if (gameConfigs.errorMessage(); as error) { <p class="text-xs text-danger-500">{{ error }}</p> }
-  }
-  <ul class="screen-scroll grid auto-rows-min grid-cols-2 gap-2" aria-label="Joueurs du lobby">
-    @for (player of gameState.playerList(); track player.id) {
-      <li class="flex min-h-11 items-center gap-2 rounded-2xl border border-peach-200 bg-white pl-3 pr-1">
-        <span class="size-2 shrink-0 rounded-full" [class.bg-success-500]="player.connected && (gameState.isUncappedMode() || player.readyStatus === 'ready')" [class.bg-warning-500]="!player.connected || (!gameState.isUncappedMode() && player.readyStatus !== 'ready')" role="img" [attr.aria-label]="!player.connected ? 'Hors ligne' : (gameState.isUncappedMode() || player.readyStatus === 'ready' ? 'Prêt' : 'Prépare ses photos')"></span>
-        <span class="min-w-0 flex-1 truncate text-xs font-bold" [title]="player.displayName">{{ player.displayName }}{{ player.isHost ? ' · hôte' : '' }}{{ player.isCurrentPlayer ? ' · toi' : '' }}</span>
-        @if (gameState.canExcludePlayer(player)) {
-          <button class="grid size-11 shrink-0 place-items-center text-danger-500" type="button" [attr.aria-label]="'Exclure ' + player.displayName" [disabled]="!gameState.isRealtimeConnected() || gameState.isExcludingPlayer(player.id)" (click)="onExcludePlayer(player.id)"><ion-icon name="close" aria-hidden="true" /></button>
+      <section class="hero-card flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-3xl font-extrabold tracking-widest">{{ gameState.lobbyCode() }}</p>
+          <p class="truncate text-xs">
+            {{ gameState.isUncappedMode() ? uncappedModeLabel() : 'Classique' }} ·
+            {{ gameState.playerList().length }} joueurs
+            @if (!gameState.isUncappedMode() && gameState.lobbyStatus() !== 'in_game') {
+              · {{ readyPlayerCount() }}/{{ gameState.playerList().length }} prêts
+            }
+          </p>
+        </div>
+        <button
+          class="grid size-11 shrink-0 place-items-center rounded-xl bg-white/20 text-xl"
+          type="button"
+          aria-label="Partager le lien du lobby"
+          (click)="onShareLink()"
+        >
+          <ion-icon name="share-social" aria-hidden="true" />
+        </button>
+      </section>
+
+      @if (gameState.game()?.phase === 'between_rounds' && gameState.game()?.isParticipant) {
+        @let nextSubject = gameState.nextSubjectPlayer();
+        @let photo = gameState.photoUrl(nextSubject.photoIds[0]);
+        <div class="flex shrink-0 items-center gap-3">
+          @if (photo) {
+            <img class="size-12 rounded-2xl object-cover" [src]="photo" alt="" />
+          }
+          <p class="text-sm">
+            <strong>{{ nextSubject.displayName }}</strong
+            >, prochain Amoureux<br />
+            <span class="text-xs text-ink-500">Manche {{ nextRoundNumber() }}/{{ gameState.game()?.totalRounds }}</span>
+          </p>
+        </div>
+        <ol class="screen-scroll divide-y divide-peach-100" aria-label="Classement cumulé">
+          @for (entry of leaderboard(); track entry.playerId; let rank = $index) {
+            <li class="flex min-h-12 items-center gap-3 py-2">
+              <span class="text-xs font-bold text-ink-500">{{ rank + 1 }}</span>
+              @if (isPlayerConnected(entry.playerId)) {
+                <ion-icon class="shrink-0 text-success-500" name="checkmark-circle" role="img" aria-label="En ligne" />
+              } @else {
+                <ion-icon
+                  class="shrink-0 text-warning-500"
+                  name="cloud-offline-outline"
+                  role="img"
+                  aria-label="Hors ligne"
+                />
+              }
+              <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ entry.displayName }}</span>
+              <span class="text-xs text-success-500">+{{ entry.roundScore }}</span>
+              <strong class="text-sm text-brand-600">{{ entry.score }} pts</strong>
+            </li>
+          }
+        </ol>
+      } @else {
+        @if (!gameState.isUncappedMode()) {
+          @if (gameState.isHost() && gameState.lobbyStatus() !== 'in_game') {
+            <ion-select
+              label="Questionnaire"
+              labelPlacement="start"
+              interface="action-sheet"
+              [value]="gameState.gameConfigId()"
+              [disabled]="isConfigUpdating() || !gameState.isRealtimeConnected()"
+              (ionChange)="onConfigChange($event)"
+            >
+              @for (config of gameConfigs.configList(); track config.id) {
+                <ion-select-option [value]="config.id">
+                  {{ config.name }} · {{ config.questionIds.length }} questions{{
+                    config.isPublic && !config.isOwner ? ' · partagé' : ''
+                  }}
+                </ion-select-option>
+              }
+            </ion-select>
+          } @else {
+            <p class="text-sm font-bold">{{ gameState.gameConfigName() }}</p>
+          }
+          @if (gameConfigs.errorMessage(); as error) {
+            <p class="text-xs text-danger-500">{{ error }}</p>
+          }
         }
-      </li>
-    }
-  </ul>
-}
+        <ul class="screen-scroll grid auto-rows-min grid-cols-2 gap-2" aria-label="Joueurs du lobby">
+          @for (player of gameState.playerList(); track player.id) {
+            @let status = playerStatus(player);
+            <li class="flex min-h-11 items-center gap-2 rounded-2xl border border-peach-200 bg-white pl-3 pr-1">
+              <ion-icon
+                class="shrink-0"
+                [class]="status.colorClass"
+                [name]="status.icon"
+                role="img"
+                [attr.aria-label]="status.label"
+              />
+              <span class="min-w-0 flex-1 truncate text-xs font-bold" [title]="player.displayName">
+                {{ player.displayName }}{{ player.isHost ? ' · hôte' : '' }}{{ player.isCurrentPlayer ? ' · toi' : '' }}
+              </span>
+              @if (gameState.canExcludePlayer(player)) {
+                <button
+                  class="grid size-11 shrink-0 place-items-center text-danger-500"
+                  type="button"
+                  [attr.aria-label]="'Exclure ' + player.displayName"
+                  [disabled]="!gameState.isRealtimeConnected() || gameState.isExcludingPlayer(player.id)"
+                  (click)="onExcludePlayer(player.id)"
+                >
+                  <ion-icon name="close" aria-hidden="true" />
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      }
     </main>
   </ion-content>
   <footer class="screen-footer">
-@if (gameState.isUncappedMode()) {
-  @if (gameState.isHost()) {<ion-button
-              class="action-button w-full"
-              expand="block"
-              [disabled]="!canStartUncappedGame()"
-              (click)="onStartUncappedGame()"
-            >
-              <ion-icon name="rocket" slot="start" aria-hidden="true" />
-              {{ canStartUncappedGame() ? 'Lancer la partie' : ('Minimum ' + uncappedModeMinPlayers() + ' joueurs') }}
-              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-            </ion-button>
-  } @else { <app-waiting-card title="En attente de l’hôte" /> }
-} @else if (gameState.game()?.phase === 'between_rounds' && gameState.game()?.isParticipant) {
-  @if (gameState.isHost()) {<ion-button
-              class="action-button w-full"
-              expand="block"
-              [disabled]="!gameState.canStartNextRound() || isStartingNextRound()"
-              (click)="onStartNextRound()"
-            >
-              <ion-icon name="rocket" slot="start" aria-hidden="true" />
-              {{ isStartingNextRound() ? 'Lancement…' : (gameState.canStartNextRound() ? 'Lancer la manche suivante' : 'En attente du groupe') }}
-              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-            </ion-button>
-  } @else { <app-waiting-card title="En attente de l’hôte" /> }
-} @else if (gameState.currentPlayer().readyStatus !== 'ready') {
-<ion-button class="action-button w-full" expand="block" (click)="onPreparePhotos()">
-            <ion-icon name="images-outline" slot="start" aria-hidden="true" />
-            Préparer mes photos
-            <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-          </ion-button>
-} @else if (gameState.isHost()) {
-<ion-button
-            class="action-button w-full"
-            expand="block"
-            [disabled]="!gameState.canStartGame()"
-            (click)="onStartGame()"
-          >
-            <ion-icon name="rocket" slot="start" aria-hidden="true" />
-            {{ gameState.canStartGame() ? 'Lancer la partie' : (gameState.isHost() ? 'En attente du groupe' : 'En attente de l’hôte') }}
-            <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-          </ion-button>
-} @else { <app-waiting-card title="En attente de l’hôte" /> }
-@if (gameState.isHost()) { <div class="text-center"><app-waiting-game-launcher /></div> }
+    @if (gameState.isUncappedMode()) {
+      @if (gameState.isHost()) {
+        <ion-button
+          class="action-button w-full"
+          expand="block"
+          [disabled]="!canStartUncappedGame()"
+          (click)="onStartUncappedGame()"
+        >
+          <ion-icon name="rocket" slot="start" aria-hidden="true" />
+          {{ canStartUncappedGame() ? 'Lancer la partie' : 'Minimum ' + uncappedModeMinPlayers() + ' joueurs' }}
+          <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+        </ion-button>
+      } @else {
+        <app-waiting-card title="En attente de l’hôte" />
+      }
+    } @else if (gameState.game()?.phase === 'between_rounds' && gameState.game()?.isParticipant) {
+      @if (gameState.isHost()) {
+        <ion-button
+          class="action-button w-full"
+          expand="block"
+          [disabled]="!gameState.canStartNextRound() || isStartingNextRound()"
+          (click)="onStartNextRound()"
+        >
+          <ion-icon name="rocket" slot="start" aria-hidden="true" />
+          {{
+            isStartingNextRound()
+              ? 'Lancement…'
+              : gameState.canStartNextRound()
+                ? 'Lancer la manche suivante'
+                : 'En attente du groupe'
+          }}
+          <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+        </ion-button>
+      } @else {
+        <app-waiting-card title="En attente de l’hôte" />
+      }
+    } @else if (gameState.currentPlayer().readyStatus !== 'ready') {
+      <ion-button class="action-button w-full" expand="block" (click)="onPreparePhotos()">
+        <ion-icon name="images-outline" slot="start" aria-hidden="true" />
+        Préparer mes photos
+        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+      </ion-button>
+    } @else if (gameState.isHost()) {
+      <ion-button
+        class="action-button w-full"
+        expand="block"
+        [disabled]="!gameState.canStartGame()"
+        (click)="onStartGame()"
+      >
+        <ion-icon name="rocket" slot="start" aria-hidden="true" />
+        {{ gameState.canStartGame() ? 'Lancer la partie' : 'En attente du groupe' }}
+        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+      </ion-button>
+    } @else {
+      <app-waiting-card title="En attente de l’hôte" />
+    }
+    @if (gameState.isHost()) {
+      <div class="text-center"><app-waiting-game-launcher /></div>
+    }
   </footer>
-<ion-toast
-      [isOpen]="isToastOpen()"
-      message="Lien du lobby copié !"
-      [duration]="1800"
-      position="bottom"
-      (didDismiss)="onToastDismiss()"
-    />
+  <ion-toast
+    [isOpen]="isToastOpen()"
+    message="Lien du lobby copié !"
+    [duration]="1800"
+    position="bottom"
+    (didDismiss)="onToastDismiss()"
+  />
 </div>

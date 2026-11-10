@@ -54,7 +54,39 @@ ion-modal.how-it-works-modal {
   }
 }
 
-.profile-stack { max-height: clamp(140px, 28dvh, 256px); width: 100%; }
-.profile-card--center { height: 100%; max-height: 224px; display: flex; flex-direction: column; }
-.profile-image { min-height: 0; flex: 1; }
-@media (max-height: 700px) { .profile-card--left, .profile-card--right { display: none; } }
+// Home has no page header to carry the notch inset.
+.home-body {
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+
+.profile-stack {
+  width: 100%;
+  max-height: clamp(140px, 28dvh, 256px);
+  container-type: size;
+}
+
+.profile-card--center {
+  display: flex;
+  height: 100%;
+  max-height: 224px;
+  flex-direction: column;
+}
+
+.profile-image {
+  min-height: 0;
+  flex: 1;
+}
+
+@media (max-height: 700px) {
+  .profile-card--left,
+  .profile-card--right {
+    display: none;
+  }
+}
+
+// Below this the decorative card would be squashed into a strip: the space stays empty instead.
+@container (max-height: 130px) {
+  .profile-card {
+    display: none;
+  }
+}

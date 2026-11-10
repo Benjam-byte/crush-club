@@ -1,70 +1,82 @@
 <div class="ion-page">
-  <app-page-header [title]="gameState.zeroToHundredGame()?.themeLabel ?? 'Résultats'" backLink="/" />
+  <app-page-header
+    [title]="
+      'Manche ' +
+      (gameState.zeroToHundredGame()?.roundNumber ?? 1) +
+      ' / ' +
+      (gameState.zeroToHundredGame()?.totalRounds ?? 3)
+    "
+    backLink="/"
+  />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-        <section class="surface-card p-4">
-          <!-- Equal rows: every bar takes the height of the tallest one. -->
-          <div class="grid auto-rows-fr gap-3">
-            <div>
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">Ta réponse</p>
-                <!-- Ionic's unlayered normalize.css resets button padding, border and radius: the dot is an inner span.
+      <h2 class="line-clamp-2 shrink-0 text-base font-extrabold text-ink-900">{{ themeLabel() }}</h2>
+      <section class="surface-card p-4">
+        <!-- Equal rows: every bar takes the height of the tallest one. -->
+        <div class="grid auto-rows-fr gap-3">
+          <div>
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">Ta réponse</p>
+              <!-- Ionic's unlayered normalize.css resets button padding, border and radius: the dot is an inner span.
                      The negative margin keeps the 28px tap targets from making this row taller than the other labels. -->
-                <fieldset class="-my-1.5 flex items-center">
-                  <legend class="sr-only">N’afficher qu’une personne sur les barres</legend>
-                  @for (option of focusOptions(); track option.id) {
-                    <button
-                      class="grid size-7 place-items-center"
-                      type="button"
-                      [title]="option.label"
-                      [attr.aria-label]="option.label"
-                      [attr.aria-pressed]="activeFocusId() === option.id"
-                      (click)="toggleFocus(option.id)"
-                    >
-                      <span
-                        class="size-4 rounded-full transition"
-                        [class.opacity-30]="activeFocusId() !== null && activeFocusId() !== option.id"
-                        [style.background]="option.color"
-                        [style.box-shadow]="activeFocusId() === option.id ? '0 0 0 2px white, 0 0 0 4px ' + option.color : null"
-                      ></span>
-                    </button>
-                  }
-                </fieldset>
-              </div>
-              @if (showsMyBar()) {
-                <app-zero-to-100-scale
-                  class="mt-2"
-                  ariaLabel="Ta réponse"
-                  [compact]="true"
-                  [points]="myBar()"
-                  [focusId]="activeFocusId()"
-                  [reservedNames]="reveal().length"
-                />
-              } @else {
-                <p class="mt-2 text-xs text-ink-500">Tu n’as pas envoyé tes positions à temps.</p>
-              }
+              <fieldset class="-my-1.5 flex items-center">
+                <legend class="sr-only">N’afficher qu’une personne sur les barres</legend>
+                @for (option of focusOptions(); track option.id) {
+                  <button
+                    class="grid size-7 place-items-center"
+                    type="button"
+                    [title]="option.label"
+                    [attr.aria-label]="option.label"
+                    [attr.aria-pressed]="activeFocusId() === option.id"
+                    (click)="toggleFocus(option.id)"
+                  >
+                    <span
+                      class="size-4 rounded-full transition"
+                      [class.opacity-30]="activeFocusId() !== null && activeFocusId() !== option.id"
+                      [style.background]="option.color"
+                      [style.box-shadow]="
+                        activeFocusId() === option.id ? '0 0 0 2px white, 0 0 0 4px ' + option.color : null
+                      "
+                    ></span>
+                  </button>
+                }
+              </fieldset>
             </div>
-
-            <div>
-              <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">Cible</p>
-              @if (showsTargetBar()) {
-                <app-zero-to-100-scale
-                  class="mt-2"
-                  ariaLabel="Cible"
-                  [compact]="true"
-                  [points]="targetBar()"
-                  [focusId]="activeFocusId()"
-                  [reservedNames]="reveal().length"
-                />
-              } @else {
-                <p class="mt-2 text-xs text-ink-500">{{ targetBarNote() }}</p>
-              }
-            </div>
+            @if (showsMyBar()) {
+              <app-zero-to-100-scale
+                class="mt-2"
+                ariaLabel="Ta réponse"
+                [compact]="true"
+                [points]="myBar()"
+                [focusId]="activeFocusId()"
+                [reservedNames]="reveal().length"
+              />
+            } @else {
+              <p class="mt-2 text-xs text-ink-500">Tu n’as pas envoyé tes positions à temps.</p>
+            }
           </div>
 
-
-</section>
-<div class="flex shrink-0 items-center justify-between gap-3"><p class="text-sm font-extrabold text-brand-600">Total {{ roundScoreLabel() }}</p><app-info-sheet label="Détail des points"><table class="w-full table-fixed text-xs">
+          <div>
+            <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">Cible</p>
+            @if (showsTargetBar()) {
+              <app-zero-to-100-scale
+                class="mt-2"
+                ariaLabel="Cible"
+                [compact]="true"
+                [points]="targetBar()"
+                [focusId]="activeFocusId()"
+                [reservedNames]="reveal().length"
+              />
+            } @else {
+              <p class="mt-2 text-xs text-ink-500">{{ targetBarNote() }}</p>
+            }
+          </div>
+        </div>
+      </section>
+      <div class="flex shrink-0 items-center justify-between gap-3">
+        <p class="text-sm font-extrabold text-brand-600">Total {{ roundScoreLabel() }}</p>
+        <app-info-sheet label="Détail des points"
+          ><table class="w-full table-fixed text-xs">
             <caption class="px-4 pt-4 pb-2 text-left text-xs font-extrabold uppercase tracking-[0.14em] text-ink-500">
               Détail de tes points
               <span class="mt-1 block text-[10px] font-semibold normal-case tracking-normal">
@@ -90,7 +102,11 @@
                 <tr class="border-t border-peach-100">
                   <th class="py-1.5! pl-4! text-left font-extrabold text-ink-900" scope="row">
                     <span class="flex min-w-0 items-center gap-2">
-                      <span class="size-2.5 shrink-0 rounded-full" [style.background]="row.color" aria-hidden="true"></span>
+                      <span
+                        class="size-2.5 shrink-0 rounded-full"
+                        [style.background]="row.color"
+                        aria-hidden="true"
+                      ></span>
                       <span class="truncate">{{ row.label }}</span>
                     </span>
                   </th>
@@ -128,20 +144,31 @@
                 </td>
               </tr>
             </tbody>
-          </table></app-info-sheet></div>
+          </table></app-info-sheet
+        >
+      </div>
     </main>
   </ion-content>
   <footer class="screen-footer">
-@if (gameState.isHost()) {<ion-button
-            class="action-button w-full"
-            expand="block"
-            [disabled]="isStartingNextRound()"
-            (click)="onStartNextRound()"
-          >
-            <ion-icon name="rocket" slot="start" aria-hidden="true" />
-            {{ isStartingNextRound() ? 'Lancement…' : (isLastRound() ? 'Voir le classement final' : 'Lancer la manche suivante') }}
-            <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-          </ion-button>} @else { <app-waiting-card title="En attente de l’hôte" /> }
+    @if (gameState.isHost()) {
+      <ion-button
+        class="action-button w-full"
+        expand="block"
+        [disabled]="isStartingNextRound()"
+        (click)="onStartNextRound()"
+      >
+        <ion-icon name="rocket" slot="start" aria-hidden="true" />
+        {{
+          isStartingNextRound()
+            ? 'Lancement…'
+            : isLastRound()
+              ? 'Voir le classement final'
+              : 'Lancer la manche suivante'
+        }}
+        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+      </ion-button>
+    } @else {
+      <app-waiting-card title="En attente de l’hôte" />
+    }
   </footer>
-
 </div>

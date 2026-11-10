@@ -66,6 +66,8 @@ export class WaitingGameComponent {
   protected readonly gameOverMessage = computed(() =>
     this.isNewRecord() ? `Nouveau record : ${this.score()} pts !` : `Perdu ! ${this.score()} pts`,
   );
+  /** False once the layout leaves too little room and hides the board, so the parent can offer the modal instead. */
+  readonly isDisplayed = signal(true);
 
   private engine = this.definition.createEngine(Math.random);
   private context: CanvasRenderingContext2D | null = null;
@@ -122,6 +124,11 @@ export class WaitingGameComponent {
 
   private resizeCanvas(): void {
     const canvas = this.canvasRef().nativeElement;
+    const isDisplayed = canvas.clientHeight > 0;
+    if (isDisplayed !== this.isDisplayed()) {
+      // The observer runs outside the zone; the parent template reads this signal.
+      this.ngZone.run(() => this.isDisplayed.set(isDisplayed));
+    }
     const pixelRatio = window.devicePixelRatio || 1;
     canvas.width = Math.round(canvas.clientWidth * pixelRatio);
     canvas.height = Math.round(canvas.clientHeight * pixelRatio);

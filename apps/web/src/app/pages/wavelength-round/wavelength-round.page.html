@@ -1,42 +1,85 @@
 <div class="ion-page">
   <app-page-header
-        [title]="'Manche ' + (wavelength()?.roundNumber ?? 1) + ' / ' + (wavelength()?.totalRounds ?? 1)"
-        backLink="/"
-      />
+    [title]="'Manche ' + (wavelength()?.roundNumber ?? 1) + ' / ' + (wavelength()?.totalRounds ?? 1)"
+    backLink="/"
+  />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-@if (wavelength(); as round) {
-  @if (isGuessing() && (round.isPsychic || round.submitted)) {
-    <app-phase-confirmation [title]="round.isPsychic ? 'Les autres cherchent la cible' : 'Aiguille placée !'" [message]="round.isPsychic ? 'Pas un mot de plus ! Tu pourras expliquer ton indice à la révélation.' : 'La révélation s’ouvrira automatiquement.'" [progressCount]="round.submissionProgressCount ?? 0" [progressRequired]="round.submissionProgressRequired ?? 0" progressLabel="joueurs ont placé leur aiguille" />
-  } @else {
-    @if (round.phaseDeadline) { <app-phase-timer [label]="isGuessing() ? 'Temps pour placer l’aiguille' : 'Temps pour l’indice'" [detail]="isGuessing() ? (round.submissionProgressCount ?? 0) + '/' + (round.submissionProgressRequired ?? 0) + ' aiguilles placées' : undefined" [remainingSeconds]="remainingSeconds()" /> }
-    <section class="hero-card hero-card--lover">
-      <h2 class="text-base font-extrabold">{{ round.isPsychic ? 'Donne ton indice à voix haute' : 'Médium : ' + round.psychicDisplayName }}</h2>
-      <p class="mt-1 text-xs">{{ round.isPsychic ? 'Un mot ou une idée qui se placerait sur la cible.' : (isGuessing() ? 'Place ton aiguille selon l’indice.' : 'Écoute l’indice du médium.') }}</p>
-    </section>
-    <app-wavelength-dial
-              [leftLabel]="round.leftLabel ?? ''"
-              [rightLabel]="round.rightLabel ?? ''"
-              [target]="round.target"
-              [interactive]="canPlaceNeedle()"
-              [value]="needleValue()"
-              (valueChange)="position.set($event ?? 50)"
+      @if (wavelength(); as round) {
+        @if (isGuessing() && (round.isPsychic || round.submitted)) {
+          <app-phase-confirmation
+            [title]="round.isPsychic ? 'Les autres cherchent la cible' : 'Aiguille placée !'"
+            [message]="
+              round.isPsychic
+                ? 'Pas un mot de plus ! Tu pourras expliquer ton indice à la révélation.'
+                : 'La révélation s’ouvrira automatiquement.'
+            "
+            [progressCount]="round.submissionProgressCount ?? 0"
+            [progressRequired]="round.submissionProgressRequired ?? 0"
+            progressLabel="joueurs ont placé leur aiguille"
+          />
+        } @else {
+          @if (round.phaseDeadline) {
+            <app-phase-timer
+              [label]="isGuessing() ? 'Temps pour placer l’aiguille' : 'Temps pour l’indice'"
+              [detail]="
+                isGuessing()
+                  ? (round.submissionProgressCount ?? 0) +
+                    '/' +
+                    (round.submissionProgressRequired ?? 0) +
+                    ' aiguilles placées'
+                  : undefined
+              "
+              [remainingSeconds]="remainingSeconds()"
             />
-    @if (!round.isPsychic && !isGuessing()) { <app-awaiting-players [compact]="true" /> }
-  }
-}
+          }
+          <section class="hero-card hero-card--lover">
+            <h2 class="text-base font-extrabold">
+              {{ round.isPsychic ? 'Donne ton indice à voix haute' : 'Médium : ' + round.psychicDisplayName }}
+            </h2>
+            <p class="mt-1 text-xs">
+              {{
+                round.isPsychic
+                  ? 'Un mot ou une idée qui se placerait sur la cible.'
+                  : isGuessing()
+                    ? 'Place ton aiguille selon l’indice.'
+                    : 'Écoute l’indice du médium.'
+              }}
+            </p>
+          </section>
+          <app-wavelength-dial
+            [leftLabel]="round.leftLabel ?? ''"
+            [rightLabel]="round.rightLabel ?? ''"
+            [target]="round.target"
+            [interactive]="canPlaceNeedle()"
+            [value]="needleValue()"
+            (valueChange)="position.set($event ?? 50)"
+          />
+          @if (!round.isPsychic && !isGuessing()) {
+            <app-awaiting-players />
+          }
+        }
+      }
     </main>
   </ion-content>
   <footer class="screen-footer">
-@if (wavelength(); as round) {
-  @if (round.isPsychic && !isGuessing()) {<ion-button class="action-button w-full" expand="block" [disabled]="isConfirmingClue()" (click)="onConfirmClue()">
-                <ion-icon name="chatbubble-ellipses" slot="start" aria-hidden="true" />
-                {{ isConfirmingClue() ? 'Envoi…' : 'J’ai donné mon indice' }}
-              </ion-button>} @else if (!round.isPsychic && isGuessing() && !round.submitted) {<ion-button class="action-button w-full" expand="block" [disabled]="isSubmitting()" (click)="onSubmit()">
-                {{ isSubmitting() ? 'Envoi…' : 'Valider ma position' }}
-                <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-              </ion-button>}
-}
+    @if (wavelength(); as round) {
+      @if (round.isPsychic && !isGuessing()) {
+        <ion-button
+          class="action-button w-full"
+          expand="block"
+          [disabled]="isConfirmingClue()"
+          (click)="onConfirmClue()"
+        >
+          <ion-icon name="chatbubble-ellipses" slot="start" aria-hidden="true" />
+          {{ isConfirmingClue() ? 'Envoi…' : 'J’ai donné mon indice' }}
+        </ion-button>
+      } @else if (!round.isPsychic && isGuessing() && !round.submitted) {
+        <ion-button class="action-button w-full" expand="block" [disabled]="isSubmitting()" (click)="onSubmit()">
+          {{ isSubmitting() ? 'Envoi…' : 'Valider ma position' }}
+          <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+        </ion-button>
+      }
+    }
   </footer>
-
 </div>

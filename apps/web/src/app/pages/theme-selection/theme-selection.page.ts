@@ -87,12 +87,27 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
       return 'Situations';
     }
     if (this.gameState.isWavelengthMode()) {
-      return 'Wavelength';
+      return this.wavelengthRoundLabel() ?? 'Wavelength';
     }
     if (this.gameState.isSecretRankingMode()) {
       return 'Classement secret';
     }
     return 'Thèmes Fast Bio';
+  });
+  protected readonly proposalExample = computed(() => {
+    if (this.gameState.isZeroToHundredMode()) {
+      return 'Ex. : Mettre le plus de nourriture dans sa bouche';
+    }
+    if (this.gameState.isSituationMode()) {
+      return 'Ex. : En entretien avec le Père Fouettard';
+    }
+    if (this.gameState.isWavelengthMode()) {
+      return 'Ex. : Red flag ↔ Green flag';
+    }
+    if (this.gameState.isSecretRankingMode()) {
+      return 'Ex. : manger un insecte vivant';
+    }
+    return 'Ex. : Mode mystérieux';
   });
   /** The rounds the current Wavelength vote prepares, shown above each step. */
   private readonly wavelengthVote = computed(() => {
@@ -113,10 +128,6 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
   protected readonly secretRankingQuestionStart = secretRankingQuestionStart;
   protected readonly secretRankingQuestion = secretRankingQuestion;
   protected readonly secretRankingQuestionEnd = secretRankingQuestionEnd;
-  /** 0 à 100 and the secret ranking explain their rules while players wait, instead of the mini-game alone. */
-  protected readonly showsRulesWhileWaiting = computed(() =>
-    this.gameState.isZeroToHundredMode() || this.gameState.isSecretRankingMode(),
-  );
   protected readonly rankingSentMessage = computed(() => {
     if (!this.gameState.isWavelengthMode()) {
       return 'La première manche démarrera automatiquement.';

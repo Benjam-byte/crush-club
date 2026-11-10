@@ -1,62 +1,79 @@
 <div class="ion-page">
   <app-page-header
-        [title]="gameState.role() === 'lover' ? 'Choix de l’accroche' : 'Révélation'"
-        [centerTitle]="true"
-        [showDecoration]="false"
-      />
+    [title]="gameState.role() === 'lover' ? 'Choix de l’accroche' : 'Révélation'"
+    [centerTitle]="true"
+    [showDecoration]="false"
+  />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-@if (gameState.role() === 'lover') {
-  <p class="text-sm text-ink-600">Choisis ta phrase préférée. Les propositions sont anonymes.</p>
-  <div class="screen-scroll space-y-3">
-    @for (submission of gameState.game()?.submissions ?? []; track submission.id) {
-      <button class="vote-card surface-card flex w-full items-center gap-3 p-3 text-left" [class.vote-card--selected]="selectedSubmissionId() === submission.id" [attr.aria-pressed]="selectedSubmissionId() === submission.id" type="button" (click)="selectSubmission(submission.id)">
-        <ion-icon class="shrink-0 text-xl text-brand-500" [name]="selectedSubmissionId() === submission.id ? 'heart' : 'heart-outline'" aria-hidden="true" />
-        <span class="text-sm font-bold">“{{ submission.tagline }}”</span>
-      </button>
-    }
-  </div>
-} @else {
-  <ion-segment [value]="activeTab()" (ionChange)="onTabChange($event)" aria-label="Contenu de la révélation">
-    <ion-segment-button value="profile"><ion-label>Vrai profil</ion-label></ion-segment-button>
-    <ion-segment-button value="proposals"><ion-label>Propositions</ion-label></ion-segment-button>
-  </ion-segment>
-  @if (activeTab() === 'profile') {
-    <div class="flex shrink-0 items-center gap-3">
-      @if (subjectPhotoUrl()) { <img class="size-12 rounded-2xl object-cover" [src]="subjectPhotoUrl()" alt="Photo principale" /> }
-      <h2 class="text-lg font-extrabold">{{ gameState.subjectPlayer().displayName }}</h2>
-    </div>
-    <dl class="screen-scroll grid auto-rows-min grid-cols-2 gap-x-4 gap-y-3">
-      @for (answer of officialAnswerList(); track answer.id) {
-        <div class="min-w-0 border-b border-peach-100 pb-2">
-          <dt class="text-xs text-ink-500">{{ answer.label }}</dt>
-          <dd class="text-sm font-bold">{{ answer.value }}</dd>
+      @if (gameState.role() === 'lover') {
+        <p class="text-sm text-ink-600">Choisis ta phrase préférée. Les propositions sont anonymes.</p>
+        <div class="screen-scroll space-y-3">
+          @for (submission of gameState.game()?.submissions ?? []; track submission.id) {
+            <button
+              class="vote-card surface-card flex w-full items-center gap-3 p-3 text-left"
+              [class.vote-card--selected]="selectedSubmissionId() === submission.id"
+              [attr.aria-pressed]="selectedSubmissionId() === submission.id"
+              type="button"
+              (click)="selectSubmission(submission.id)"
+            >
+              <ion-icon
+                class="shrink-0 text-xl text-brand-500"
+                [name]="selectedSubmissionId() === submission.id ? 'heart' : 'heart-outline'"
+                aria-hidden="true"
+              />
+              <span class="text-sm font-bold">“{{ submission.tagline }}”</span>
+            </button>
+          }
         </div>
+      } @else {
+        <ion-segment [value]="activeTab()" (ionChange)="onTabChange($event)" aria-label="Contenu de la révélation">
+          <ion-segment-button value="profile"><ion-label>Vrai profil</ion-label></ion-segment-button>
+          <ion-segment-button value="proposals"><ion-label>Propositions</ion-label></ion-segment-button>
+        </ion-segment>
+        @if (activeTab() === 'profile') {
+          <div class="flex shrink-0 items-center gap-3">
+            @if (subjectPhotoUrl()) {
+              <img class="size-12 rounded-2xl object-cover" [src]="subjectPhotoUrl()" alt="Photo principale" />
+            }
+            <h2 class="text-lg font-extrabold">{{ gameState.subjectPlayer().displayName }}</h2>
+          </div>
+          <dl class="screen-scroll grid auto-rows-min grid-cols-2 gap-x-4 gap-y-3">
+            @for (answer of officialAnswerList(); track answer.id) {
+              <div class="min-w-0 border-b border-peach-100 pb-2">
+                <dt class="text-xs text-ink-500">{{ answer.label }}</dt>
+                <dd class="text-sm font-bold">{{ answer.value }}</dd>
+              </div>
+            }
+          </dl>
+        } @else {
+          <ul class="screen-scroll divide-y divide-peach-200">
+            @for (submission of gameState.game()?.submissions ?? []; track submission.id) {
+              <li class="py-3">
+                <p class="text-sm font-bold">“{{ submission.tagline }}”</p>
+                @if (submissionBio(submission.id); as bio) {
+                  <p class="mt-1 text-xs text-ink-500">{{ bio }}</p>
+                }
+              </li>
+            }
+          </ul>
+        }
       }
-    </dl>
-  } @else {
-    <ul class="screen-scroll divide-y divide-peach-200">
-      @for (submission of gameState.game()?.submissions ?? []; track submission.id) {
-        <li class="py-3">
-          <p class="text-sm font-bold">“{{ submission.tagline }}”</p>
-          @if (submissionBio(submission.id); as bio) { <p class="mt-1 text-xs text-ink-500">{{ bio }}</p> }
-        </li>
-      }
-    </ul>
-  }
-}
     </main>
   </ion-content>
   <footer class="screen-footer">
-@if (gameState.role() === 'lover') {<ion-button
-            class="action-button w-full"
-            expand="block"
-            [disabled]="selectedSubmissionId() === null || isVoting() || !gameState.isRealtimeConnected()"
-            (click)="submitVote()"
-          >
-            {{ isVoting() ? 'Vote en cours…' : 'Confirmer mon vote' }}
-            <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-          </ion-button>} @else { <app-waiting-card title="En attente du vote" /> }
+    @if (gameState.role() === 'lover') {
+      <ion-button
+        class="action-button w-full"
+        expand="block"
+        [disabled]="selectedSubmissionId() === null || isVoting() || !gameState.isRealtimeConnected()"
+        (click)="submitVote()"
+      >
+        {{ isVoting() ? 'Vote en cours…' : 'Confirmer mon vote' }}
+        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+      </ion-button>
+    } @else {
+      <app-waiting-card title="En attente du vote" />
+    }
   </footer>
-
 </div>

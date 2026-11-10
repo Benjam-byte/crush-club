@@ -8,6 +8,19 @@ export interface FinalLeaderboardEntry {
   photo?: string | null;
 }
 
+export interface RankedEntry extends FinalLeaderboardEntry {
+  rank: number;
+}
+
+/** Ties share a rank ("1, 1, 3"), so two players on the same score never look ranked apart. Entries arrive sorted by score. */
+export function rankEntries(entries: readonly FinalLeaderboardEntry[]): RankedEntry[] {
+  return entries.map((entry) => ({
+    ...entry,
+    rank: entries.findIndex((candidate) => candidate.score === entry.score) + 1,
+  }));
+}
+
+/** Final ranking: a podium for the top three, then a scrolling list. Entries arrive sorted by score. */
 @Component({
   selector: 'app-final-leaderboard',
   templateUrl: './final-leaderboard.component.html',
@@ -17,10 +30,18 @@ export interface FinalLeaderboardEntry {
 export class FinalLeaderboardComponent {
   readonly entries = input.required<readonly FinalLeaderboardEntry[]>();
   readonly accent = input<'coral' | 'lover'>('coral');
-  protected readonly podium = computed(() => this.entries().slice(0, 3));
-  protected readonly remaining = computed(() => this.entries().slice(3));
+
+  private readonly rankedEntries = computed(() => rankEntries(this.entries()));
+  protected readonly podium = computed(() => this.rankedEntries().slice(0, 3));
+  protected readonly remaining = computed(() => this.rankedEntries().slice(3));
+  /** Shows the podium as second, first, third while screen readers keep the ranking order. */
+  protected readonly podiumOrder = [2, 1, 3];
+
+  protected rankLabel(rank: number): string {
+    return rank === 1 ? '1er' : `${rank}e`;
+  }
 
   protected initials(name: string): string {
-    return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('');
+    return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('');
   }
 }

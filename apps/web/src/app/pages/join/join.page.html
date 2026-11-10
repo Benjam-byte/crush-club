@@ -1,144 +1,147 @@
 <div class="ion-page">
-  <app-page-header
-        [title]="isCreateMode() ? 'Crée ton lobby' : 'Rejoins la partie'"
-        backLink="/"
-      />
+  <app-page-header [title]="isCreateMode() ? 'Crée ton lobby' : 'Rejoins la partie'" backLink="/" />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-<p class="text-sm text-ink-600">Un pseudo suffit pour rejoindre la partie.</p>
-<form id="join-form" class="flex flex-col gap-3" [formGroup]="joinForm" (ngSubmit)="onSubmit()">
-            @if (!isCreateMode()) {
-              <div>
-                <ion-input
-                  class="form-input code-input"
-                  formControlName="lobbyCode"
-                  label="Code du lobby"
-                  labelPlacement="stacked"
-                  maxlength="6"
-                  placeholder="AB7K"
-                  autocomplete="off"
-                  inputmode="text"
-                  (ionInput)="onLobbyCodeInput()"
-                />
-                @if (hasSubmitted() && joinForm.controls.lobbyCode.invalid) {
-                  <p class="mt-2 flex items-center gap-2 text-xs font-semibold text-danger-500">
-                    <ion-icon name="close" aria-hidden="true" />
-                    Saisis le code de 4 à 6 caractères.
-                  </p>
-                }
-              </div>
-            }
-
-            <div>
-              <ion-input
-                class="form-input"
-                formControlName="displayName"
-                label="Ton pseudonyme"
-                labelPlacement="stacked"
-                maxlength="24"
-                placeholder="Comment on t’appelle ?"
-                autocomplete="nickname"
-              />
-              @if (hasSubmitted() && joinForm.controls.displayName.invalid) {
-                <p class="mt-2 flex items-center gap-2 text-xs font-semibold text-danger-500">
-                  <ion-icon name="close" aria-hidden="true" />
-                  Choisis un pseudo de 2 à 24 caractères.
-                </p>
-              }
-            </div>
-
-            @if (isCreateMode()) {
-              <div>
-                <ion-select
-                  class="form-input"
-                  formControlName="mode"
-                  label="Mode de jeu"
-                  labelPlacement="stacked"
-                  interface="action-sheet"
-                  (ionChange)="onModeChange($event)"
-                >
-                  <ion-select-option value="classic">Classique · 3 à 5 joueurs</ion-select-option>
-                  <ion-select-option value="fast_bio">Fast Bio · dès 2 joueurs (5+ recommandé)</ion-select-option>
-                  <ion-select-option value="zero_to_100">0 à 100 · dès 3 joueurs (5+ recommandé)</ion-select-option>
-                  <ion-select-option value="situation">Situation · dès 2 joueurs, pensé pour un grand groupe</ion-select-option>
-                  <ion-select-option value="wavelength">Wavelength · dès 2 joueurs (4+ recommandé)</ion-select-option>
-                  <ion-select-option value="secret_ranking">Le classement secret · 3 à 10 joueurs</ion-select-option>
-                </ion-select>
-                <p class="mt-2 line-clamp-2 text-xs leading-5 text-ink-500">
-                  @if (selectedMode() === 'fast_bio') {
-                    Chacun invente une bio + une photo pour un autre joueur sur un thème choisi par le groupe, puis tout le monde note les propositions.
-                  } @else if (selectedMode() === 'zero_to_100') {
-                    Le groupe choisit 3 thèmes, puis à chaque manche jusqu’à 5 nominés sont tirés au sort et tout le monde les place sur une échelle de 0 à 100.
-                  } @else if (selectedMode() === 'situation') {
-                    Le groupe choisit 3 situations, chacun désigne qui s’en sortirait le mieux et pourquoi. En grand groupe, des duels en face-à-face réduisent les propositions à 4 avant le classement final.
-                  } @else if (selectedMode() === 'wavelength') {
-                    À chaque manche, le groupe vote un spectre (« Froid ↔ Chaud »). Le médium voit une cible secrète et donne un indice à voix haute, puis tout le monde place son aiguille. Chacun est médium une fois.
-                  } @else if (selectedMode() === 'secret_ranking') {
-                    Autour d’une table : chacun mise en secret un montant, puis le groupe aligne les téléphones du plus petit au plus grand. Révélation en cascade, score d’équipe.
-                  } @else {
-                    Chacun uploade 4 photos, puis devine les réponses de l’Amoureux à chaque manche.
-                  }
-                </p>
-              </div>
-
-              @if (selectedMode() === 'classic') {
-<div class="grid grid-cols-[6rem_1fr] gap-3">
-                <div>
-                  <ion-select
-                    class="form-input"
-                    formControlName="maxPlayers"
-                    [selectedText]="joinForm.controls.maxPlayers.value.toString()"
-                    label="Joueurs"
-                    labelPlacement="stacked"
-                    interface="action-sheet"
-                  >
-                    @for (count of [3, 4, 5]; track count) {
-                      <ion-select-option [value]="count">{{ count }} joueurs</ion-select-option>
-                    }
-                  </ion-select>
-                </div>
-
-                <div>
-                  <ion-select
-                    class="form-input"
-                    formControlName="gameConfigId"
-                    label="Questionnaire"
-                    labelPlacement="stacked"
-                    interface="action-sheet"
-                    placeholder="Choisir une configuration"
-                  >
-                    @for (config of gameConfigs.configList(); track config.id) {
-                      <ion-select-option [value]="config.id">
-                      {{ config.name }} · {{ config.questionIds.length }} questions{{ config.isPublic && !config.isOwner ? ' · partagé' : '' }}
-                      </ion-select-option>
-                    }
-                  </ion-select>
-                  <a class="mt-2 inline-flex text-xs font-bold text-brand-600 underline" routerLink="/game-configs">
-                    Gérer mes configurations
-                  </a>
-                  @if (hasSubmitted() && !joinForm.controls.gameConfigId.value) {
-                    <p class="mt-2 text-xs font-semibold text-danger-500">Choisis un questionnaire.</p>
-                  }
-                </div>
-              </div>
-              }
-            }
-
-            @if (gameConfigs.errorMessage(); as errorMessage) {
-              <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">
-                {{ errorMessage }}
+      <p class="text-sm text-ink-600">
+        {{
+          isCreateMode()
+            ? 'Tu seras l’hôte : choisis un mode, puis partage le code.'
+            : 'Un pseudo suffit pour rejoindre la partie.'
+        }}
+      </p>
+      <form id="join-form" class="flex flex-col gap-3" [formGroup]="joinForm" (ngSubmit)="onSubmit()">
+        @if (!isCreateMode()) {
+          <div>
+            <ion-input
+              class="form-input code-input"
+              formControlName="lobbyCode"
+              label="Code du lobby"
+              labelPlacement="stacked"
+              maxlength="6"
+              placeholder="AB7K"
+              autocomplete="off"
+              inputmode="text"
+              (ionInput)="onLobbyCodeInput()"
+            />
+            @if (hasSubmitted() && joinForm.controls.lobbyCode.invalid) {
+              <p class="mt-2 flex items-center gap-2 text-xs font-semibold text-danger-500">
+                <ion-icon name="close" aria-hidden="true" />
+                Saisis le code de 4 à 6 caractères.
               </p>
             }
+          </div>
+        }
 
-            
-          </form>
+        <div>
+          <ion-input
+            class="form-input"
+            formControlName="displayName"
+            label="Ton pseudonyme"
+            labelPlacement="stacked"
+            maxlength="24"
+            placeholder="Comment on t’appelle ?"
+            autocomplete="nickname"
+          />
+          @if (hasSubmitted() && joinForm.controls.displayName.invalid) {
+            <p class="mt-2 flex items-center gap-2 text-xs font-semibold text-danger-500">
+              <ion-icon name="close" aria-hidden="true" />
+              Choisis un pseudo de 2 à 24 caractères.
+            </p>
+          }
+        </div>
+
+        @if (isCreateMode()) {
+          <div>
+            <ion-select
+              class="form-input"
+              formControlName="mode"
+              label="Mode de jeu"
+              labelPlacement="stacked"
+              interface="action-sheet"
+              (ionChange)="onModeChange($event)"
+            >
+              <ion-select-option value="classic">Classique · 3 à 5 joueurs</ion-select-option>
+              <ion-select-option value="fast_bio">Fast Bio · dès 2 joueurs (5+ recommandé)</ion-select-option>
+              <ion-select-option value="zero_to_100">0 à 100 · dès 3 joueurs (5+ recommandé)</ion-select-option>
+              <ion-select-option value="situation"
+                >Situation · dès 2 joueurs, pensé pour un grand groupe</ion-select-option
+              >
+              <ion-select-option value="wavelength">Wavelength · dès 2 joueurs (4+ recommandé)</ion-select-option>
+              <ion-select-option value="secret_ranking">Le classement secret · 3 à 10 joueurs</ion-select-option>
+            </ion-select>
+            <div class="mt-1 flex items-start gap-2">
+              <p class="min-w-0 flex-1 pt-1 text-xs leading-5 text-ink-500">{{ modeDescription().summary }}</p>
+              @if (modeDescription().details; as details) {
+                <app-info-sheet label="En savoir plus">
+                  <p class="text-sm leading-6 text-ink-700">{{ details }}</p>
+                </app-info-sheet>
+              }
+            </div>
+          </div>
+
+          @if (selectedMode() === 'classic') {
+            <div class="grid grid-cols-[6rem_minmax(0,1fr)] gap-3">
+              <div class="min-w-0">
+                <ion-select
+                  class="form-input"
+                  formControlName="maxPlayers"
+                  [selectedText]="joinForm.controls.maxPlayers.value.toString()"
+                  label="Joueurs"
+                  labelPlacement="stacked"
+                  interface="action-sheet"
+                >
+                  @for (count of [3, 4, 5]; track count) {
+                    <ion-select-option [value]="count">{{ count }} joueurs</ion-select-option>
+                  }
+                </ion-select>
+              </div>
+
+              <div class="min-w-0">
+                <ion-select
+                  class="form-input"
+                  formControlName="gameConfigId"
+                  label="Questionnaire"
+                  labelPlacement="stacked"
+                  interface="action-sheet"
+                  placeholder="Choisir une configuration"
+                >
+                  @for (config of gameConfigs.configList(); track config.id) {
+                    <ion-select-option [value]="config.id">
+                      {{ config.name }} · {{ config.questionIds.length }} questions{{
+                        config.isPublic && !config.isOwner ? ' · partagé' : ''
+                      }}
+                    </ion-select-option>
+                  }
+                </ion-select>
+                <a
+                  class="inline-flex min-h-11 items-center text-xs font-bold text-brand-600 underline"
+                  routerLink="/game-configs"
+                >
+                  Gérer mes configurations
+                </a>
+                @if (hasSubmitted() && !joinForm.controls.gameConfigId.value) {
+                  <p class="text-xs font-semibold text-danger-500">Choisis un questionnaire.</p>
+                }
+              </div>
+            </div>
+          }
+        }
+
+        @if (gameConfigs.errorMessage(); as errorMessage) {
+          <p class="rounded-2xl bg-danger-50 p-3 text-xs font-semibold text-danger-500">
+            {{ errorMessage }}
+          </p>
+        }
+
+        <!-- Lets the keyboard's Go key submit: the visible button sits in the footer, outside the form. -->
+        <button class="sr-only" type="submit" tabindex="-1" aria-hidden="true"></button>
+      </form>
     </main>
   </ion-content>
   <footer class="screen-footer">
-<ion-button class="action-button w-full" expand="block" type="submit" form="join-form" [disabled]="isSubmitting()">
-              {{ isSubmitting() ? 'Connexion…' : (isCreateMode() ? 'Créer mon lobby' : 'Rejoindre le lobby') }}
-              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-            </ion-button>
+    <ion-button class="action-button w-full" expand="block" type="submit" form="join-form" [disabled]="isSubmitting()">
+      {{ isSubmitting() ? 'Connexion…' : isCreateMode() ? 'Créer mon lobby' : 'Rejoindre le lobby' }}
+      <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+    </ion-button>
   </footer>
-
 </div>

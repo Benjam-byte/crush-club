@@ -1,6 +1,6 @@
 <div class="ion-page">
   <ion-content [scrollY]="false">
-    <main class="app-shell screen-body decorative-grid relative">
+    <main class="app-shell screen-body home-body decorative-grid relative">
       <div class="pointer-events-none absolute -left-12 top-24 size-40 rounded-full bg-brand-200/45 blur-3xl"></div>
       <div class="pointer-events-none absolute -right-20 top-[40%] size-52 rounded-full bg-lover-500/10 blur-3xl"></div>
 
@@ -19,7 +19,9 @@
       </header>
 
       <section class="relative z-10 flex w-full min-w-0 min-h-0 flex-1 flex-col items-center gap-3 text-center">
-        <div class="rounded-full border border-brand-100 bg-white/75 px-4 py-2 text-xs font-bold text-brand-600 shadow-sm">
+        <div
+          class="rounded-full border border-brand-100 bg-white/75 px-4 py-2 text-xs font-bold text-brand-600 shadow-sm"
+        >
           Le jeu qui révèle qui te connaît vraiment
         </div>
 
@@ -28,8 +30,8 @@
           <span class="brand-word block text-brand-600">voient comment&nbsp;?</span>
         </h1>
         <p class="w-full max-w-sm text-[15px] leading-6 text-ink-600">
-          Créez de faux profils, misez votre <strong class="text-ink-900">LOVER</strong> et découvrez
-          qui connaît le mieux le groupe.
+          Créez de faux profils, misez votre <strong class="text-ink-900">LOVER</strong> et découvrez qui connaît le
+          mieux le groupe.
         </p>
 
         <div class="profile-stack relative min-h-0 flex-1 w-full max-w-[340px]" aria-label="Aperçu des profils du jeu">
@@ -49,7 +51,9 @@
               </div>
             </div>
             <div class="flex items-center justify-between px-3 py-2.5">
-              <span class="rounded-full bg-peach-100 px-2.5 py-1 text-[9px] font-bold text-brand-600">Profil mystère</span>
+              <span class="rounded-full bg-peach-100 px-2.5 py-1 text-[9px] font-bold text-brand-600"
+                >Profil mystère</span
+              >
               <div class="flex items-center gap-1 text-brand-500">
                 <ion-icon name="heart" aria-hidden="true" />
                 <span class="text-[10px] font-extrabold">87%</span>
@@ -57,9 +61,7 @@
             </div>
           </article>
         </div>
-
       </section>
-
     </main>
 
     <ion-modal
@@ -75,7 +77,9 @@
           <section class="px-5 pb-8 pt-3 text-left">
             <header class="flex min-h-12 items-center justify-between gap-4">
               <div>
-                <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">Comment ça marche&nbsp;?</p>
+                <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-600">
+                  Comment ça marche&nbsp;?
+                </p>
                 <h2 class="mt-1 text-2xl font-extrabold tracking-tight text-ink-900">Une partie, trois temps</h2>
               </div>
               <ion-button
@@ -91,19 +95,34 @@
 
             <ol class="mt-6 space-y-5">
               <li class="grid grid-cols-[2rem_1fr] items-center gap-x-3">
-                <span class="grid size-8 place-items-center rounded-xl bg-brand-100 text-sm font-extrabold text-brand-600">1</span>
+                <span
+                  class="grid size-8 place-items-center rounded-xl bg-brand-100 text-sm font-extrabold text-brand-600"
+                  >1</span
+                >
                 <h3 class="text-sm font-extrabold text-ink-900">Prépare ton profil</h3>
-                <p class="col-start-2 mt-1 text-xs leading-5 text-ink-600">Ajoute quatre photos pour composer ton profil.</p>
+                <p class="col-start-2 mt-1 text-xs leading-5 text-ink-600">
+                  Ajoute quatre photos pour composer ton profil.
+                </p>
               </li>
               <li class="grid grid-cols-[2rem_1fr] items-center gap-x-3">
-                <span class="grid size-8 place-items-center rounded-xl bg-brand-100 text-sm font-extrabold text-brand-600">2</span>
+                <span
+                  class="grid size-8 place-items-center rounded-xl bg-brand-100 text-sm font-extrabold text-brand-600"
+                  >2</span
+                >
                 <h3 class="text-sm font-extrabold text-ink-900">Devine tes proches</h3>
-                <p class="col-start-2 mt-1 text-xs leading-5 text-ink-600">Les mêmes choix, mais pas toujours les mêmes réponses.</p>
+                <p class="col-start-2 mt-1 text-xs leading-5 text-ink-600">
+                  Les mêmes choix, mais pas toujours les mêmes réponses.
+                </p>
               </li>
               <li class="grid grid-cols-[2rem_1fr] items-center gap-x-3">
-                <span class="grid size-8 place-items-center rounded-xl bg-brand-100 text-sm font-extrabold text-brand-600">3</span>
+                <span
+                  class="grid size-8 place-items-center rounded-xl bg-brand-100 text-sm font-extrabold text-brand-600"
+                  >3</span
+                >
                 <h3 class="text-sm font-extrabold text-ink-900">Révélez tout ensemble</h3>
-                <p class="col-start-2 mt-1 text-xs leading-5 text-ink-600">Scores, surprises et discussions garanties.</p>
+                <p class="col-start-2 mt-1 text-xs leading-5 text-ink-600">
+                  Scores, surprises et discussions garanties.
+                </p>
               </li>
             </ol>
           </section>
@@ -111,28 +130,34 @@
       </ng-template>
     </ion-modal>
   </ion-content>
-<footer class="screen-footer">        <div class="flex flex-col gap-2">
-          <div class="grid gap-2">
-            <ion-button class="action-button w-full" expand="block" routerLink="/join" [queryParams]="{ mode: 'create' }">
-              <ion-icon name="rocket" slot="start" aria-hidden="true" />
-              Créer un lobby
-              <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
-            </ion-button>
-            <ion-button class="action-button action-button--secondary w-full" expand="block" routerLink="/join">
-              <ion-icon name="people" slot="start" aria-hidden="true" />
-              Rejoindre un lobby
-              <ion-icon name="chevron-forward" slot="end" aria-hidden="true" />
-            </ion-button>
-            
-          </div>
-          <div class="flex items-center justify-center gap-3"><a class="text-xs font-bold text-brand-600 underline" routerLink="/game-configs">Mes questionnaires</a><button
-            id="how-it-works-trigger"
-            type="button"
-            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-xs font-semibold text-ink-600 underline decoration-brand-200 underline-offset-4 focus-visible:outline-2 focus-visible:outline-brand-500"
-          >
-            <ion-icon name="help-circle-outline" aria-hidden="true" />
-            Comment ça marche&nbsp;?
-          </button></div>
-        </div>
-</footer>
+  <footer class="screen-footer">
+    <div class="grid gap-2">
+      <ion-button class="action-button w-full" expand="block" routerLink="/join" [queryParams]="{ mode: 'create' }">
+        <ion-icon name="rocket" slot="start" aria-hidden="true" />
+        Créer un lobby
+        <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
+      </ion-button>
+      <ion-button class="action-button action-button--secondary w-full" expand="block" routerLink="/join">
+        <ion-icon name="people" slot="start" aria-hidden="true" />
+        Rejoindre un lobby
+        <ion-icon name="chevron-forward" slot="end" aria-hidden="true" />
+      </ion-button>
+    </div>
+    <div class="mt-1 flex items-center justify-center gap-1 whitespace-nowrap">
+      <a
+        class="inline-flex min-h-11 items-center rounded-xl px-3 text-xs font-bold text-brand-600 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-brand-500"
+        routerLink="/game-configs"
+      >
+        Mes questionnaires
+      </a>
+      <button
+        id="how-it-works-trigger"
+        type="button"
+        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-xs font-semibold text-ink-600 underline decoration-brand-200 underline-offset-4 focus-visible:outline-2 focus-visible:outline-brand-500"
+      >
+        <ion-icon name="help-circle-outline" aria-hidden="true" />
+        Comment ça marche&nbsp;?
+      </button>
+    </div>
+  </footer>
 </div>

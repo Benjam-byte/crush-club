@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -12,13 +12,47 @@ import {
   IonSelectOption,
 } from '@ionic/angular/standalone';
 import type { LobbyMode } from '@core/models/game.models';
+import { InfoSheetComponent } from '../../core/components/info-sheet/info-sheet.component';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
 import { GameConfigService } from '../../core/services/game-config.service';
 import { GameStateService } from '../../core/services/game-state.service';
 
+/** A two-line summary under the mode select; the full rules open in a sheet when they are longer. */
+const modeDescriptionMap: Record<LobbyMode, { summary: string; details?: string }> = {
+  classic: {
+    summary: 'Chacun uploade 4 photos, puis devine les réponses de l’Amoureux à chaque manche.',
+  },
+  fast_bio: {
+    summary: 'Invente une bio et une photo pour un autre joueur, puis tout le monde note.',
+    details:
+      'Chacun invente une bio + une photo pour un autre joueur sur un thème choisi par le groupe, puis tout le monde note les propositions.',
+  },
+  zero_to_100: {
+    summary: 'Place jusqu’à 5 nominés sur une échelle de 0 à 100, thème par thème.',
+    details:
+      'Le groupe choisit 3 thèmes, puis à chaque manche jusqu’à 5 nominés sont tirés au sort et tout le monde les place sur une échelle de 0 à 100.',
+  },
+  situation: {
+    summary: 'Désigne qui s’en sortirait le mieux dans chaque situation, et explique pourquoi.',
+    details:
+      'Le groupe choisit 3 situations, chacun désigne qui s’en sortirait le mieux et pourquoi. En grand groupe, des duels en face-à-face réduisent les propositions à 4 avant le classement final.',
+  },
+  wavelength: {
+    summary: 'Le médium donne un indice, le groupe place son aiguille sur le spectre.',
+    details:
+      'À chaque manche, le groupe vote un spectre (« Froid ↔ Chaud »). Le médium voit une cible secrète et donne un indice à voix haute, puis tout le monde place son aiguille. Chacun est médium une fois.',
+  },
+  secret_ranking: {
+    summary: 'Mise un montant en secret, puis alignez vos téléphones du plus petit au plus grand.',
+    details:
+      'Autour d’une table : chacun mise en secret un montant, puis le groupe aligne les téléphones du plus petit au plus grand. Révélation en cascade, score d’équipe.',
+  },
+};
+
 @Component({
   selector: 'app-join-page',
   imports: [
+    InfoSheetComponent,
     IonButton,
     IonContent,
     IonIcon,
@@ -51,6 +85,7 @@ export class JoinPage {
   protected readonly hasSubmitted = signal(false);
   protected readonly isSubmitting = signal(false);
   protected readonly selectedMode = signal<LobbyMode>('classic');
+  protected readonly modeDescription = computed(() => modeDescriptionMap[this.selectedMode()]);
   private readonly invitedLobbyCode = (this.activatedRoute.snapshot.queryParamMap.get('code') ?? '')
     .replace(/[^a-zA-Z0-9]/g, '')
     .toUpperCase()
@@ -102,6 +137,10 @@ export class JoinPage {
   }
 
   protected async onSubmit(): Promise<void> {
+    // The keyboard's Go key submits too, without the footer button's disabled state.
+    if (this.isSubmitting()) {
+      return;
+    }
     this.hasSubmitted.set(true);
     if (this.joinForm.controls.displayName.invalid) {
       return;

@@ -2,13 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import type { OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
+import { AwardListComponent } from '@core/components/award-list/award-list.component';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { prefersReducedMotion } from '@core/services/device-feedback';
 import { GameStateService } from '@core/services/game-state.service';
 import { formatEuros } from '@core/services/money-format';
 import {
-  awardNames,
   groupTitle,
   initials,
   placeShift,
@@ -23,7 +23,7 @@ const scoreCountUpMs = 900;
 /** Screen C: the phones are picked up again; the true order, the misplacements and the round's awards. */
 @Component({
   selector: 'app-secret-ranking-results-page',
-  imports: [IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent],
+  imports: [AwardListComponent, IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent],
   templateUrl: './secret-ranking-results.page.html',
   styleUrl: './secret-ranking-results.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,7 +48,6 @@ export class SecretRankingResultsPage implements OnInit, OnDestroy {
   protected readonly placeShift = placeShift;
   protected readonly seatColor = seatColor;
   protected readonly initials = initials;
-  protected readonly awardNames = awardNames;
   protected readonly currentPlayerId = computed(() => this.gameState.state()?.currentPlayerId ?? '');
 
   private countUpFrame: number | null = null;

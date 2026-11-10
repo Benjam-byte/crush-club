@@ -2,15 +2,16 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent } from '@ionic/angular/standalone';
+import { AwardListComponent } from '@core/components/award-list/award-list.component';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { GameStateService } from '@core/services/game-state.service';
-import { awardNames, gameAwards, groupTitle, secretRankingQuestion } from '@core/services/secret-ranking';
+import { gameAwards, groupTitle, secretRankingQuestion } from '@core/services/secret-ranking';
 
 /** Screen D: the group's total over the game, the rounds, and the game's awards. */
 @Component({
   selector: 'app-secret-ranking-final-page',
-  imports: [IonButton, IonContent, PageHeaderComponent, WaitingCardComponent],
+  imports: [AwardListComponent, IonButton, IonContent, PageHeaderComponent, WaitingCardComponent],
   templateUrl: './secret-ranking-final.page.html',
   styleUrl: './secret-ranking-final.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,7 +36,6 @@ export class SecretRankingFinalPage implements OnInit {
   protected readonly awards = computed(() => gameAwards(this.rounds()));
   protected readonly isReplaying = signal(false);
   protected readonly secretRankingQuestion = secretRankingQuestion;
-  protected readonly awardNames = awardNames;
 
   async ngOnInit(): Promise<void> {
     try {

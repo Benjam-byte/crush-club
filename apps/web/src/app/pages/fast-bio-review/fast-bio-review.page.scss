@@ -76,4 +76,7 @@
   color: var(--color-brand-600);
 }
 
-.proposal-card__overlay { max-height: 100%; overflow-y: auto; }
+.proposal-card__overlay {
+  max-height: 100%;
+  overflow-y: auto;
+}

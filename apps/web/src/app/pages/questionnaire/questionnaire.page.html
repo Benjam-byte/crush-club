@@ -1,14 +1,10 @@
 <div class="ion-page">
   <app-page-header
-        [title]="gameState.role() === 'lover' ? 'Mon vrai profil' : 'Profil de ' + gameState.subjectPlayer().displayName"
-        [backLink]="'/game/' + gameState.lobbyCode() + '/round/' + gameState.game()?.roundNumber + '/role'"
-      />
+    [title]="gameState.role() === 'lover' ? 'Mon vrai profil' : 'Profil de ' + gameState.subjectPlayer().displayName"
+    [backLink]="'/game/' + gameState.lobbyCode() + '/round/' + gameState.game()?.roundNumber + '/role'"
+  />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-      
-
-      
-
       <section class="flex min-h-0 flex-1 flex-col">
         @if (currentStepIndex() === 0) {
           <section class="questionnaire-step-content flex min-h-0 flex-1 flex-col gap-3">
@@ -20,7 +16,11 @@
                 <h2 class="text-base font-extrabold text-ink-900">Photo principale</h2>
               </div>
               <p class="mt-1.5 text-sm leading-6 text-ink-500">
-                {{ gameState.role() === 'lover' ? 'Choisis la photo qui te représente le mieux.' : 'Quelle photo ' + gameState.subjectPlayer().displayName + ' choisirait comme photo principale ?' }}
+                {{
+                  gameState.role() === 'lover'
+                    ? 'Choisis la photo qui te représente le mieux.'
+                    : 'Quelle photo ' + gameState.subjectPlayer().displayName + ' choisirait comme photo principale ?'
+                }}
               </p>
             </header>
 
@@ -37,12 +37,21 @@
                     (click)="onPrimaryPhotoSelect(photoId)"
                   >
                     @if (gameState.photoUrl(photoId); as photoUrl) {
-                      <img class="h-full w-full object-cover" [src]="photoUrl" [alt]="'Photo ' + (photoIndex + 1) + ' de ' + gameState.subjectPlayer().displayName" />
+                      <img
+                        class="h-full w-full object-cover"
+                        [src]="photoUrl"
+                        [alt]="'Photo ' + (photoIndex + 1) + ' de ' + gameState.subjectPlayer().displayName"
+                      />
                     } @else {
-                      <span class="grid h-full place-items-center text-xs font-extrabold text-brand-600">Photo {{ photoIndex + 1 }}</span>
+                      <span class="grid h-full place-items-center text-xs font-extrabold text-brand-600"
+                        >Photo {{ photoIndex + 1 }}</span
+                      >
                     }
                     @if (gameState.primaryPhotoId() === photoId) {
-                      <span class="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-brand-500 text-white shadow-lg" aria-hidden="true">
+                      <span
+                        class="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-brand-500 text-white shadow-lg"
+                        aria-hidden="true"
+                      >
                         <ion-icon name="checkmark" />
                       </span>
                     }
@@ -60,7 +69,9 @@
                 </span>
                 <h2 class="text-base font-extrabold text-ink-900">Phrase d’accroche</h2>
               </div>
-              <p class="mt-1.5 text-sm leading-6 text-ink-500">Écris comme si tu étais {{ gameState.subjectPlayer().displayName }}.</p>
+              <p class="mt-1.5 text-sm leading-6 text-ink-500">
+                Écris comme si tu étais {{ gameState.subjectPlayer().displayName }}.
+              </p>
             </header>
 
             <div class="surface-card p-4">
@@ -89,12 +100,11 @@
                 </span>
                 <h2 class="text-base font-extrabold text-ink-900">{{ category.label }}</h2>
               </div>
-              
             </header>
 
             <fieldset class="screen-scroll">
               <legend class="sr-only">{{ category.label }}</legend>
-              
+
               <div class="grid gap-2">
                 @for (option of category.optionList; track option.id) {
                   <label
@@ -117,8 +127,6 @@
           </section>
         } @else if (currentQuestion(); as question) {
           <section class="questionnaire-step-content flex min-h-0 flex-1 flex-col gap-3">
-            
-
             <app-question-card
               [question]="question"
               [answer]="gameState.answerByQuestionId()[question.id]"
@@ -132,10 +140,7 @@
 
   <footer class="screen-footer">
     <div class="flex items-center justify-between gap-3">
-      <p class="text-sm font-extrabold text-ink-900">
-        {{ currentStepNumber() }}/{{ requiredAnswerCount() }}
-      </p>
-      
+      <p class="text-sm font-extrabold text-ink-900">{{ currentStepNumber() }}/{{ requiredAnswerCount() }}</p>
     </div>
 
     <ol class="mt-2 flex gap-1" aria-label="Progression du questionnaire">
@@ -151,22 +156,13 @@
 
     <div class="mt-3 grid gap-3" [class.grid-cols-2]="currentStepIndex() > 0">
       @if (currentStepIndex() > 0) {
-        <ion-button
-          class="action-button action-button--secondary w-full"
-          expand="block"
-          (click)="onPrevious()"
-        >
+        <ion-button class="action-button action-button--secondary w-full" expand="block" (click)="onPrevious()">
           <ion-icon name="arrow-back" slot="start" aria-hidden="true" />
           Retour
         </ion-button>
       }
 
-      <ion-button
-        class="action-button w-full"
-        expand="block"
-        [disabled]="!canAdvance()"
-        (click)="onNext()"
-      >
+      <ion-button class="action-button w-full" expand="block" [disabled]="!canAdvance()" (click)="onNext()">
         {{ isFinalStep() ? 'Valider mes réponses' : 'Suivant' }}
         <ion-icon [name]="isFinalStep() ? 'checkmark' : 'arrow-forward'" slot="end" aria-hidden="true" />
       </ion-button>

@@ -1,4 +1,25 @@
-:host { display: block; flex-shrink: 0; }
-.phase-timer { display: flex; min-height: 36px; align-items: center; justify-content: space-between; gap: 12px; }
-.phase-timer__value { flex-shrink: 0; padding: 6px 10px; border-radius: 12px; background: var(--color-layer-soft); color: var(--color-brand-600); font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 800; }
-.phase-timer--warning .phase-timer__value { background: var(--color-danger-50); color: var(--color-danger-500); }
+:host {
+  display: block;
+  flex-shrink: 0;
+}
+.phase-timer {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.phase-timer__value {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--color-layer-soft);
+  color: var(--color-brand-600);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+.phase-timer--warning .phase-timer__value {
+  background: var(--color-danger-50);
+  color: var(--color-danger-500);
+}

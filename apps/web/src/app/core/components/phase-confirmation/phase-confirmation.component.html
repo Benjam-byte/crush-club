@@ -3,14 +3,21 @@
     <ion-icon class="shrink-0 text-xl text-success-500" name="checkmark-circle" aria-hidden="true" />
     <h2 class="min-w-0 flex-1 text-sm font-extrabold text-ink-900">{{ title() }}</h2>
     @if (progressCount() !== undefined && progressRequired() !== undefined) {
-      <span class="shrink-0 text-xs font-bold text-ink-600" [attr.aria-label]="progressCount() + '/' + progressRequired() + ' ' + progressLabel()">{{ progressCount() }}/{{ progressRequired() }}</span>
+      <span
+        class="shrink-0 text-xs font-bold text-ink-600"
+        [attr.aria-label]="progressCount() + '/' + progressRequired() + ' ' + progressLabel()"
+        >{{ progressCount() }}/{{ progressRequired() }}</span
+      >
     }
   </div>
   <ng-content />
   <p class="mt-1 text-xs text-ink-500">{{ message() }}</p>
-  <app-awaiting-players [compact]="true" />
+  <app-awaiting-players />
 </section>
 @if (hasWaitingGame()) {
-  <app-waiting-game />
-  <app-waiting-game-launcher class="shrink-0 self-center" />
+  <app-waiting-game #inlineGame />
+  <!-- The modal is only offered when the layout leaves no room for the inline board. -->
+  @if (!inlineGame.isDisplayed()) {
+    <app-waiting-game-launcher class="shrink-0 self-center" />
+  }
 }

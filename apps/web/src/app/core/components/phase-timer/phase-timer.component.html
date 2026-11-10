@@ -1,4 +1,6 @@
 <div class="phase-timer" [class.phase-timer--warning]="isWarning()">
   <p class="min-w-0 text-xs font-semibold text-ink-600">{{ detail() ?? label() }}</p>
-  <span class="phase-timer__value" role="timer" [attr.aria-label]="label() + ' : ' + countdownLabel()">{{ countdownLabel() }}</span>
+  <span class="phase-timer__value" role="timer" [attr.aria-label]="label() + ' : ' + countdownLabel()">{{
+    countdownLabel()
+  }}</span>
 </div>
