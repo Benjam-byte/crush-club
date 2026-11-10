@@ -1,14 +1,12 @@
 <div class="ion-page">
+  <app-page-header title="Diagnostic" backLink="/" [showDecoration]="false" />
   <ion-content>
-    <main class="app-shell min-h-full pb-8">
-      <app-page-header title="Diagnostic" backLink="/" [showDecoration]="false" />
-
+    <!-- No footer here: the page reserves the system bar's inset itself (Android edge-to-edge, iPhone home indicator). -->
+    <main class="app-shell safe-bottom min-h-full">
       <div class="space-y-5 px-5 pt-3">
         <div>
           <h2 class="text-xl font-extrabold tracking-tight text-ink-900">Réglages de cet appareil</h2>
-          <p class="mt-2 text-sm leading-6 text-ink-600">
-            Compare la stabilité du lobby avec et sans compression.
-          </p>
+          <p class="mt-2 text-sm leading-6 text-ink-600">Compare la stabilité du lobby avec et sans compression.</p>
         </div>
 
         <section class="surface-card space-y-4 p-5" aria-label="Compression de la connexion">
@@ -21,12 +19,12 @@
             Autoriser la compression
           </ion-toggle>
           <p class="text-sm leading-6 text-ink-600">
-            Activée par défaut, sauf sur iPhone et iPad où elle est soupçonnée de couper
-            les connexions. Change-la seulement pour comparer la stabilité avec et sans compression.
+            Activée par défaut, sauf sur iPhone et iPad où elle est soupçonnée de couper les connexions. Change-la
+            seulement pour comparer la stabilité avec et sans compression.
           </p>
           <p class="rounded-2xl bg-peach-100 p-4 text-xs leading-5 text-ink-700">
-            Le changement reconnecte automatiquement cet appareil au lobby.
-            Chaque navigateur conserve son propre réglage.
+            Le changement reconnecte automatiquement cet appareil au lobby. Chaque navigateur conserve son propre
+            réglage.
           </p>
           @if (!realtime.compressionPreferenceSaved()) {
             <p class="text-xs leading-5 text-danger-500" role="alert">
@@ -52,11 +50,13 @@
             </div>
             <div class="space-y-1">
               <dt class="text-ink-600">Dernier état reçu</dt>
-              <dd class="font-bold text-ink-900">{{ (realtime.lastSnapshotAt() | date:'HH:mm:ss') ?? 'Aucun' }}</dd>
+              <dd class="font-bold text-ink-900">{{ (realtime.lastSnapshotAt() | date: 'HH:mm:ss') ?? 'Aucun' }}</dd>
             </div>
             <div class="space-y-1">
               <dt class="text-ink-600">ID du joueur enregistré</dt>
-              <dd class="break-all font-mono text-xs text-ink-900">{{ gameState.sessionPlayerId() ?? 'Aucune session' }}</dd>
+              <dd class="break-all font-mono text-xs text-ink-900">
+                {{ gameState.sessionPlayerId() ?? 'Aucune session' }}
+              </dd>
             </div>
             <div class="space-y-1">
               <dt class="text-ink-600">ID du joueur sur le WebSocket</dt>
@@ -81,7 +81,12 @@
             <p class="mt-4 text-sm leading-6 text-danger-500" role="alert">
               La session a été refusée. Les tentatives automatiques sont arrêtées : rejoins à nouveau le lobby.
             </p>
-            <ion-button class="action-button mt-4 w-full" expand="block" routerLink="/join" [queryParams]="{ code: lobbyCode() }">
+            <ion-button
+              class="action-button mt-4 w-full"
+              expand="block"
+              routerLink="/join"
+              [queryParams]="{ code: lobbyCode() }"
+            >
               Rejoindre à nouveau
             </ion-button>
           }
@@ -99,21 +104,30 @@
         <section class="surface-card space-y-4 p-5" aria-labelledby="test-heading">
           <h2 id="test-heading" class="text-base font-extrabold text-ink-900">Comparer l’API et le WebSocket</h2>
           <p class="text-sm leading-6 text-ink-600">
-            Pendant 30 secondes, les deux connexions sont testées en parallèle toutes les 5 secondes.
-            Lance le test sur les deux iPhone lorsque les coupures apparaissent.
+            Pendant 30 secondes, les deux connexions sont testées en parallèle toutes les 5 secondes. Lance le test sur
+            les deux iPhone lorsque les coupures apparaissent.
           </p>
           @if (!diagnostics.canTest()) {
             <p class="text-sm leading-6 text-ink-600">Rejoins un lobby pour tester ta session.</p>
           }
           @if (diagnostics.running()) {
-            <ion-button class="action-button action-button--secondary w-full" expand="block" (click)="diagnostics.stop()">
+            <ion-button
+              class="action-button action-button--secondary w-full"
+              expand="block"
+              (click)="diagnostics.stop()"
+            >
               Arrêter le test
             </ion-button>
             <p class="text-xs text-ink-600" role="status">
               {{ diagnostics.checking() ? 'Mesure en cours…' : 'En attente de la prochaine mesure…' }}
             </p>
           } @else {
-            <ion-button class="action-button w-full" expand="block" [disabled]="!diagnostics.canTest()" (click)="diagnostics.start()">
+            <ion-button
+              class="action-button w-full"
+              expand="block"
+              [disabled]="!diagnostics.canTest()"
+              (click)="diagnostics.start()"
+            >
               Tester pendant 30 s
             </ion-button>
           }
@@ -127,11 +141,15 @@
           <ol class="space-y-3" aria-label="Mesures API et WebSocket">
             @for (check of checks(); track check.id) {
               <li class="rounded-2xl border border-peach-100 p-4 text-xs leading-5">
-                <p class="font-bold text-ink-900">{{ check.at | date:'HH:mm:ss' }}</p>
+                <p class="font-bold text-ink-900">{{ check.at | date: 'HH:mm:ss' }}</p>
                 <p class="mt-1 text-ink-700">API : {{ apiResultLabel(check.api) }}</p>
                 <p class="text-ink-700">WebSocket : {{ websocketResultLabel(check.websocket) }}</p>
-                <p class="mt-2 break-all text-ink-600">Instance API : {{ check.api.serverInstanceId ?? 'Non reçue' }}</p>
-                <p class="break-all text-ink-600">Instance WS : {{ check.websocket.serverInstanceId ?? 'Non reçue' }}</p>
+                <p class="mt-2 break-all text-ink-600">
+                  Instance API : {{ check.api.serverInstanceId ?? 'Non reçue' }}
+                </p>
+                <p class="break-all text-ink-600">
+                  Instance WS : {{ check.websocket.serverInstanceId ?? 'Non reçue' }}
+                </p>
               </li>
             }
           </ol>
@@ -140,8 +158,8 @@
         <section class="surface-card space-y-4 p-5" aria-labelledby="history-heading">
           <h2 id="history-heading" class="text-base font-extrabold text-ink-900">Historique des connexions</h2>
           <p class="text-xs leading-5 text-ink-600">
-            Les 50 derniers événements de cette session. Le code 1006 indique une fermeture anormale,
-            sans désigner à lui seul la cause.
+            Les 50 derniers événements de cette session. Le code 1006 indique une fermeture anormale, sans désigner à
+            lui seul la cause.
           </p>
           @if (history().length === 0) {
             <p class="text-sm text-ink-600">Aucun événement enregistré.</p>
@@ -149,14 +167,18 @@
           <ol class="space-y-3">
             @for (event of history(); track event.id) {
               <li class="border-l-2 border-brand-200 pl-3 text-xs leading-5">
-                <p class="font-bold text-ink-900">{{ event.at | date:'HH:mm:ss' }} · {{ event.message }}</p>
-                @if (event.code !== undefined) { <p class="text-ink-700">Code : {{ event.code }}</p> }
-                @if (event.reason) { <p class="break-words text-ink-700">Motif : {{ event.reason }}</p> }
+                <p class="font-bold text-ink-900">{{ event.at | date: 'HH:mm:ss' }} · {{ event.message }}</p>
+                @if (event.code !== undefined) {
+                  <p class="text-ink-700">Code : {{ event.code }}</p>
+                }
+                @if (event.reason) {
+                  <p class="break-words text-ink-700">Motif : {{ event.reason }}</p>
+                }
                 @if (event.durationMs !== undefined) {
-                  <p class="text-ink-600">Durée avant coupure : {{ event.durationMs / 1000 | number:'1.1-1' }} s</p>
+                  <p class="text-ink-600">Durée avant coupure : {{ event.durationMs / 1000 | number: '1.1-1' }} s</p>
                 }
                 @if (event.retryInMs !== undefined) {
-                  <p class="text-ink-600">Nouvelle tentative dans {{ event.retryInMs / 1000 | number:'1.0-1' }} s</p>
+                  <p class="text-ink-600">Nouvelle tentative dans {{ event.retryInMs / 1000 | number: '1.0-1' }} s</p>
                 }
               </li>
             }
@@ -166,14 +188,18 @@
         <section class="surface-card space-y-3 p-5" aria-labelledby="report-heading">
           <h2 id="report-heading" class="text-base font-extrabold text-ink-900">Partager le diagnostic</h2>
           <p class="text-xs leading-5 text-ink-600">
-            Le rapport contient les mesures et identifiants de diagnostic, sans jeton de connexion,
-            photo ni réponse de jeu.
+            Le rapport contient les mesures et identifiants de diagnostic, sans jeton de connexion, photo ni réponse de
+            jeu.
           </p>
-          <ion-button class="action-button w-full" expand="block" (click)="onCopyReport()">Copier le rapport</ion-button>
+          <ion-button class="action-button w-full" expand="block" (click)="onCopyReport()"
+            >Copier le rapport</ion-button
+          >
           <ion-button class="action-button action-button--secondary w-full" expand="block" (click)="onDownloadReport()">
             Télécharger le rapport
           </ion-button>
-          @if (feedback()) { <p class="text-xs leading-5 text-ink-700" role="status">{{ feedback() }}</p> }
+          @if (feedback()) {
+            <p class="text-xs leading-5 text-ink-700" role="status">{{ feedback() }}</p>
+          }
           @if (reportText()) {
             <textarea
               class="min-h-48 w-full rounded-xl border border-brand-200 bg-white p-3 font-mono text-xs text-ink-900"

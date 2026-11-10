@@ -1,0 +1,16 @@
+@if (chips().length > 0) {
+  <ul class="player-progress grid grid-cols-2 gap-2" aria-label="Avancement des joueurs">
+    @for (chip of chips(); track chip.id) {
+      <li class="flex min-h-9 items-center gap-2 rounded-2xl border border-peach-200 bg-white px-3">
+        <ion-icon
+          class="shrink-0"
+          [class]="chip.colorClass"
+          [name]="chip.icon"
+          role="img"
+          [attr.aria-label]="chip.label"
+        />
+        <span class="min-w-0 flex-1 truncate text-xs font-bold" [title]="chip.name">{{ chip.name }}</span>
+      </li>
+    }
+  </ul>
+}

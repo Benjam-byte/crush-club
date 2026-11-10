@@ -146,6 +146,15 @@ ion-button::part(native) {
     overscroll-behavior-y: contain;
   }
 
+  /*
+   * Without a visible footer, the body reserves the system bar's inset itself: Android Chrome draws
+   * edge-to-edge under its navigation bar, and iPhones keep the home indicator. The child combinators
+   * skip the routed component's host, which Ionic also marks as .ion-page.
+   */
+  .ion-page:not(:has(> .screen-footer:not(:empty))) > ion-content > .screen-body {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+
   /* The minimum keeps a list usable when the body itself has to scroll. */
   .screen-scroll {
     min-height: 6rem;
@@ -190,6 +199,31 @@ ion-button::part(native) {
   .photo-grid > * {
     min-height: 0;
     overflow: hidden;
+  }
+
+  /* One colour per place (podiums, round results): gold, silver, bronze, then plain. */
+  [data-tier='gold'] {
+    --tier-color: var(--color-gold-500);
+    --tier-light: #f6cf73;
+    --tier-soft: var(--color-gold-50);
+  }
+
+  [data-tier='silver'] {
+    --tier-color: var(--color-silver-500);
+    --tier-light: #c2c4cf;
+    --tier-soft: var(--color-silver-50);
+  }
+
+  [data-tier='bronze'] {
+    --tier-color: var(--color-bronze-500);
+    --tier-light: #dc9b64;
+    --tier-soft: var(--color-bronze-50);
+  }
+
+  [data-tier='plain'] {
+    --tier-color: var(--color-brand-300);
+    --tier-light: var(--color-brand-200);
+    --tier-soft: var(--color-peach-100);
   }
 }
 

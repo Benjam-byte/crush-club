@@ -1,20 +1,134 @@
-.form-input {
-  min-height: 56px;
-  border: 1px solid var(--color-layer-border);
-  border-radius: 18px;
-  background: var(--color-layer-bg);
-  --color: var(--color-text-primary);
-  --highlight-color-focused: var(--color-brand-500);
-  --label-color: var(--color-text-secondary);
-  --padding-bottom: 8px;
-  --padding-end: 16px;
-  --padding-start: 16px;
-  --padding-top: 8px;
-  --placeholder-color: #9c898c;
+@use '../../core/styles/form-input';
+
+.code-card {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 16px 14px;
+  box-shadow: 0 18px 42px rgb(242 83 106 / 0.28);
+  transition: box-shadow 160ms ease;
 }
 
-.code-input {
+// Decorative ring in the corner, as on the former invitation card.
+.code-card::before {
+  position: absolute;
+  top: -40px;
+  right: -28px;
+  width: 128px;
+  height: 128px;
+  border: 22px solid rgb(255 255 255 / 0.1);
+  border-radius: 999px;
+  content: '';
+  pointer-events: none;
+}
+
+.code-card:focus-within {
+  box-shadow:
+    0 0 0 3px var(--color-brand-200),
+    0 18px 42px rgb(242 83 106 / 0.28);
+}
+
+.code-card__slots {
+  position: relative;
+  display: grid;
+  margin-top: 10px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.code-card__slot {
+  position: relative;
+  display: grid;
+  height: 60px;
+  place-items: center;
+  border: 2px dashed rgb(255 255 255 / 0.45);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.12);
+  color: var(--color-brand-600);
+  font-size: 30px;
   font-weight: 800;
-  letter-spacing: 0.16em;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.code-card__slot--filled {
+  border-style: solid;
+  border-color: transparent;
+  background: white;
+  box-shadow: 0 6px 14px rgb(89 42 50 / 0.18);
+}
+
+.code-card__slot--active {
+  border-style: solid;
+  border-color: white;
+}
+
+// Blinking caret in the next empty box.
+.code-card__slot--active:not(.code-card__slot--filled)::after {
+  width: 2px;
+  height: 28px;
+  border-radius: 1px;
+  background: white;
+  animation: code-caret-blink 1s steps(1) infinite;
+  content: '';
+}
+
+.code-card__character {
+  display: inline-block;
+  animation: code-character-pop 280ms cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+
+// Once the six characters are in, the boxes hop one after the other.
+.code-card--complete .code-card__slot--filled {
+  animation: code-complete-hop 420ms ease both;
+  animation-delay: calc(var(--slot-index, 0) * 60ms);
+}
+
+// Invisible but real: it receives focus, typing, paste and the keyboard's Go key.
+.code-card__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: transparent;
+  font-size: 16px; // Below 16px, iOS zooms in on focus.
+  outline: none;
   text-transform: uppercase;
+}
+
+.code-card__input::selection {
+  background: transparent;
+}
+
+@keyframes code-character-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.5);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes code-complete-hop {
+  0%,
+  100% {
+    transform: none;
+  }
+
+  45% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes code-caret-blink {
+  50% {
+    opacity: 0;
+  }
 }

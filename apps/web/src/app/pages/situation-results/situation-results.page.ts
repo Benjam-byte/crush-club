@@ -5,9 +5,11 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
-import type { SituationRoundResultView } from '@core/models/game.models';
 import { GameStateService } from '@core/services/game-state.service';
 import { placeLabel, pointsForPlace, pointsLabel } from '@core/services/situation-points';
+
+// Matches the gap between the carousel cards in the stylesheet.
+const carouselGapPx = 12;
 
 @Component({
   selector: 'app-situation-results-page',
@@ -36,6 +38,8 @@ export class SituationResultsPage implements OnInit {
     }).join(' · ');
   });
   protected readonly placeLabel = placeLabel;
+  /** The team card centred in the carousel, mirrored by the dots under it. */
+  protected readonly activeCardIndex = signal(0);
 
   async ngOnInit(): Promise<void> {
     try {
@@ -45,8 +49,25 @@ export class SituationResultsPage implements OnInit {
     }
   }
 
-  protected memberNames(result: SituationRoundResultView): string {
-    return result.members.map((member) => member.displayName).join(', ');
+  protected tierFor(rank: number): string {
+    return ['gold', 'silver', 'bronze'][rank - 1] ?? 'plain';
+  }
+
+  protected initials(displayName: string): string {
+    return displayName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('');
+  }
+
+  protected onCarouselScroll(carousel: HTMLElement): void {
+    const firstCard = carousel.firstElementChild;
+    if (!firstCard) {
+      return;
+    }
+    const cardStep = firstCard.getBoundingClientRect().width + carouselGapPx;
+    this.activeCardIndex.set(Math.round(carousel.scrollLeft / cardStep));
+  }
+
+  protected scrollToCard(carousel: HTMLElement, index: number): void {
+    carousel.children[index]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   }
 
   protected async onStartNextRound(): Promise<void> {

@@ -512,7 +512,7 @@ func (a *api) forceSituationProposalDeadline(code, roundID string) {
 	if phase != "proposing" {
 		return
 	}
-	duelIDs, err := advanceSituationBracket(ctx, tx, roundID)
+	step, err := advanceSituationBracket(ctx, tx, roundID)
 	if err != nil {
 		a.logger.Error("unable to close situation proposal window", "round_id", roundID, "error", err)
 		return
@@ -526,9 +526,7 @@ func (a *api) forceSituationProposalDeadline(code, roundID string) {
 		return
 	}
 	a.hub.publish(code)
-	for _, duelID := range duelIDs {
-		a.scheduleSituationDuelTimeout(code, duelID)
-	}
+	a.startSituationBracketTimers(code, roundID, step)
 }
 
 func (a *api) handleSubmitSituationProposal(w http.ResponseWriter, r *http.Request) {
@@ -618,9 +616,9 @@ func (a *api) handleSubmitSituationProposal(w http.ResponseWriter, r *http.Reque
 		a.internalError(w, r, err)
 		return
 	}
-	var duelIDs []string
+	var step situationBracketStep
 	if len(awaiting) == 0 {
-		duelIDs, err = advanceSituationBracket(r.Context(), tx, round.ID)
+		step, err = advanceSituationBracket(r.Context(), tx, round.ID)
 		if err != nil {
 			a.internalError(w, r, err)
 			return
@@ -635,9 +633,7 @@ func (a *api) handleSubmitSituationProposal(w http.ResponseWriter, r *http.Reque
 		a.internalError(w, r, err)
 		return
 	}
-	for _, duelID := range duelIDs {
-		a.scheduleSituationDuelTimeout(player.Code, duelID)
-	}
+	a.startSituationBracketTimers(player.Code, round.ID, step)
 	a.writeLobbyStateResponse(w, r, player, http.StatusCreated)
 }
 
@@ -664,7 +660,25 @@ func situationDuelsForWave(aliveCount int) int {
 	return duelsThisWave
 }
 
-func advanceSituationBracket(ctx context.Context, tx pgx.Tx, roundID string) ([]string, error) {
+// situationBracketStep is what a bracket advance opened. Its deadlines may
+// only start once the transaction has committed.
+type situationBracketStep struct {
+	duelIDs []string
+	// rankingOpened is true when the round moved on to the finalist ranking.
+	rankingOpened bool
+}
+
+// startSituationBracketTimers starts the deadlines of what the bracket opened.
+func (a *api) startSituationBracketTimers(code, roundID string, step situationBracketStep) {
+	for _, duelID := range step.duelIDs {
+		a.scheduleSituationDuelTimeout(code, duelID)
+	}
+	if step.rankingOpened {
+		a.scheduleSituationRankingTimeout(code, roundID)
+	}
+}
+
+func advanceSituationBracket(ctx context.Context, tx pgx.Tx, roundID string) (situationBracketStep, error) {
 	// A proposal whose backers all left the lobby has nobody left to defend
 	// it in a duel: it forfeits.
 	if _, err := tx.Exec(ctx, `
@@ -676,31 +690,33 @@ func advanceSituationBracket(ctx context.Context, tx pgx.Tx, roundID string) ([]
 		    WHERE member.round_id = $1 AND member.proposal_id = proposal.id AND player.is_active
 		  )
 	`, roundID); err != nil {
-		return nil, err
+		return situationBracketStep{}, err
 	}
 	aliveProposalIDs, err := loadAliveSituationProposalIDs(ctx, tx, roundID)
 	if err != nil {
-		return nil, err
+		return situationBracketStep{}, err
 	}
 	if len(aliveProposalIDs) == 0 {
 		// Nobody proposed anything (or every backer left): there is nothing
 		// to rank, so the round ends without points instead of waiting for a
 		// ranking nobody can submit.
 		_, err := tx.Exec(ctx, `UPDATE situation_rounds SET phase = 'results' WHERE id = $1`, roundID)
-		return nil, err
+		return situationBracketStep{}, err
 	}
 	if len(aliveProposalIDs) <= situationFinalistCount {
-		_, err := tx.Exec(ctx, `
-			UPDATE situation_rounds SET phase = 'ranking' WHERE id = $1
-		`, roundID)
-		return nil, err
+		if _, err := tx.Exec(ctx, `
+			UPDATE situation_rounds SET phase = 'ranking', ranking_deadline = $2 WHERE id = $1
+		`, roundID, time.Now().Add(situationRankingWindow)); err != nil {
+			return situationBracketStep{}, err
+		}
+		return situationBracketStep{rankingOpened: true}, nil
 	}
 
 	var nextWave int
 	if err := tx.QueryRow(ctx, `
 		SELECT COALESCE(max(wave_number), 0) + 1 FROM situation_duels WHERE round_id = $1
 	`, roundID).Scan(&nextWave); err != nil {
-		return nil, err
+		return situationBracketStep{}, err
 	}
 
 	shuffled := make([]string, len(aliveProposalIDs))
@@ -717,11 +733,11 @@ func advanceSituationBracket(ctx context.Context, tx pgx.Tx, roundID string) ([]
 		proposalB := shuffled[2*i+1]
 		representativeA, err := randomSituationGroupMember(ctx, tx, roundID, proposalA)
 		if err != nil {
-			return nil, err
+			return situationBracketStep{}, err
 		}
 		representativeB, err := randomSituationGroupMember(ctx, tx, roundID, proposalB)
 		if err != nil {
-			return nil, err
+			return situationBracketStep{}, err
 		}
 		var duelID string
 		deadline := time.Now().Add(situationDuelWindow)
@@ -733,16 +749,16 @@ func advanceSituationBracket(ctx context.Context, tx pgx.Tx, roundID string) ([]
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
 			RETURNING id
 		`, roundID, nextWave, proposalA, proposalB, representativeA, representativeB, deadline).Scan(&duelID); err != nil {
-			return nil, err
+			return situationBracketStep{}, err
 		}
 		duelIDs = append(duelIDs, duelID)
 	}
 	if duelsThisWave > 0 {
 		if _, err := tx.Exec(ctx, `UPDATE situation_rounds SET phase = 'dueling' WHERE id = $1`, roundID); err != nil {
-			return nil, err
+			return situationBracketStep{}, err
 		}
 	}
-	return duelIDs, nil
+	return situationBracketStep{duelIDs: duelIDs}, nil
 }
 
 // randomSituationGroupMember draws the active backer of a proposal who will
@@ -763,22 +779,22 @@ func randomSituationGroupMember(ctx context.Context, tx pgx.Tx, roundID, proposa
 // tryAdvanceSituationWave checks whether every duel of the round's current
 // wave has been resolved (or was never created, i.e. a fresh round) and, if
 // so, advances the bracket (next wave, or the finalist ranking).
-func tryAdvanceSituationWave(ctx context.Context, tx pgx.Tx, roundID string) ([]string, error) {
+func tryAdvanceSituationWave(ctx context.Context, tx pgx.Tx, roundID string) (situationBracketStep, error) {
 	var currentWave int
 	if err := tx.QueryRow(ctx, `
 		SELECT COALESCE(max(wave_number), 0) FROM situation_duels WHERE round_id = $1
 	`, roundID).Scan(&currentWave); err != nil {
-		return nil, err
+		return situationBracketStep{}, err
 	}
 	if currentWave > 0 {
 		var unresolvedCount int
 		if err := tx.QueryRow(ctx, `
 			SELECT count(*) FROM situation_duels WHERE round_id = $1 AND wave_number = $2 AND resolved_at IS NULL
 		`, roundID, currentWave).Scan(&unresolvedCount); err != nil {
-			return nil, err
+			return situationBracketStep{}, err
 		}
 		if unresolvedCount > 0 {
-			return nil, nil
+			return situationBracketStep{}, nil
 		}
 	}
 	return advanceSituationBracket(ctx, tx, roundID)
@@ -873,14 +889,16 @@ func (a *api) handleVoteSituationDuel(w http.ResponseWriter, r *http.Request) {
 		voteB = &input.ProposalID
 	}
 
-	var duelIDs []string
+	var roundID string
+	var step situationBracketStep
 	if voteA != nil && voteB != nil && *voteA == *voteB {
-		roundID, err := resolveSituationDuel(r.Context(), tx, duelID, *voteA)
+		var err error
+		roundID, err = resolveSituationDuel(r.Context(), tx, duelID, *voteA)
 		if err != nil {
 			a.internalError(w, r, err)
 			return
 		}
-		duelIDs, err = tryAdvanceSituationWave(r.Context(), tx, roundID)
+		step, err = tryAdvanceSituationWave(r.Context(), tx, roundID)
 		if err != nil {
 			a.internalError(w, r, err)
 			return
@@ -895,9 +913,7 @@ func (a *api) handleVoteSituationDuel(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	for _, id := range duelIDs {
-		a.scheduleSituationDuelTimeout(player.Code, id)
-	}
+	a.startSituationBracketTimers(player.Code, roundID, step)
 	a.writeLobbyStateResponse(w, r, player, http.StatusOK)
 }
 
@@ -944,7 +960,7 @@ func (a *api) forceSituationDuelDeadline(code, duelID string) {
 		a.logger.Error("unable to resolve situation duel at deadline", "duel_id", duelID, "error", err)
 		return
 	}
-	duelIDs, err := tryAdvanceSituationWave(ctx, tx, roundID)
+	step, err := tryAdvanceSituationWave(ctx, tx, roundID)
 	if err != nil {
 		a.logger.Error("unable to advance situation bracket after duel deadline", "duel_id", duelID, "error", err)
 		return
@@ -958,9 +974,55 @@ func (a *api) forceSituationDuelDeadline(code, duelID string) {
 		return
 	}
 	a.hub.publish(code)
-	for _, id := range duelIDs {
-		a.scheduleSituationDuelTimeout(code, id)
+	a.startSituationBracketTimers(code, roundID, step)
+}
+
+func (a *api) scheduleSituationRankingTimeout(code, roundID string) {
+	time.AfterFunc(situationRankingWindow, func() {
+		a.forceSituationRankingDeadline(code, roundID)
+	})
+}
+
+// forceSituationRankingDeadline scores the round with the rankings already
+// sent once the ranking window expired; players who did not rank are skipped.
+func (a *api) forceSituationRankingDeadline(code, roundID string) {
+	ctx := context.Background()
+	tx, err := a.pool.Begin(ctx)
+	if err != nil {
+		a.logger.Error("unable to begin situation ranking deadline transaction", "round_id", roundID, "error", err)
+		return
 	}
+	defer tx.Rollback(ctx)
+
+	var phase, lobbyID string
+	if err := tx.QueryRow(ctx, `
+		SELECT round.phase, game.lobby_id
+		FROM situation_rounds AS round
+		JOIN situation_games AS game ON game.id = round.game_id
+		WHERE round.id = $1
+		FOR UPDATE OF round
+	`, roundID).Scan(&phase, &lobbyID); err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			a.logger.Error("unable to load situation round for ranking deadline", "round_id", roundID, "error", err)
+		}
+		return
+	}
+	if phase != "ranking" {
+		return
+	}
+	if err := concludeSituationFinalRanking(ctx, tx, roundID); err != nil {
+		a.logger.Error("unable to conclude situation ranking at deadline", "round_id", roundID, "error", err)
+		return
+	}
+	if err := bumpLobbyRevision(ctx, tx, lobbyID); err != nil {
+		a.logger.Error("unable to bump lobby revision for situation ranking deadline", "round_id", roundID, "error", err)
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		a.logger.Error("unable to commit situation ranking deadline transition", "round_id", roundID, "error", err)
+		return
+	}
+	a.hub.publish(code)
 }
 
 func (a *api) handleSubmitSituationRanking(w http.ResponseWriter, r *http.Request) {
@@ -1041,8 +1103,8 @@ func (a *api) handleSubmitSituationRanking(w http.ResponseWriter, r *http.Reques
 }
 
 // tryConcludeSituationFinalRanking scores the round and opens its results
-// once every active player ranked the finalists. This step has no deadline,
-// so a departure must be able to conclude it too.
+// once every active player ranked the finalists, before the deadline: a
+// departure must be able to conclude it too.
 func tryConcludeSituationFinalRanking(ctx context.Context, tx pgx.Tx, lobbyID, roundID string) (concluded bool, err error) {
 	awaiting, err := situationRankingAwaitingIDs(ctx, tx, lobbyID, roundID)
 	if err != nil {
@@ -1051,17 +1113,24 @@ func tryConcludeSituationFinalRanking(ctx context.Context, tx pgx.Tx, lobbyID, r
 	if len(awaiting) > 0 {
 		return false, nil
 	}
-	candidateIDs, err := loadAliveSituationProposalIDs(ctx, tx, roundID)
-	if err != nil {
-		return false, err
-	}
-	if err := scoreSituationRound(ctx, tx, roundID, candidateIDs); err != nil {
-		return false, err
-	}
-	if _, err := tx.Exec(ctx, `UPDATE situation_rounds SET phase = 'results' WHERE id = $1`, roundID); err != nil {
+	if err := concludeSituationFinalRanking(ctx, tx, roundID); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+// concludeSituationFinalRanking scores the round with the rankings sent so
+// far and opens its results.
+func concludeSituationFinalRanking(ctx context.Context, tx pgx.Tx, roundID string) error {
+	candidateIDs, err := loadAliveSituationProposalIDs(ctx, tx, roundID)
+	if err != nil {
+		return err
+	}
+	if err := scoreSituationRound(ctx, tx, roundID, candidateIDs); err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `UPDATE situation_rounds SET phase = 'results' WHERE id = $1`, roundID)
+	return err
 }
 
 // scoreSituationRound runs a Borda count (same weighting as tallyThemeRanking:
@@ -1391,17 +1460,19 @@ type situationRoundRow struct {
 	ThemeLabel       string
 	Phase            string
 	ProposalDeadline time.Time
+	// RankingDeadline is set once the round reaches the finalist ranking.
+	RankingDeadline *time.Time
 }
 
 func loadCurrentSituationRound(ctx context.Context, db dbQuerier, gameID string) (situationRoundRow, error) {
 	var round situationRoundRow
 	err := db.QueryRow(ctx, `
-		SELECT id, round_number, theme_label, phase, proposal_deadline
+		SELECT id, round_number, theme_label, phase, proposal_deadline, ranking_deadline
 		FROM situation_rounds
 		WHERE game_id = $1
 		ORDER BY round_number DESC
 		LIMIT 1
-	`, gameID).Scan(&round.ID, &round.RoundNumber, &round.ThemeLabel, &round.Phase, &round.ProposalDeadline)
+	`, gameID).Scan(&round.ID, &round.RoundNumber, &round.ThemeLabel, &round.Phase, &round.ProposalDeadline, &round.RankingDeadline)
 	return round, err
 }
 
@@ -1689,6 +1760,7 @@ func (a *api) loadSituationState(ctx context.Context, currentPlayer authenticate
 				return situationStateView{}, err
 			}
 			view.RankingCandidates = candidates
+			view.RankingDeadline = round.RankingDeadline
 			var submitted bool
 			if err := a.pool.QueryRow(ctx, `
 				SELECT EXISTS(SELECT 1 FROM situation_final_rankings WHERE round_id = $1 AND voter_player_id = $2)

@@ -15,6 +15,7 @@ import { WaitingCardComponent } from '../../core/components/waiting-card/waiting
 import { WaitingGameLauncherComponent } from '../../core/components/waiting-game-launcher/waiting-game-launcher.component';
 import { GameStateService } from '../../core/services/game-state.service';
 import { GameConfigService } from '../../core/services/game-config.service';
+import { SessionMenuService } from '../../core/services/session-menu.service';
 
 @Component({
   selector: 'app-lobby-page',
@@ -36,6 +37,7 @@ import { GameConfigService } from '../../core/services/game-config.service';
 export class LobbyPage implements OnInit {
   protected readonly gameState = inject(GameStateService);
   protected readonly gameConfigs = inject(GameConfigService);
+  protected readonly sessionMenu = inject(SessionMenuService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -209,13 +211,5 @@ export class LobbyPage implements OnInit {
 
   protected initials(displayName: string): string {
     return displayName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('');
-  }
-
-  protected async onExcludePlayer(playerId: string): Promise<void> {
-    try {
-      await this.gameState.excludePlayer(playerId);
-    } catch {
-      // GameState exposes the API error.
-    }
   }
 }

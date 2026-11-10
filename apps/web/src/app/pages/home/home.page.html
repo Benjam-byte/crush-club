@@ -34,7 +34,11 @@
           mieux le groupe.
         </p>
 
-        <div class="profile-stack relative min-h-0 flex-1 w-full max-w-[340px]" aria-label="Aperçu des profils du jeu">
+        <!-- The stack is capped in height; the auto margins center it in the room left on tall phones. -->
+        <div
+          class="profile-stack relative my-auto min-h-0 w-full max-w-[340px] flex-1"
+          aria-label="Aperçu des profils du jeu"
+        >
           <article class="profile-card profile-card--left" aria-hidden="true">
             <app-profile-portrait class="block h-full" [avatarIndex]="1" alt="" />
           </article>

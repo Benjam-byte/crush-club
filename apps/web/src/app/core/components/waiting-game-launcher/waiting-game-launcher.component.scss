@@ -1,12 +1,14 @@
 :host {
   display: inline-block;
 }
+
 ion-modal {
   --width: min(100%, 540px);
   --height: min(640px, 100%);
   --border-radius: 24px;
   --background: var(--color-layer-bg);
 }
+
 .game-modal-body {
   display: flex;
   height: 100%;
@@ -14,4 +16,76 @@ ion-modal {
   flex-direction: column;
   gap: 12px;
   padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+}
+
+// Pops in once, then wiggles every few seconds until the player opens the game.
+.featured-launcher {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--color-lover-500), var(--color-brand-500));
+  box-shadow: 0 10px 24px rgb(142 98 199 / 0.3);
+  color: white;
+  font-size: 14px;
+  font-weight: 800;
+  animation:
+    launcher-enter 420ms cubic-bezier(0.3, 1.5, 0.5, 1) 250ms both,
+    launcher-wiggle 3s ease-in-out 1.4s infinite;
+}
+
+.featured-launcher ion-icon {
+  font-size: 18px;
+}
+
+.featured-launcher:active {
+  scale: 0.96;
+}
+
+.featured-launcher--settled {
+  animation: launcher-enter 420ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+.featured-launcher:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 3px;
+}
+
+@keyframes launcher-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.85);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+// Uses rotate, not transform, so it never fights the entrance animation.
+@keyframes launcher-wiggle {
+  0%,
+  80%,
+  100% {
+    rotate: 0deg;
+  }
+
+  84% {
+    rotate: -5deg;
+  }
+
+  88% {
+    rotate: 5deg;
+  }
+
+  92% {
+    rotate: -3deg;
+  }
+
+  96% {
+    rotate: 2deg;
+  }
 }

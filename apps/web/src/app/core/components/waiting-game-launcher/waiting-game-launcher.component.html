@@ -1,6 +1,13 @@
-<button class="min-h-11 px-1 text-xs font-extrabold text-brand-600" type="button" (click)="isOpen.set(true)">
-  Jouer en attendant
-</button>
+@if (featured()) {
+  <button class="featured-launcher" [class.featured-launcher--settled]="hasOpenedGame()" type="button" (click)="open()">
+    <ion-icon name="game-controller" aria-hidden="true" />
+    Jouer en attendant
+  </button>
+} @else {
+  <button class="min-h-11 px-1 text-xs font-extrabold text-brand-600" type="button" (click)="open()">
+    Jouer en attendant
+  </button>
+}
 <ion-modal
   [isOpen]="isOpen()"
   [backdropDismiss]="false"

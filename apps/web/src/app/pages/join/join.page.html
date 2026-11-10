@@ -12,17 +12,49 @@
       <form id="join-form" class="flex flex-col gap-3" [formGroup]="joinForm" (ngSubmit)="onSubmit()">
         @if (!isCreateMode()) {
           <div>
-            <ion-input
-              class="form-input code-input"
-              formControlName="lobbyCode"
-              label="Code du lobby"
-              labelPlacement="stacked"
-              maxlength="6"
-              placeholder="AB7K"
-              autocomplete="off"
-              inputmode="text"
-              (ionInput)="onLobbyCodeInput()"
-            />
+            <div class="hero-card code-card" [class.code-card--complete]="lobbyCodeCharacters().length === 6">
+              <label class="text-xs font-extrabold uppercase tracking-[0.16em] text-white/80" for="lobby-code">
+                Code du lobby
+              </label>
+              <div class="code-card__slots">
+                @for (slotIndex of codeSlotIndexList; track slotIndex) {
+                  @let character = lobbyCodeCharacters()[slotIndex];
+                  <span
+                    class="code-card__slot"
+                    [style.--slot-index]="slotIndex"
+                    [class.code-card__slot--filled]="character"
+                    [class.code-card__slot--active]="isLobbyCodeFocused() && slotIndex === activeCodeSlot()"
+                    aria-hidden="true"
+                  >
+                    @if (character) {
+                      <span
+                        class="code-card__character"
+                        [style.animation-delay.ms]="isRevealingInvitation() ? slotIndex * 90 : 0"
+                      >
+                        {{ character }}
+                      </span>
+                    }
+                  </span>
+                }
+                <!-- The real input lies invisible over the boxes: typing, pasting and the keyboard all stay native. -->
+                <input
+                  id="lobby-code"
+                  class="code-card__input"
+                  formControlName="lobbyCode"
+                  maxlength="6"
+                  autocomplete="off"
+                  autocapitalize="characters"
+                  spellcheck="false"
+                  enterkeyhint="go"
+                  (input)="onLobbyCodeInput()"
+                  (focus)="isLobbyCodeFocused.set(true)"
+                  (blur)="isLobbyCodeFocused.set(false)"
+                  (click)="keepCaretAtEnd($event)"
+                  (keyup)="keepCaretAtEnd($event)"
+                />
+              </div>
+              <p class="mt-2 text-xs text-white/80">Demande les 6 caractères à l’hôte de la partie.</p>
+            </div>
             @if (hasSubmitted() && joinForm.controls.lobbyCode.invalid) {
               <p class="mt-2 flex items-center gap-2 text-xs font-semibold text-danger-500">
                 <ion-icon name="close" aria-hidden="true" />
@@ -69,14 +101,13 @@
               <ion-select-option value="wavelength">Wavelength · dès 2 joueurs (4+ recommandé)</ion-select-option>
               <ion-select-option value="secret_ranking">Le classement secret · 3 à 10 joueurs</ion-select-option>
             </ion-select>
-            <div class="mt-1 flex items-start gap-2">
-              <p class="min-w-0 flex-1 pt-1 text-xs leading-5 text-ink-500">{{ modeDescription().summary }}</p>
-              @if (modeDescription().details; as details) {
-                <app-info-sheet label="En savoir plus">
-                  <p class="text-sm leading-6 text-ink-700">{{ details }}</p>
-                </app-info-sheet>
-              }
-            </div>
+            <p class="mt-2 text-xs leading-5 text-ink-500">{{ modeDescription().summary }}</p>
+            @if (modeDescription().details; as details) {
+              <!-- On its own line under the summary; the negative margin aligns its text with the summary. -->
+              <app-info-sheet class="-mb-2 -ml-1" label="En savoir plus">
+                <p class="text-sm leading-6 text-ink-700">{{ details }}</p>
+              </app-info-sheet>
+            }
           </div>
 
           @if (selectedMode() === 'classic') {

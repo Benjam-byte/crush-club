@@ -12,7 +12,12 @@
   </div>
   <ng-content />
   <p class="mt-1 text-xs text-ink-500">{{ message() }}</p>
-  <app-awaiting-players />
+  <!-- Phases with a progress count show everyone's status; other waits only name who is late. -->
+  @if (progressRequired() !== undefined) {
+    <app-player-progress class="mt-2" />
+  } @else {
+    <app-awaiting-players />
+  }
 </section>
 @if (hasWaitingGame()) {
   <app-waiting-game #inlineGame />

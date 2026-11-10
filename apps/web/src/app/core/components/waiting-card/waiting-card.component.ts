@@ -13,4 +13,6 @@ import { WaitingGameLauncherComponent } from '../waiting-game-launcher/waiting-g
 })
 export class WaitingCardComponent {
   readonly title = input.required<string>();
+  /** Off where the page already shows the featured mini-game button. */
+  readonly showGameLauncher = input(true);
 }

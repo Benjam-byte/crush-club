@@ -1,0 +1,24 @@
+// Shared look of text fields (ion-input, ion-textarea, ion-select). Pages `@use` this partial so the
+// rule is scoped to them: with Angular's attribute it outranks Ionic's own scoped field styles.
+.form-input {
+  min-height: 56px;
+  border: 1px solid var(--color-layer-border);
+  border-radius: 18px;
+  background: white;
+  box-shadow: 0 4px 12px rgb(89 42 50 / 0.05);
+  --color: var(--color-text-primary);
+  --highlight-color-focused: var(--color-brand-500);
+  --label-color: var(--color-text-secondary);
+  --padding-bottom: 8px;
+  --padding-end: 16px;
+  --padding-start: 16px;
+  --padding-top: 8px;
+  --placeholder-color: #9c898c;
+}
+
+// The one field of a screen, given room to breathe.
+.form-input--large {
+  min-height: 68px;
+  font-size: 18px;
+  font-weight: 700;
+}

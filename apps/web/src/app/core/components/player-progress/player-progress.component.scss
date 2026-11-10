@@ -1,0 +1,10 @@
+:host {
+  display: block;
+}
+
+// About four rows: the mini-game below keeps the rest of the screen.
+.player-progress {
+  max-height: 9.5rem;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}

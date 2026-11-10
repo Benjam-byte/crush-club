@@ -49,6 +49,7 @@ const (
 	situationRoundCount     = 3
 	situationProposalWindow = 2 * time.Minute
 	situationDuelWindow     = 1 * time.Minute
+	situationRankingWindow  = 90 * time.Second
 	situationFinalistCount  = 4
 
 	wavelengthClueWindow  = 90 * time.Second
@@ -398,6 +399,7 @@ type situationStateView struct {
 	RoundPhase                 string                        `json:"roundPhase,omitempty"`
 	ThemeLabel                 string                        `json:"themeLabel,omitempty"`
 	ProposalDeadline           *time.Time                    `json:"proposalDeadline,omitempty"`
+	RankingDeadline            *time.Time                    `json:"rankingDeadline,omitempty"`
 	Submitted                  bool                          `json:"submitted"`
 	SubmissionProgressCount    int                           `json:"submissionProgressCount"`
 	SubmissionProgressRequired int                           `json:"submissionProgressRequired"`

@@ -18,59 +18,64 @@
 
       @if (gameState.themeSelectionState()?.phase === 'collecting_themes') {
         @if (!gameState.themeSelectionState()?.themeSubmitted) {
-          <header class="text-center">
-            <h1 class="mt-2 text-lg font-extrabold text-ink-900">
-              {{
-                gameState.isWavelengthMode()
-                  ? 'Propose un spectre'
-                  : gameState.isSecretRankingMode()
-                    ? 'Propose une question'
-                    : 'Propose un thème'
-              }}
-            </h1>
-            <p class="mt-1 text-xs text-ink-600">Facultatif · {{ proposalExample() }}</p>
+          <!-- The only task of the screen: centered in the free height, with room around it. -->
+          <section class="my-auto flex flex-col gap-6 py-2">
+            <header class="text-center">
+              <h1 class="text-2xl font-extrabold tracking-tight text-ink-900">
+                {{
+                  gameState.isWavelengthMode()
+                    ? 'Propose un spectre'
+                    : gameState.isSecretRankingMode()
+                      ? 'Propose une question'
+                      : 'Propose un thème'
+                }}
+              </h1>
+              <p class="mt-2 text-sm text-ink-600">Facultatif · {{ proposalExample() }}</p>
+              @if (gameState.isWavelengthMode()) {
+                <p class="mt-1 text-xs text-ink-500">{{ wavelengthProposalHint() }}</p>
+              }
+            </header>
             @if (gameState.isWavelengthMode()) {
-              <p class="mt-1 text-xs text-ink-500">{{ wavelengthProposalHint() }}</p>
+              <form
+                id="spectrum-form"
+                class="flex flex-col gap-4"
+                [formGroup]="spectrumForm"
+                (ngSubmit)="onSubmitSpectrum()"
+              >
+                <ion-input
+                  class="form-input form-input--large"
+                  formControlName="left"
+                  label="Pôle gauche"
+                  labelPlacement="stacked"
+                  maxlength="40"
+                  placeholder="Red flag"
+                />
+                <ion-input
+                  class="form-input form-input--large"
+                  formControlName="right"
+                  label="Pôle droit"
+                  labelPlacement="stacked"
+                  maxlength="40"
+                  placeholder="Green flag"
+                />
+                <!-- Lets the keyboard's Go key submit: the visible button sits in the footer, outside the form. -->
+                <button class="sr-only" type="submit" tabindex="-1" aria-hidden="true"></button>
+              </form>
+            } @else {
+              <form id="theme-form" [formGroup]="themeForm" (ngSubmit)="onSubmitTheme()">
+                <ion-input
+                  class="form-input form-input--large"
+                  formControlName="theme"
+                  [label]="gameState.isSecretRankingMode() ? secretRankingQuestionStart + ' de…' : 'Ton thème'"
+                  labelPlacement="stacked"
+                  maxlength="80"
+                  [placeholder]="
+                    gameState.isSecretRankingMode() ? 'manger un insecte vivant' : 'Résister à un fou rire…'
+                  "
+                />
+              </form>
             }
-          </header>
-          @if (gameState.isWavelengthMode()) {
-            <form
-              id="spectrum-form"
-              class="flex flex-col gap-3"
-              [formGroup]="spectrumForm"
-              (ngSubmit)="onSubmitSpectrum()"
-            >
-              <ion-input
-                class="form-input"
-                formControlName="left"
-                label="Pôle gauche"
-                labelPlacement="stacked"
-                maxlength="40"
-                placeholder="Red flag"
-              />
-              <ion-input
-                class="form-input"
-                formControlName="right"
-                label="Pôle droit"
-                labelPlacement="stacked"
-                maxlength="40"
-                placeholder="Green flag"
-              />
-              <!-- Lets the keyboard's Go key submit: the visible button sits in the footer, outside the form. -->
-              <button class="sr-only" type="submit" tabindex="-1" aria-hidden="true"></button>
-            </form>
-          } @else {
-            <form id="theme-form" class="flex flex-col gap-3" [formGroup]="themeForm" (ngSubmit)="onSubmitTheme()">
-              <ion-input
-                class="form-input"
-                formControlName="theme"
-                [label]="gameState.isSecretRankingMode() ? secretRankingQuestionStart + ' de…' : 'Ton thème'"
-                labelPlacement="stacked"
-                maxlength="80"
-                [placeholder]="gameState.isSecretRankingMode() ? 'manger un insecte vivant' : 'Résister à un fou rire…'"
-              />
-            </form>
-          }
+          </section>
         } @else {
           <app-phase-confirmation
             title="Proposition envoyée !"

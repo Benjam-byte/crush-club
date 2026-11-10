@@ -1,3 +1,107 @@
 :host {
   display: block;
 }
+
+// Bleeds to the screen edges so the next card peeks in; place colours come from the global [data-tier] rules.
+.results-carousel {
+  display: flex;
+  min-height: 15rem;
+  flex: 1 1 0;
+  gap: 12px; // Kept in sync with carouselGapPx in the component.
+  margin-inline: -20px;
+  padding: 4px 20px 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 20px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.results-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.result-card {
+  display: flex;
+  min-height: 0;
+  flex: 0 0 82%;
+  flex-direction: column;
+  padding: 14px;
+  overflow-y: auto;
+  border: 2px solid var(--tier-color);
+  border-radius: 24px;
+  background: linear-gradient(180deg, var(--tier-soft), white 45%);
+  box-shadow: var(--shadow-card);
+  scroll-snap-align: center;
+}
+
+.result-card--mine {
+  box-shadow:
+    0 0 0 3px rgb(242 83 106 / 0.18),
+    var(--shadow-card);
+}
+
+.result-card__rank {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--tier-color);
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.result-card__points {
+  color: var(--color-ink-900);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.result-card__token {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 3px solid var(--tier-color);
+  border-radius: 999px;
+  background: white;
+  color: var(--tier-color);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.result-card__reason {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: white;
+  color: var(--color-ink-700);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+// A 24px tap target around an 8px dot.
+.carousel-dot {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+}
+
+.carousel-dot::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-layer-border);
+  content: '';
+  transition:
+    width 160ms ease,
+    background 160ms ease;
+}
+
+.carousel-dot--active::before {
+  width: 20px;
+  background: var(--color-brand-500);
+}

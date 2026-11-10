@@ -396,6 +396,7 @@ export interface SituationStateView extends ThemeSelectionState {
   roundPhase?: SituationRoundPhase
   themeLabel?: string
   proposalDeadline?: string
+  rankingDeadline?: string
   submitted: boolean
   submissionProgressCount?: number
   submissionProgressRequired?: number

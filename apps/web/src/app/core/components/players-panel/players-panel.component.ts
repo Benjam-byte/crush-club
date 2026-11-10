@@ -1,10 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { AlertController, IonButton, IonContent, IonIcon, IonModal } from '@ionic/angular/standalone';
+import { IonButton, IonContent, IonIcon, IonModal } from '@ionic/angular/standalone';
 import type { LobbyPlayer } from '@core/models/game.models';
 import { GameStateService } from '../../services/game-state.service';
 import { SessionMenuService } from '../../services/session-menu.service';
-
-const confirmRole = 'confirm';
 
 /**
  * Everyone in the lobby, opened from the "…" menu. The host answers join requests and can remove
@@ -18,7 +16,6 @@ const confirmRole = 'confirm';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PlayersPanelComponent {
-  private readonly alertController = inject(AlertController);
   protected readonly gameState = inject(GameStateService);
   protected readonly sessionMenu = inject(SessionMenuService);
 
@@ -31,21 +28,7 @@ export class PlayersPanelComponent {
   }
 
   protected async onKick(player: LobbyPlayer): Promise<void> {
-    const alert = await this.alertController.create({
-      header: `Exclure ${player.displayName} ?`,
-      message: this.gameState.lobbyStatus() === 'in_game'
-        ? 'La partie continuera sans ce joueur. Pour revenir, il devra demander à rejoindre et attendre ton accord.'
-        : 'Ce joueur perdra sa place dans le lobby.',
-      buttons: [
-        { text: 'Annuler', role: 'cancel' },
-        { text: 'Exclure', role: confirmRole },
-      ],
-    });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-    if (role === confirmRole) {
-      await this.ignoreReportedFailure(this.gameState.kickPlayer(player.id));
-    }
+    await this.sessionMenu.confirmKick(player);
   }
 
   /** A failed command is already shown by the global error toast. */

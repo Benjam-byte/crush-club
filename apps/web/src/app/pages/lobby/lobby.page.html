@@ -36,6 +36,7 @@
             <span class="text-xs text-ink-500">Manche {{ nextRoundNumber() }}/{{ gameState.game()?.totalRounds }}</span>
           </p>
         </div>
+        <div class="flex shrink-0 justify-center"><app-waiting-game-launcher [featured]="true" /></div>
         <ol class="screen-scroll divide-y divide-peach-100" aria-label="Classement cumulé">
           @for (entry of leaderboard(); track entry.playerId; let rank = $index) {
             <li class="flex min-h-12 items-center gap-3 py-2">
@@ -82,6 +83,10 @@
             <p class="text-xs text-danger-500">{{ error }}</p>
           }
         }
+        <!-- A classic player still has photos to prepare: the game would only distract from that. -->
+        @if (gameState.isUncappedMode() || gameState.currentPlayer().readyStatus === 'ready') {
+          <div class="flex shrink-0 justify-center"><app-waiting-game-launcher [featured]="true" /></div>
+        }
         <ul class="screen-scroll grid auto-rows-min grid-cols-2 gap-2" aria-label="Joueurs du lobby">
           @for (player of gameState.playerList(); track player.id) {
             @let status = playerStatus(player);
@@ -96,13 +101,14 @@
               <span class="min-w-0 flex-1 truncate text-xs font-bold" [title]="player.displayName">
                 {{ player.displayName }}{{ player.isHost ? ' · hôte' : '' }}{{ player.isCurrentPlayer ? ' · toi' : '' }}
               </span>
-              @if (gameState.canExcludePlayer(player)) {
+              <!-- The host removes players right from their card; later screens keep it in the "…" menu. -->
+              @if (gameState.canKickPlayer(player)) {
                 <button
-                  class="grid size-11 shrink-0 place-items-center text-danger-500"
+                  class="grid size-11 shrink-0 place-items-center text-danger-500 disabled:opacity-50"
                   type="button"
                   [attr.aria-label]="'Exclure ' + player.displayName"
-                  [disabled]="!gameState.isRealtimeConnected() || gameState.isExcludingPlayer(player.id)"
-                  (click)="onExcludePlayer(player.id)"
+                  [disabled]="!gameState.isRealtimeConnected() || gameState.isModeratingPlayer(player.id)"
+                  (click)="sessionMenu.confirmKick(player)"
                 >
                   <ion-icon name="close" aria-hidden="true" />
                 </button>
@@ -127,7 +133,7 @@
           <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
         </ion-button>
       } @else {
-        <app-waiting-card title="En attente de l’hôte" />
+        <app-waiting-card title="En attente de l’hôte" [showGameLauncher]="false" />
       }
     } @else if (gameState.game()?.phase === 'between_rounds' && gameState.game()?.isParticipant) {
       @if (gameState.isHost()) {
@@ -148,7 +154,7 @@
           <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
         </ion-button>
       } @else {
-        <app-waiting-card title="En attente de l’hôte" />
+        <app-waiting-card title="En attente de l’hôte" [showGameLauncher]="false" />
       }
     } @else if (gameState.currentPlayer().readyStatus !== 'ready') {
       <ion-button class="action-button w-full" expand="block" (click)="onPreparePhotos()">
@@ -168,10 +174,7 @@
         <ion-icon name="arrow-forward" slot="end" aria-hidden="true" />
       </ion-button>
     } @else {
-      <app-waiting-card title="En attente de l’hôte" />
-    }
-    @if (gameState.isHost()) {
-      <div class="text-center"><app-waiting-game-launcher /></div>
+      <app-waiting-card title="En attente de l’hôte" [showGameLauncher]="false" />
     }
   </footer>
   <ion-toast

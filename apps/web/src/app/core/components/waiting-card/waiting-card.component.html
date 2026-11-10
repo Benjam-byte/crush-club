@@ -1,8 +1,10 @@
-<div class="flex items-center gap-2" role="status">
+<div class="flex items-center justify-center gap-2" role="status">
   <ion-icon class="shrink-0 text-brand-500" name="hourglass-outline" aria-hidden="true" />
   <p class="min-w-0 truncate text-sm font-extrabold text-ink-900">{{ title() }}</p>
 </div>
-<div class="flex items-center justify-between gap-2">
-  <app-awaiting-players class="min-w-0 flex-1" />
-  <app-waiting-game-launcher class="shrink-0" />
+<div class="flex items-center justify-center gap-2">
+  <app-awaiting-players class="min-w-0" />
+  @if (showGameLauncher()) {
+    <app-waiting-game-launcher class="shrink-0" />
+  }
 </div>

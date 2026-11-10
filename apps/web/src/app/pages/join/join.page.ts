@@ -90,6 +90,13 @@ export class JoinPage {
     .replace(/[^a-zA-Z0-9]/g, '')
     .toUpperCase()
     .slice(0, 6);
+  /** Lobby codes are six characters, one box each on the code card. */
+  protected readonly codeSlotIndexList = [0, 1, 2, 3, 4, 5];
+  protected readonly lobbyCodeCharacters = signal(this.invitedLobbyCode);
+  protected readonly activeCodeSlot = computed(() => Math.min(this.lobbyCodeCharacters().length, 5));
+  protected readonly isLobbyCodeFocused = signal(false);
+  /** An invitation link fills the boxes one after the other; typed characters appear at once. */
+  protected readonly isRevealingInvitation = signal(this.invitedLobbyCode.length > 0);
 
   protected readonly joinForm = new FormGroup({
     lobbyCode: new FormControl(this.invitedLobbyCode, {
@@ -180,6 +187,14 @@ export class JoinPage {
     this.joinForm.controls.lobbyCode.setValue(normalizedCode, {
       emitEvent: false,
     });
+    this.isRevealingInvitation.set(false);
+    this.lobbyCodeCharacters.set(normalizedCode);
+  }
+
+  /** The input is invisible over the boxes, so its caret always stays after the last character. */
+  protected keepCaretAtEnd(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    input.setSelectionRange(input.value.length, input.value.length);
   }
 
   protected onModeChange(event: Event): void {

@@ -3,60 +3,83 @@
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
       @if (!gameState.situationGame()?.rankingSubmitted) {
+        @if (gameState.situationGame()?.rankingDeadline) {
+          <app-phase-timer
+            [detail]="
+              (gameState.situationGame()?.submissionProgressCount ?? 0) +
+              '/' +
+              (gameState.situationGame()?.submissionProgressRequired ?? 0) +
+              ' ont validé'
+            "
+            label="Temps restant pour classer"
+            [remainingSeconds]="remainingSeconds()"
+            [warningAt]="15"
+          />
+        }
         <div class="flex shrink-0 items-center justify-between gap-3">
           <p class="min-w-0 truncate text-sm font-bold">{{ gameState.situationGame()?.themeLabel }}</p>
-          <app-info-sheet
-            ><p class="text-sm leading-6">
+          <app-info-sheet>
+            <p class="text-sm leading-6">
               Touche les réponses de ta préférée à la moins bonne. Chaque place rapporte des points à l’équipe qui l’a
               écrite. Les points de tous les votes s’additionnent.
-            </p></app-info-sheet
-          >
+            </p>
+          </app-info-sheet>
         </div>
-        <div class="screen-scroll space-y-3">
-          <ol class="surface-card divide-y divide-peach-100" aria-label="Ton podium">
-            @for (place of podiumPlaceList(); track place.slotIndex) {
-              <li class="flex min-h-12 items-center gap-2 py-1 pl-3 pr-1">
+
+        <!-- Steps in podium order (2, 1, 3, 4); each carries the initials of the player chosen by the answer placed on it. -->
+        <ol class="podium" aria-label="Ton podium">
+          @for (step of podiumStepList(); track step.slotIndex) {
+            <li class="podium__column" [attr.data-tier]="step.tier">
+              @if (step.candidate; as candidate) {
+                <button
+                  class="podium__token"
+                  type="button"
+                  [attr.aria-label]="'Retirer ' + candidate.chosenDisplayName + ' de la ' + step.placeLabel + ' place'"
+                  (click)="onClearSlot(step.slotIndex)"
+                >
+                  {{ initials(candidate.chosenDisplayName) }}
+                </button>
+              } @else {
                 <span
-                  class="grid size-8 shrink-0 place-items-center rounded-xl text-xs font-extrabold"
-                  [class]="place.badgeClass"
-                  >{{ place.slotIndex + 1 }}</span
+                  class="podium__token podium__token--empty"
+                  [class.podium__token--next]="step.slotIndex === nextFreeSlotIndex()"
+                  [attr.aria-label]="step.placeLabel + ' place libre'"
+                  role="img"
+                  >?</span
                 >
+              }
+              <div class="podium__step" [style.height.px]="step.heightPx">
+                <span class="podium__place">{{ step.slotIndex + 1 }}</span>
+                <span class="podium__points">{{ step.pointsText }}</span>
+              </div>
+            </li>
+          }
+        </ol>
+
+        <ul class="screen-scroll space-y-2" aria-label="Réponses à classer">
+          @for (card of candidateCardList(); track card.candidate.id) {
+            <li>
+              <button
+                class="candidate-card"
+                type="button"
+                [attr.data-tier]="card.tier"
+                [attr.aria-pressed]="card.slotIndex !== null"
+                (click)="onToggleCandidate(card)"
+              >
+                <span class="candidate-card__token" aria-hidden="true">{{
+                  initials(card.candidate.chosenDisplayName)
+                }}</span>
                 <span class="min-w-0 flex-1">
-                  @if (place.candidate; as candidate) {
-                    <span class="line-clamp-2 text-xs"
-                      ><strong>{{ candidate.chosenDisplayName }}</strong> · {{ candidate.reason }}</span
-                    >
-                  } @else {
-                    <span class="text-xs text-ink-500">{{
-                      place.slotIndex === nextFreeSlotIndex() ? 'Touche une réponse ci-dessous' : 'Place libre'
-                    }}</span>
-                  }
+                  <strong class="block truncate text-sm">{{ card.candidate.chosenDisplayName }}</strong>
+                  <span class="line-clamp-2 text-xs text-ink-600">« {{ card.candidate.reason }} »</span>
                 </span>
-                <span class="text-[10px] font-bold">{{ place.pointsText }}</span>
-                @if (place.candidate) {
-                  <button
-                    class="grid size-11 shrink-0 place-items-center text-ink-500"
-                    type="button"
-                    [attr.aria-label]="'Retirer de la ' + place.placeLabel + ' place'"
-                    (click)="onClearSlot(place.slotIndex)"
-                  >
-                    <ion-icon name="close" aria-hidden="true" />
-                  </button>
+                @if (card.slotIndex !== null) {
+                  <span class="candidate-card__place">{{ card.placeText }}</span>
                 }
-              </li>
-            }
-          </ol>
-          <div class="space-y-2" aria-label="Réponses à placer">
-            @for (candidate of unplacedCandidateList(); track candidate.id) {
-              <button class="block w-full text-left" type="button" (click)="onPlaceCandidate(candidate.id)">
-                <span class="block rounded-2xl border border-peach-200 bg-white px-3 py-2"
-                  ><strong class="text-sm">{{ candidate.chosenDisplayName }}</strong
-                  ><span class="line-clamp-2 text-xs text-ink-600">{{ candidate.reason }}</span></span
-                >
               </button>
-            }
-          </div>
-        </div>
+            </li>
+          }
+        </ul>
       } @else {
         <app-phase-confirmation
           title="Classement envoyé !"

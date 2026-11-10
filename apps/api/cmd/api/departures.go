@@ -240,11 +240,6 @@ func (a *api) settleSituationGame(ctx context.Context, tx pgx.Tx, code, lobbyID 
 	}
 
 	var timers phaseTimers
-	scheduleDuels := func(duelIDs []string) {
-		for _, duelID := range duelIDs {
-			timers.add(func() { a.scheduleSituationDuelTimeout(code, duelID) })
-		}
-	}
 	switch phase {
 	case "collecting_themes":
 		rankingDeadline, err := a.tryAdvanceSituationThemeCollection(ctx, tx, gameID, lobbyID, false)
@@ -277,17 +272,17 @@ func (a *api) settleSituationGame(ctx context.Context, tx pgx.Tx, code, lobbyID 
 			if err != nil || len(awaiting) > 0 {
 				return nil, err
 			}
-			duelIDs, err := advanceSituationBracket(ctx, tx, round.ID)
+			step, err := advanceSituationBracket(ctx, tx, round.ID)
 			if err != nil {
 				return nil, err
 			}
-			scheduleDuels(duelIDs)
+			timers.add(func() { a.startSituationBracketTimers(code, round.ID, step) })
 		case "dueling":
-			duelIDs, err := replaceDepartedSituationRepresentatives(ctx, tx, round.ID)
+			step, err := replaceDepartedSituationRepresentatives(ctx, tx, round.ID)
 			if err != nil {
 				return nil, err
 			}
-			scheduleDuels(duelIDs)
+			timers.add(func() { a.startSituationBracketTimers(code, round.ID, step) })
 		case "ranking":
 			if _, err := tryConcludeSituationFinalRanking(ctx, tx, lobbyID, round.ID); err != nil {
 				return nil, err
@@ -300,9 +295,9 @@ func (a *api) settleSituationGame(ctx context.Context, tx pgx.Tx, code, lobbyID 
 // replaceDepartedSituationRepresentatives hands each open duel defended by a
 // departed player to another active backer of the same proposal, whose vote
 // starts blank. A proposal nobody is left to defend forfeits its duel. It
-// returns the duels of the next wave, when a forfeit completed the current
-// one.
-func replaceDepartedSituationRepresentatives(ctx context.Context, tx pgx.Tx, roundID string) ([]string, error) {
+// returns what the bracket opened next (duels or the finalist ranking), when
+// a forfeit completed the current wave.
+func replaceDepartedSituationRepresentatives(ctx context.Context, tx pgx.Tx, roundID string) (situationBracketStep, error) {
 	type openDuel struct {
 		id                   string
 		proposalA, proposalB string
@@ -318,14 +313,14 @@ func replaceDepartedSituationRepresentatives(ctx context.Context, tx pgx.Tx, rou
 		FOR UPDATE OF duel
 	`, roundID)
 	if err != nil {
-		return nil, err
+		return situationBracketStep{}, err
 	}
 	duels := make([]openDuel, 0)
 	for rows.Next() {
 		var duel openDuel
 		if err := rows.Scan(&duel.id, &duel.proposalA, &duel.proposalB, &duel.activeA, &duel.activeB); err != nil {
 			rows.Close()
-			return nil, err
+			return situationBracketStep{}, err
 		}
 		if !duel.activeA || !duel.activeB {
 			duels = append(duels, duel)
@@ -333,7 +328,7 @@ func replaceDepartedSituationRepresentatives(ctx context.Context, tx pgx.Tx, rou
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
-		return nil, err
+		return situationBracketStep{}, err
 	}
 	rows.Close()
 
@@ -342,13 +337,13 @@ func replaceDepartedSituationRepresentatives(ctx context.Context, tx pgx.Tx, rou
 		if !duel.activeA {
 			duel.replacedA, err = randomSituationGroupMember(ctx, tx, roundID, duel.proposalA)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				return nil, err
+				return situationBracketStep{}, err
 			}
 		}
 		if !duel.activeB {
 			duel.replacedB, err = randomSituationGroupMember(ctx, tx, roundID, duel.proposalB)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				return nil, err
+				return situationBracketStep{}, err
 			}
 		}
 		forfeitA := !duel.activeA && duel.replacedA == ""
@@ -359,7 +354,7 @@ func replaceDepartedSituationRepresentatives(ctx context.Context, tx pgx.Tx, rou
 				winner = duel.proposalB
 			}
 			if _, err := resolveSituationDuel(ctx, tx, duel.id, winner); err != nil {
-				return nil, err
+				return situationBracketStep{}, err
 			}
 			resolvedAny = true
 			continue
@@ -368,19 +363,19 @@ func replaceDepartedSituationRepresentatives(ctx context.Context, tx pgx.Tx, rou
 			if _, err := tx.Exec(ctx, `
 				UPDATE situation_duels SET representative_a_player_id = $2, vote_a_proposal_id = NULL WHERE id = $1
 			`, duel.id, duel.replacedA); err != nil {
-				return nil, err
+				return situationBracketStep{}, err
 			}
 		}
 		if duel.replacedB != "" {
 			if _, err := tx.Exec(ctx, `
 				UPDATE situation_duels SET representative_b_player_id = $2, vote_b_proposal_id = NULL WHERE id = $1
 			`, duel.id, duel.replacedB); err != nil {
-				return nil, err
+				return situationBracketStep{}, err
 			}
 		}
 	}
 	if !resolvedAny {
-		return nil, nil
+		return situationBracketStep{}, nil
 	}
 	return tryAdvanceSituationWave(ctx, tx, roundID)
 }
