@@ -6,6 +6,7 @@ import { AwardListComponent } from '@core/components/award-list/award-list.compo
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { GameStateService } from '@core/services/game-state.service';
+import { SessionMenuService } from '@core/services/session-menu.service';
 import { gameAwards, groupTitle, secretRankingQuestion } from '@core/services/secret-ranking';
 
 /** Screen D: the group's total over the game, the rounds, and the game's awards. */
@@ -18,6 +19,7 @@ import { gameAwards, groupTitle, secretRankingQuestion } from '@core/services/se
 })
 export class SecretRankingFinalPage implements OnInit {
   protected readonly gameState = inject(GameStateService);
+  protected readonly sessionMenu = inject(SessionMenuService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -57,10 +59,5 @@ export class SecretRankingFinalPage implements OnInit {
     } finally {
       this.isReplaying.set(false);
     }
-  }
-
-  protected onLeave(): void {
-    // The lobby exit guard asks for confirmation, then releases the player's place.
-    void this.router.navigate(['/']);
   }
 }

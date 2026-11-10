@@ -16,9 +16,10 @@
             [warningAt]="15"
           />
         }
-        <div class="flex shrink-0 items-center justify-between gap-3">
-          <p class="min-w-0 truncate text-sm font-bold">{{ gameState.situationGame()?.themeLabel }}</p>
-          <app-info-sheet>
+        <!-- The situation in full, the rules link right under it on the right. -->
+        <div class="shrink-0">
+          <p class="text-sm font-bold leading-snug text-ink-900">{{ gameState.situationGame()?.themeLabel }}</p>
+          <app-info-sheet class="-my-2 -mr-1 text-right">
             <p class="text-sm leading-6">
               Touche les réponses de ta préférée à la moins bonne. Chaque place rapporte des points à l’équipe qui l’a
               écrite. Les points de tous les votes s’additionnent.

@@ -36,11 +36,19 @@ type RealtimeMessage = Partial<SnapshotMessage> | Partial<ReactionBroadcastMessa
 
 /**
  * Close codes after which the client stops reconnecting on its own: an invalid session, a player the
- * host removed (4403) or turned away (4409), and a lobby that no longer exists.
+ * host removed (4403) or turned away (4409), a lobby that no longer exists, and a lobby the host ended
+ * for everyone (4410).
  */
 export const playerKickedCloseCode = 4403;
 export const admissionRefusedCloseCode = 4409;
-const rejectingCloseCodes: ReadonlySet<number> = new Set([4401, playerKickedCloseCode, 4404, admissionRefusedCloseCode]);
+export const lobbyClosedCloseCode = 4410;
+const rejectingCloseCodes: ReadonlySet<number> = new Set([
+  4401,
+  playerKickedCloseCode,
+  4404,
+  admissionRefusedCloseCode,
+  lobbyClosedCloseCode,
+]);
 
 const compressionStorageKey = 'crush-club-websocket-compression-v1';
 const connectionTimeoutMs = 20_000;

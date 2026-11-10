@@ -99,6 +99,8 @@ iPhone et les clichés haute résolution.
 Après chaque résultat, l'hôte ramène tout le groupe au lobby d'entracte, puis lance manuellement la manche
 suivante. La dernière manche ouvre le classement final. En mode classique, l’hôte peut lancer une revanche avec le même groupe, le même code et les mêmes
 photos. Les scores et les réponses repartent de zéro ; tous les joueurs doivent être connectés et prêts.
+Depuis le classement final, l’hôte peut aussi terminer la partie pour tout le monde : chaque joueur revient à
+l’accueil et le lobby est supprimé aussitôt, photos comprises.
 Les photos privées et les lobbies expirent après 24 heures. Une déconnexion conserve la place 90 secondes,
 puis autorise l'exclusion et, pour l'hôte, le transfert de ses droits au plus ancien joueur connecté.
 

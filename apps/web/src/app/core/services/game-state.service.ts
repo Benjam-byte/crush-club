@@ -31,7 +31,12 @@ import { LobbyApiService } from './lobby-api.service';
 import { filterBioAnswers, restoredPrimaryPhotoId } from './game-state-draft';
 import { collectLobbyNotices, resolveAwaitingPlayers, type LobbyNotice } from './lobby-notices';
 import { canHostExcludePlayer, canHostKickPlayer, PlayerExclusionController } from './player-exclusion';
-import { admissionRefusedCloseCode, playerKickedCloseCode, RealtimeLobbyService } from './realtime-lobby.service';
+import {
+  admissionRefusedCloseCode,
+  lobbyClosedCloseCode,
+  playerKickedCloseCode,
+  RealtimeLobbyService,
+} from './realtime-lobby.service';
 import type { LobbyApiProbeData } from '../models/realtime-diagnostics.models';
 
 interface StoredDraft {
@@ -137,6 +142,8 @@ export class GameStateService {
   });
   readonly displayName = computed(() => this.currentPlayer().displayName);
   readonly isHost = computed(() => this.currentPlayer().isHost);
+  /** The host runs the party: the waiting mini-game is never offered to them. */
+  readonly canPlayWaitingGame = computed(() => !this.isHost());
   readonly playerList = computed<readonly LobbyPlayer[]>(() => {
     const state = this.state();
     if (!state) {
@@ -292,7 +299,11 @@ export class GameStateService {
         return;
       }
       const closeCode = this.realtime.rejectionCode();
-      if (closeCode === playerKickedCloseCode || closeCode === admissionRefusedCloseCode) {
+      if (
+        closeCode === playerKickedCloseCode ||
+        closeCode === admissionRefusedCloseCode ||
+        closeCode === lobbyClosedCloseCode
+      ) {
         // Leaving the lobby resets realtime signals, which must not happen while this effect runs.
         queueMicrotask(() => void this.leaveAfterRemoval(closeCode));
         return;
@@ -879,17 +890,21 @@ export class GameStateService {
     });
   }
 
-  /** The host removed this player or turned their request down: back home, with the reason. */
+  /** The host removed this player, turned their request down or ended the lobby: back home, with the reason. */
   private async leaveAfterRemoval(closeCode: number): Promise<void> {
     if (this.realtime.rejectionCode() !== closeCode) {
       return;
     }
+    const messageByCloseCode: Record<number, string> = {
+      [playerKickedCloseCode]: 'Tu as été exclu·e de la partie par l’hôte.',
+      [admissionRefusedCloseCode]: 'L’hôte n’a pas accepté ta demande pour rejoindre la partie.',
+      // The host's own socket closes too: they ended it themselves.
+      [lobbyClosedCloseCode]: this.isHost()
+        ? 'Partie terminée pour tout le monde.'
+        : 'L’hôte a terminé la partie. Merci d’avoir joué !',
+    };
     this.resetGame();
-    this.errorMessageState.set(
-      closeCode === playerKickedCloseCode
-        ? 'Tu as été exclu·e de la partie par l’hôte.'
-        : 'L’hôte n’a pas accepté ta demande pour rejoindre la partie.',
-    );
+    this.errorMessageState.set(messageByCloseCode[closeCode] ?? null);
     await this.router.navigateByUrl('/');
   }
 
@@ -927,6 +942,21 @@ export class GameStateService {
     this.noticeQueue.set([]);
     this.previousNoticeState = null;
     this.restoredDraftKey = '';
+  }
+
+  /** Host only: ends the lobby for everyone. The others are sent home by the lobby-closed close code. */
+  async closeLobbyForEveryone(): Promise<void> {
+    const session = this.storedSessionState();
+    if (!session || !this.isHost()) {
+      return;
+    }
+    try {
+      await this.lobbyApi.closeLobby(session.lobbyCode, session.reconnectToken);
+    } catch (error: unknown) {
+      this.captureError(error, 'Impossible de terminer la partie. Vérifie ta connexion puis réessaie.');
+      throw error;
+    }
+    this.resetGame();
   }
 
   async leaveGame(): Promise<void> {

@@ -155,6 +155,15 @@ export class LobbyApiService {
     );
   }
 
+  /** Host only: ends the lobby for everyone and deletes it. */
+  closeLobby(code: string, reconnectToken: string): Promise<void> {
+    return firstValueFrom(
+      this.http.post<void>(`/api/v1/lobbies/${code}/close`, null, {
+        headers: this.authorizationHeaders(reconnectToken),
+      }),
+    );
+  }
+
   submit(
     code: string,
     reconnectToken: string,

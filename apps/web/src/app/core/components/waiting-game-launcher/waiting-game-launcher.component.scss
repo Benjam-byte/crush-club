@@ -2,6 +2,11 @@
   display: inline-block;
 }
 
+// Nothing rendered (host player): take no room, not even a flex gap.
+:host:empty {
+  display: none;
+}
+
 ion-modal {
   --width: min(100%, 540px);
   --height: min(640px, 100%);

@@ -1,26 +1,33 @@
-@if (featured()) {
-  <button class="featured-launcher" [class.featured-launcher--settled]="hasOpenedGame()" type="button" (click)="open()">
-    <ion-icon name="game-controller" aria-hidden="true" />
-    Jouer en attendant
-  </button>
-} @else {
-  <button class="min-h-11 px-1 text-xs font-extrabold text-brand-600" type="button" (click)="open()">
-    Jouer en attendant
-  </button>
+@if (gameState.canPlayWaitingGame()) {
+  @if (featured()) {
+    <button
+      class="featured-launcher"
+      [class.featured-launcher--settled]="hasOpenedGame()"
+      type="button"
+      (click)="open()"
+    >
+      <ion-icon name="game-controller" aria-hidden="true" />
+      Jouer en attendant
+    </button>
+  } @else {
+    <button class="min-h-11 px-1 text-xs font-extrabold text-brand-600" type="button" (click)="open()">
+      Jouer en attendant
+    </button>
+  }
+  <ion-modal
+    [isOpen]="isOpen()"
+    [backdropDismiss]="false"
+    (didDismiss)="isOpen.set(false)"
+    aria-label="Mini-jeu pour patienter"
+  >
+    <ng-template>
+      <div class="game-modal-body">
+        <header class="flex shrink-0 items-center justify-between gap-3">
+          <h2 class="text-lg font-extrabold">Pour patienter</h2>
+          <ion-button fill="clear" (click)="isOpen.set(false)">Fermer</ion-button>
+        </header>
+        <app-waiting-game />
+      </div>
+    </ng-template>
+  </ion-modal>
 }
-<ion-modal
-  [isOpen]="isOpen()"
-  [backdropDismiss]="false"
-  (didDismiss)="isOpen.set(false)"
-  aria-label="Mini-jeu pour patienter"
->
-  <ng-template>
-    <div class="game-modal-body">
-      <header class="flex shrink-0 items-center justify-between gap-3">
-        <h2 class="text-lg font-extrabold">Pour patienter</h2>
-        <ion-button fill="clear" (click)="isOpen.set(false)">Fermer</ion-button>
-      </header>
-      <app-waiting-game />
-    </div>
-  </ng-template>
-</ion-modal>

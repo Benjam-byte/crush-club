@@ -98,6 +98,8 @@ const (
 	closePlayerKicked     websocket.StatusCode = 4403
 	closeLobbyUnavailable websocket.StatusCode = 4404
 	closeAdmissionRefused websocket.StatusCode = 4409
+	// closeLobbyClosed sends every player home once the host ended the lobby.
+	closeLobbyClosed websocket.StatusCode = 4410
 )
 
 // closeCodeForExclusion is the close code telling a removed player's client
@@ -565,6 +567,26 @@ func (h *realtimeHub) closePlayer(code, playerID string, status websocket.Status
 		go func() {
 			// Closing before cancelling: a cancelled connection would be
 			// closed with a normal code first, which clients retry.
+			_ = client.conn.Close(status, reason)
+			client.cancel()
+		}()
+	}
+}
+
+// closeLobby closes every connection of a lobby, e.g. once the host ended it
+// for everyone.
+func (h *realtimeHub) closeLobby(code string, status websocket.StatusCode, reason string) {
+	h.mu.RLock()
+	room := h.clients[strings.ToUpper(code)]
+	clients := make([]*realtimeClient, 0, len(room))
+	for client := range room {
+		clients = append(clients, client)
+	}
+	h.mu.RUnlock()
+	for _, client := range clients {
+		go func() {
+			// Closing before cancelling, as in closePlayer: clients retry a
+			// connection closed with a normal code.
 			_ = client.conn.Close(status, reason)
 			client.cancel()
 		}()

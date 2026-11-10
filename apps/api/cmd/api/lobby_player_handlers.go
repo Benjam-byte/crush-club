@@ -272,6 +272,32 @@ func (a *api) handleLeaveLobby(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleCloseLobby lets the host end the lobby for everyone at once, instead of
+// every player leaving one by one: their connections close with
+// closeLobbyClosed, which sends them home, and the lobby's data and photos are
+// deleted right away.
+func (a *api) handleCloseLobby(w http.ResponseWriter, r *http.Request) {
+	player, ok := a.requirePlayer(w, r)
+	if !ok {
+		return
+	}
+	if !player.IsHost {
+		writeError(w, http.StatusForbidden, "host_required", "Only the lobby host can close the lobby")
+		return
+	}
+	if _, err := a.pool.Exec(r.Context(), `
+		UPDATE lobbies
+		SET status = 'expired', expires_at = now(), revision = revision + 1, updated_at = now()
+		WHERE id = $1
+	`, player.LobbyID); err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	a.hub.closeLobby(player.Code, closeLobbyClosed, "lobby closed by the host")
+	a.purgeLobby(r.Context(), player.LobbyID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // --- host moderation: kick, admit, refuse ------------------------------------
 
 func (a *api) handleExcludePlayer(w http.ResponseWriter, r *http.Request) {

@@ -8,8 +8,11 @@
   <footer class="screen-footer">
     @if (gameState.isHost()) {
       <div class="grid grid-cols-[auto_1fr] gap-3">
-        <ion-button class="action-button action-button--secondary" [disabled]="isLeaving()" (click)="onNewLobby()"
-          >Quitter</ion-button
+        <ion-button
+          class="action-button action-button--secondary"
+          [disabled]="isLeaving()"
+          (click)="sessionMenu.confirmCloseLobby()"
+          >Terminer</ion-button
         >
         <ion-button class="action-button" [disabled]="isLeaving()" (click)="onReplay()">{{
           isLeaving() ? 'Lancement…' : 'Rejouer'

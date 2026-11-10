@@ -4,6 +4,25 @@
   display: block;
 }
 
+.spectrum-poles {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2px minmax(0, 1fr);
+  gap: 12px;
+
+  .form-input {
+    min-width: 0;
+    font-size: 1rem;
+    --padding-start: 12px;
+    --padding-end: 12px;
+  }
+}
+
+.spectrum-poles__divider {
+  margin-block: 8px;
+  border-radius: 1px;
+  background: var(--color-brand-200);
+}
+
 .ranking-row {
   background: white;
   cursor: grab;

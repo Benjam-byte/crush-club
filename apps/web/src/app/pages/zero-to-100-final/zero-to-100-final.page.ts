@@ -6,6 +6,7 @@ import { IonButton, IonContent, } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { GameStateService } from '@core/services/game-state.service';
+import { SessionMenuService } from '@core/services/session-menu.service';
 
 @Component({
   selector: 'app-zero-to-100-final-page',
@@ -15,6 +16,7 @@ import { GameStateService } from '@core/services/game-state.service';
 })
 export class ZeroToHundredFinalPage implements OnInit {
   protected readonly gameState = inject(GameStateService);
+  protected readonly sessionMenu = inject(SessionMenuService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -42,11 +44,6 @@ export class ZeroToHundredFinalPage implements OnInit {
     } finally {
       this.isReplaying.set(false);
     }
-  }
-
-  protected onLeave(): void {
-    // The lobby exit guard asks for confirmation, then releases the player's place.
-    void this.router.navigate(['/']);
   }
 
   protected initials(displayName: string): string {

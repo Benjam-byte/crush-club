@@ -50,6 +50,18 @@
   font-weight: 800;
 }
 
+.result-card__tie {
+  padding: 3px 8px;
+  border: 1px solid var(--tier-color);
+  border-radius: 999px;
+  background: white;
+  color: var(--tier-color);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 .result-card__points {
   color: var(--color-ink-900);
   font-size: 22px;

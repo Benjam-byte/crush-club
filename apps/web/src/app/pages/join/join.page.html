@@ -103,8 +103,8 @@
             </ion-select>
             <p class="mt-2 text-xs leading-5 text-ink-500">{{ modeDescription().summary }}</p>
             @if (modeDescription().details; as details) {
-              <!-- On its own line under the summary; the negative margin aligns its text with the summary. -->
-              <app-info-sheet class="-mb-2 -ml-1" label="En savoir plus">
+              <!-- On its own line under the summary, right-aligned; the negative margin lines its text up with the field's edge. -->
+              <app-info-sheet class="-mb-2 -mr-1 text-right" label="En savoir plus">
                 <p class="text-sm leading-6 text-ink-700">{{ details }}</p>
               </app-info-sheet>
             }

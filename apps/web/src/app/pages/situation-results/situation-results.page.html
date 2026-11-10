@@ -5,12 +5,9 @@
       <!-- The question stays on screen while the teams' answers scroll by. -->
       <section class="hero-card shrink-0">
         <p class="text-xs font-bold uppercase tracking-[0.14em] text-white/80">La situation</p>
-        <h2 class="mt-1 line-clamp-2 text-base font-extrabold leading-snug">
+        <h2 class="mt-1 line-clamp-3 text-base font-extrabold leading-snug">
           {{ gameState.situationGame()?.themeLabel }}
         </h2>
-        <p class="mt-2 text-xs">
-          Ton équipe marque <strong>+{{ gameState.situationGame()?.roundScore ?? 0 }} pts</strong>
-        </p>
       </section>
 
       <!-- One card per team, in ranking order; swipe sideways to go through them. -->
@@ -18,7 +15,12 @@
         @for (result of results(); track result.proposal.id) {
           <li class="result-card" [attr.data-tier]="tierFor(result.rank)" [class.result-card--mine]="result.isMine">
             <header class="flex items-center justify-between gap-2">
-              <span class="result-card__rank">{{ placeLabel(result.rank) }}</span>
+              <span class="flex items-center gap-1.5">
+                <span class="result-card__rank">{{ placeLabel(result.rank) }}</span>
+                @if (isTied(result)) {
+                  <span class="result-card__tie">ex æquo</span>
+                }
+              </span>
               <span class="result-card__points">+{{ result.points }} pts</span>
             </header>
             <div class="mt-3 flex items-center gap-3">
@@ -47,25 +49,17 @@
         }
       </ol>
 
-      <div class="flex shrink-0 items-center justify-between gap-3">
-        <div class="flex items-center gap-1" role="group" aria-label="Choisir une équipe">
-          @for (result of results(); track result.proposal.id; let index = $index) {
-            <button
-              class="carousel-dot"
-              [class.carousel-dot--active]="index === activeCardIndex()"
-              type="button"
-              [attr.aria-label]="'Voir l’équipe classée ' + placeLabel(result.rank)"
-              [attr.aria-current]="index === activeCardIndex() ? 'true' : null"
-              (click)="scrollToCard(carousel, index)"
-            ></button>
-          }
-        </div>
-        <app-info-sheet label="Barème">
-          <p class="text-sm">
-            Chaque vote rapporte des points selon la place : {{ pointScale() }}. Les points de tous les votes
-            s’additionnent.
-          </p>
-        </app-info-sheet>
+      <div class="flex shrink-0 items-center justify-center gap-1" role="group" aria-label="Choisir une équipe">
+        @for (result of results(); track result.proposal.id; let index = $index) {
+          <button
+            class="carousel-dot"
+            [class.carousel-dot--active]="index === activeCardIndex()"
+            type="button"
+            [attr.aria-label]="'Voir l’équipe classée ' + placeLabel(result.rank) + (isTied(result) ? ' ex æquo' : '')"
+            [attr.aria-current]="index === activeCardIndex() ? 'true' : null"
+            (click)="scrollToCard(carousel, index)"
+          ></button>
+        }
       </div>
     </main>
   </ion-content>

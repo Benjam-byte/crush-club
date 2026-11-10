@@ -5,6 +5,8 @@ import type { LobbyPlayer } from '../models/game.models';
 import { GameStateService } from './game-state.service';
 
 const confirmRole = 'confirm';
+// Keeps the French question mark on its title line.
+const nonBreakingSpace = String.fromCharCode(0xa0);
 
 /** The "…" menu of a lobby or game page, the players panel it opens, and the host's kick confirmation. */
 @Injectable({
@@ -68,7 +70,7 @@ export class SessionMenuService {
   /** Asks the host to confirm, then removes the player: from the lobby's player cards and from the players panel. */
   async confirmKick(player: LobbyPlayer): Promise<void> {
     const alert = await this.alertController.create({
-      header: `Exclure ${player.displayName} ?`,
+      header: `Exclure ${player.displayName}${nonBreakingSpace}?`,
       message: this.gameState.lobbyStatus() === 'in_game'
         ? 'La partie continuera sans ce joueur. Pour revenir, il devra demander à rejoindre et attendre ton accord.'
         : 'Ce joueur perdra sa place dans le lobby.',
@@ -84,6 +86,29 @@ export class SessionMenuService {
     }
     try {
       await this.gameState.kickPlayer(player.id);
+    } catch {
+      // Reported through GameStateService.errorMessage.
+    }
+  }
+
+  /** From the final ranking: the host ends the lobby for everyone, instead of each player leaving in turn. */
+  async confirmCloseLobby(): Promise<void> {
+    const alert = await this.alertController.create({
+      header: `Terminer pour tout le monde${nonBreakingSpace}?`,
+      message: 'Tous les joueurs reviendront à l’accueil, et le lobby sera supprimé avec ses photos.',
+      buttons: [
+        { text: 'Annuler', role: 'cancel' },
+        { text: 'Terminer', role: confirmRole },
+      ],
+    });
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+    if (role !== confirmRole) {
+      return;
+    }
+    try {
+      await this.gameState.closeLobbyForEveryone();
+      await this.router.navigateByUrl('/');
     } catch {
       // Reported through GameStateService.errorMessage.
     }

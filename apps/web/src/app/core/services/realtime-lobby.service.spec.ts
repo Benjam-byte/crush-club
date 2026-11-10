@@ -224,7 +224,7 @@ describe('RealtimeLobbyService compression preference', () => {
   });
 
   it('stops retrying rejected sessions and redacts tokens in close reasons', () => {
-    for (const code of [4401, 4403, 4404, 4409]) {
+    for (const code of [4401, 4403, 4404, 4409, 4410]) {
       TestWebSocket.instances = [];
       const service = new RealtimeLobbyService();
       service.connect('ROOM', 'private-token');

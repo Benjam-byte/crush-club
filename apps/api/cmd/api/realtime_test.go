@@ -150,6 +150,61 @@ func TestLobbyStateResponsesIdentifyInstanceEvenWhenUnauthorized(t *testing.T) {
 	}
 }
 
+func TestRealtimeHubCloseLobbyClosesOnlyThatRoom(t *testing.T) {
+	hub := newRealtimeHub(nil)
+	registered := make(chan struct{}, 3)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		connection, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		hub.register(&realtimeClient{
+			player: authenticatedPlayer{ID: r.URL.Query().Get("player"), Code: r.URL.Query().Get("room")},
+			conn:   connection,
+			ctx:    ctx,
+			cancel: cancel,
+			send:   make(chan struct{}, 1),
+		})
+		registered <- struct{}{}
+		<-ctx.Done()
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	dial := func(room, player string) *websocket.Conn {
+		url := "ws" + strings.TrimPrefix(server.URL, "http") + "/?room=" + room + "&player=" + player
+		connection, _, err := websocket.Dial(ctx, url, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = connection.CloseNow() })
+		return connection
+	}
+	closedRoom := []*websocket.Conn{dial("ROOM", "host"), dial("ROOM", "guest")}
+	otherRoom := dial("OTHER", "someone")
+	for range 3 {
+		<-registered
+	}
+
+	// The code is matched case-insensitively, as for every hub room.
+	hub.closeLobby("room", closeLobbyClosed, "lobby closed by the host")
+
+	for _, connection := range closedRoom {
+		_, _, err := connection.Read(ctx)
+		if status := websocket.CloseStatus(err); status != closeLobbyClosed {
+			t.Fatalf("close status = %d, want %d (err: %v)", status, closeLobbyClosed, err)
+		}
+	}
+	readCtx, cancelRead := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer cancelRead()
+	if _, _, err := otherRoom.Read(readCtx); websocket.CloseStatus(err) != -1 {
+		t.Fatalf("a player of another lobby was disconnected: %v", err)
+	}
+}
+
 func TestLobbyWebSocketCompressionIsNegotiatedPerConnection(t *testing.T) {
 	serverErrors := make(chan error, 3)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

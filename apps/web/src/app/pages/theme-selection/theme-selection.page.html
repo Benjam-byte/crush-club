@@ -42,22 +42,25 @@
                 [formGroup]="spectrumForm"
                 (ngSubmit)="onSubmitSpectrum()"
               >
-                <ion-input
-                  class="form-input form-input--large"
-                  formControlName="left"
-                  label="Pôle gauche"
-                  labelPlacement="stacked"
-                  maxlength="40"
-                  placeholder="Red flag"
-                />
-                <ion-input
-                  class="form-input form-input--large"
-                  formControlName="right"
-                  label="Pôle droit"
-                  labelPlacement="stacked"
-                  maxlength="40"
-                  placeholder="Green flag"
-                />
+                <div class="spectrum-poles">
+                  <ion-input
+                    class="form-input form-input--large"
+                    formControlName="left"
+                    label="Pôle gauche"
+                    labelPlacement="stacked"
+                    maxlength="40"
+                    placeholder="Red flag"
+                  />
+                  <span class="spectrum-poles__divider" aria-hidden="true"></span>
+                  <ion-input
+                    class="form-input form-input--large"
+                    formControlName="right"
+                    label="Pôle droit"
+                    labelPlacement="stacked"
+                    maxlength="40"
+                    placeholder="Green flag"
+                  />
+                </div>
                 <!-- Lets the keyboard's Go key submit: the visible button sits in the footer, outside the form. -->
                 <button class="sr-only" type="submit" tabindex="-1" aria-hidden="true"></button>
               </form>

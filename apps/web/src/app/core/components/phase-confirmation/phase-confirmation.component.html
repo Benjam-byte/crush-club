@@ -19,7 +19,7 @@
     <app-awaiting-players />
   }
 </section>
-@if (hasWaitingGame()) {
+@if (hasWaitingGame() && gameState.canPlayWaitingGame()) {
   <app-waiting-game #inlineGame />
   <!-- The modal is only offered when the layout leaves no room for the inline board. -->
   @if (!inlineGame.isDisplayed()) {

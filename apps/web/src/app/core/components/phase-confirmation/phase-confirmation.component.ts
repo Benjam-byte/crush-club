@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { IonIcon } from '@ionic/angular/standalone';
+import { GameStateService } from '../../services/game-state.service';
 import { AwaitingPlayersComponent } from '../awaiting-players/awaiting-players.component';
 import { PlayerProgressComponent } from '../player-progress/player-progress.component';
 import { WaitingGameLauncherComponent } from '../waiting-game-launcher/waiting-game-launcher.component';
@@ -18,6 +19,7 @@ export class PhaseConfirmationComponent {
   readonly progressCount = input<number>();
   readonly progressRequired = input<number>();
   readonly progressLabel = input('joueurs ont terminé');
-  /** Off when the page renders its own game further down, below extra waiting content. */
+  /** Off when the page renders its own game further down, below extra waiting content. The host never gets it. */
   readonly hasWaitingGame = input(true);
+  protected readonly gameState = inject(GameStateService);
 }

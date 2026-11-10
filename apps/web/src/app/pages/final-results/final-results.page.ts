@@ -6,6 +6,7 @@ import { IonButton, IonContent } from '@ionic/angular/standalone';
 import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { PageHeaderComponent } from '../../core/components/page-header/page-header.component';
 import { GameStateService } from '../../core/services/game-state.service';
+import { SessionMenuService } from '../../core/services/session-menu.service';
 
 @Component({
   selector: 'app-final-results-page',
@@ -15,6 +16,7 @@ import { GameStateService } from '../../core/services/game-state.service';
 })
 export class FinalResultsPage implements OnInit {
   protected readonly gameState = inject(GameStateService);
+  protected readonly sessionMenu = inject(SessionMenuService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly leaderboard = computed(() => this.gameState.game()?.leaderboard ?? []);
@@ -39,19 +41,6 @@ export class FinalResultsPage implements OnInit {
       await this.gameState.replayClassic();
     } catch {
       // GameState displays the API error in the global toast.
-    } finally {
-      this.isLeaving.set(false);
-    }
-  }
-
-  protected async onNewLobby(): Promise<void> {
-    if (this.isLeaving()) {
-      return;
-    }
-    this.isLeaving.set(true);
-    try {
-      await this.gameState.leaveGame();
-      await this.router.navigate(['/']);
     } finally {
       this.isLeaving.set(false);
     }

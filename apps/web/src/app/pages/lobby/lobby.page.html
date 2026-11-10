@@ -36,7 +36,9 @@
             <span class="text-xs text-ink-500">Manche {{ nextRoundNumber() }}/{{ gameState.game()?.totalRounds }}</span>
           </p>
         </div>
-        <div class="flex shrink-0 justify-center"><app-waiting-game-launcher [featured]="true" /></div>
+        @if (gameState.canPlayWaitingGame()) {
+          <div class="flex shrink-0 justify-center"><app-waiting-game-launcher [featured]="true" /></div>
+        }
         <ol class="screen-scroll divide-y divide-peach-100" aria-label="Classement cumulé">
           @for (entry of leaderboard(); track entry.playerId; let rank = $index) {
             <li class="flex min-h-12 items-center gap-3 py-2">
@@ -83,8 +85,11 @@
             <p class="text-xs text-danger-500">{{ error }}</p>
           }
         }
-        <!-- A classic player still has photos to prepare: the game would only distract from that. -->
-        @if (gameState.isUncappedMode() || gameState.currentPlayer().readyStatus === 'ready') {
+        <!-- Never for the host; a classic player still preparing photos would only be distracted by it. -->
+        @if (
+          gameState.canPlayWaitingGame() &&
+          (gameState.isUncappedMode() || gameState.currentPlayer().readyStatus === 'ready')
+        ) {
           <div class="flex shrink-0 justify-center"><app-waiting-game-launcher [featured]="true" /></div>
         }
         <ul class="screen-scroll grid auto-rows-min grid-cols-2 gap-2" aria-label="Joueurs du lobby">
