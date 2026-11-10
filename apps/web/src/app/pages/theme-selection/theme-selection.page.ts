@@ -1,23 +1,24 @@
 import { CdkScrollable } from '@angular/cdk/scrolling';
 import { InfoSheetComponent } from '@core/components/info-sheet/info-sheet.component';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import type { OnDestroy, OnInit } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CdkDrag, CdkDragHandle, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
-import { IonButton, IonContent, IonIcon, IonInput } from '@ionic/angular/standalone';
+import { IonButton, IonContent, IonIcon, IonInput, IonTextarea } from '@ionic/angular/standalone';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { PhaseConfirmationComponent } from '@core/components/phase-confirmation/phase-confirmation.component';
 import { PhaseTimerComponent } from '@core/components/phase-timer/phase-timer.component';
 import { SecretRankingRulesComponent } from '@core/components/secret-ranking-rules/secret-ranking-rules.component';
 import { ZeroToHundredScoringRulesComponent } from '@core/components/zero-to-100-scoring-rules/zero-to-100-scoring-rules.component';
 import { GameStateService } from '@core/services/game-state.service';
-import { secretRankingQuestion, secretRankingQuestionEnd, secretRankingQuestionStart } from '@core/services/secret-ranking';
+import { secretRankingQuestion, secretRankingQuestionEnd, secretRankingQuestionPreposition, secretRankingQuestionStart } from '@core/services/secret-ranking';
 import { wavelengthProposalHint, wavelengthRankingHint, wavelengthRoundsLabel } from './wavelength-vote-copy';
 
 /**
- * Shared theme-collection-and-ranking screen, reused by every uncapped mode (Fast Bio, 0 à 100, Situation,
+ * Shared theme-collection-and-ranking screen, reused by every uncapped mode (Fast Bio, 0 à 10, Situation,
  * Wavelength, Classement secret). The secret ranking's themes complete "Pour combien d'argent accepterais-tu
  * de … ?". Wavelength votes on two-pole spectra instead of themes, and comes back here once the up to
  * three spectra of its last vote have been played.
@@ -32,6 +33,7 @@ import { wavelengthProposalHint, wavelengthRankingHint, wavelengthRoundsLabel } 
     IonContent,
     IonIcon,
     IonInput,
+    IonTextarea,
     PageHeaderComponent,
     PhaseConfirmationComponent,
     PhaseTimerComponent,
@@ -74,6 +76,8 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
   protected readonly themeForm = new FormGroup({
     theme: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(80)] }),
   });
+  private readonly proposedTheme = toSignal(this.themeForm.controls.theme.valueChanges, { initialValue: '' });
+  protected readonly questionPreposition = computed(() => secretRankingQuestionPreposition(this.proposedTheme()));
   protected readonly spectrumForm = new FormGroup({
     left: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(40)] }),
     right: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(40)] }),
@@ -81,7 +85,7 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
 
   protected readonly pageTitle = computed(() => {
     if (this.gameState.isZeroToHundredMode()) {
-      return 'Thèmes 0 à 100';
+      return 'Thèmes 0 à 10';
     }
     if (this.gameState.isSituationMode()) {
       return 'Situations';
@@ -103,9 +107,6 @@ export class ThemeSelectionPage implements OnInit, OnDestroy {
     }
     if (this.gameState.isWavelengthMode()) {
       return 'Ex. : Red flag ↔ Green flag';
-    }
-    if (this.gameState.isSecretRankingMode()) {
-      return 'Ex. : manger un insecte vivant';
     }
     return 'Ex. : Mode mystérieux';
   });

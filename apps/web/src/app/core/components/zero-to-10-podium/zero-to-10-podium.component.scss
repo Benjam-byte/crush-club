@@ -1,0 +1,89 @@
+:host {
+  display: block;
+}
+
+.podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+}
+
+// Keep the rise length in sync with PODIUM_RISE_MS.
+.podium__column {
+  display: flex;
+  min-width: 0;
+  max-width: 76px;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  animation: podium-rise 420ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+
+.podium__token {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  place-items: center;
+  margin-bottom: 2px;
+  border: 3px solid var(--nominee-color);
+  border-radius: 999px;
+  background: white;
+  box-shadow: 0 4px 10px rgb(89 42 50 / 0.12);
+  color: var(--nominee-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.podium__name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-ink-900);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podium__note {
+  color: var(--nominee-text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 16px;
+}
+
+.podium__step {
+  display: grid;
+  width: 100%;
+  place-items: center;
+  border-top: 4px solid var(--nominee-color);
+  border-radius: 10px 10px 4px 4px;
+  background: color-mix(in srgb, var(--nominee-color) 14%, white);
+  color: var(--color-ink-900);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+@keyframes podium-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+// The global reduced-motion rule shortens animations but keeps their delays.
+@media (prefers-reduced-motion: reduce) {
+  .podium__column {
+    animation: none;
+  }
+}

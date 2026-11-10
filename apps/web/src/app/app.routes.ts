@@ -178,34 +178,34 @@ export const routes: Routes = [
     title: "Classement Fast Bio Crush Club",
   },
   {
-    path: "game/:code/zero-to-100/:roundNumber/guess",
+    path: "game/:code/zero-to-10/:roundNumber/guess",
     canActivate: [lobbySessionGuard],
     canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/zero-to-100-guess/zero-to-100-guess.page").then(
         (module) => module.ZeroToHundredGuessPage,
       ),
-    title: "Devine 0 à 100 Crush Club",
+    title: "Devine 0 à 10 Crush Club",
   },
   {
-    path: "game/:code/zero-to-100/:roundNumber/results",
+    path: "game/:code/zero-to-10/:roundNumber/results",
     canActivate: [lobbySessionGuard],
     canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/zero-to-100-results/zero-to-100-results.page").then(
         (module) => module.ZeroToHundredResultsPage,
       ),
-    title: "Résultats 0 à 100 Crush Club",
+    title: "Résultats 0 à 10 Crush Club",
   },
   {
-    path: "game/:code/zero-to-100/final",
+    path: "game/:code/zero-to-10/final",
     canActivate: [lobbySessionGuard],
     canDeactivate: [lobbyExitGuard],
     loadComponent: () =>
       import("./pages/zero-to-100-final/zero-to-100-final.page").then(
         (module) => module.ZeroToHundredFinalPage,
       ),
-    title: "Classement 0 à 100 Crush Club",
+    title: "Classement 0 à 10 Crush Club",
   },
   {
     path: "game/:code/situation/:roundNumber/propose",

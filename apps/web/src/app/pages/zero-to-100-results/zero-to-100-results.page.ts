@@ -1,28 +1,52 @@
-import { InfoSheetComponent } from '@core/components/info-sheet/info-sheet.component';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonContent, IonIcon } from '@ionic/angular/standalone';
+import { InfoSheetComponent } from '@core/components/info-sheet/info-sheet.component';
 import { PageHeaderComponent } from '@core/components/page-header/page-header.component';
 import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
-import { ZeroToHundredScaleComponent, nomineeColor, nomineeTextColor } from '@core/components/zero-to-100-scale/zero-to-100-scale.component';
-import type { ScalePoint } from '@core/components/zero-to-100-scale/zero-to-100-scale.component';
-import type { ZeroToHundredRevealEntryView } from '@core/models/game.models';
+import { ZeroToTenPodiumComponent, podiumRevealDurationMs } from '@core/components/zero-to-10-podium/zero-to-10-podium.component';
+import { nomineeColor, rankLabel } from '@core/components/zero-to-100-scale/zero-to-100-scale.component';
+import { ZeroToHundredScoringRulesComponent } from '@core/components/zero-to-100-scoring-rules/zero-to-100-scoring-rules.component';
 import { GameStateService } from '@core/services/game-state.service';
+import { bigGapLine, nomineeName, orderGuessers, podiumNominees } from '@core/services/zero-to-10-results';
 
-/** "+5" or "0", for the points column. */
-function signedPoints(points: number): string {
-  return points > 0 ? `+${points}` : '0';
-}
+// Matches the gap between the carousel cards in the global .results-carousel.
+const carouselGapPx = 12;
 
-function nomineeLabel(entry: ZeroToHundredRevealEntryView): string {
-  return entry.isCurrentPlayer ? 'Toi' : entry.displayName;
+interface GuesserCard {
+  id: string
+  name: string
+  isMine: boolean
+  /** The current player did not answer in time: their card only says so. */
+  isMissing: boolean
+  scoreLabel: string
+  perfectOrder: boolean
+  rows: {
+    nomineeId: string
+    rankLabel: string
+    name: string
+    color: string
+    note: number
+    correct: boolean
+    targetLabel: string
+  }[]
 }
 
 @Component({
   selector: 'app-zero-to-100-results-page',
-  imports: [InfoSheetComponent, IonButton, IonContent, IonIcon, PageHeaderComponent, WaitingCardComponent, ZeroToHundredScaleComponent],
+  imports: [
+    InfoSheetComponent,
+    IonButton,
+    IonContent,
+    IonIcon,
+    PageHeaderComponent,
+    WaitingCardComponent,
+    ZeroToHundredScoringRulesComponent,
+    ZeroToTenPodiumComponent,
+  ],
   templateUrl: './zero-to-100-results.page.html',
+  styleUrl: './zero-to-100-results.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ZeroToHundredResultsPage implements OnInit {
@@ -31,91 +55,50 @@ export class ZeroToHundredResultsPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
 
   protected readonly isStartingNextRound = signal(false);
-  protected readonly reveal = computed(() => this.gameState.zeroToHundredGame()?.reveal ?? []);
-  protected readonly roundScore = computed(() => this.gameState.zeroToHundredGame()?.roundScore ?? 0);
-  protected readonly roundScoreLabel = computed(() => {
-    const roundScore = this.roundScore();
-    return `${roundScore} ${roundScore > 1 ? 'pts' : 'pt'}`;
-  });
-  protected readonly orderBonus = computed(() => this.gameState.zeroToHundredGame()?.orderBonus ?? 0);
-  protected readonly orderBonusLabel = computed(() => signedPoints(this.orderBonus()));
-  protected readonly myBar = computed(() => this.barPoints((entry) => entry.myPosition));
-  protected readonly targetBar = computed(() => this.barPoints((entry) => entry.targetPosition));
   protected readonly themeLabel = computed(() => this.gameState.zeroToHundredGame()?.themeLabel ?? '');
+  private readonly reveal = computed(() => this.gameState.zeroToHundredGame()?.reveal ?? []);
+  protected readonly podium = computed(() => podiumNominees(this.reveal()));
+  /** Nominees who did not rate themselves in time have no target, so no step on the podium. */
+  protected readonly absentLine = computed(() => {
+    const absent = this.reveal().filter((entry) => entry.targetPosition === undefined).map(nomineeName);
+    return absent.length === 0 ? null : `Hors podium, pas noté·e à temps : ${absent.join(', ')}`;
+  });
+  protected readonly bigGap = computed(() => bigGapLine(this.reveal()));
+  /** What follows the podium fades in once its 1st place has risen. */
+  protected readonly afterPodiumDelay = computed(() => `${podiumRevealDurationMs(this.podium().map((nominee) => nominee.rank))}ms`);
 
-  private readonly focusSelection = signal<string | null>(null);
-  protected readonly focusOptions = computed(() =>
-    this.reveal().map((entry, seat) => ({
-      id: entry.playerId,
-      label: nomineeLabel(entry),
-      color: nomineeColor(seat),
-      isCurrentPlayer: entry.isCurrentPlayer,
-    })),
-  );
-  /** The nominee shown alone on the bars, or null for everyone (also once they leave the reveal). */
-  protected readonly focusedOption = computed(
-    () => this.focusOptions().find((option) => option.id === this.focusSelection()) ?? null,
-  );
-  protected readonly activeFocusId = computed(() => this.focusedOption()?.id ?? null);
-  protected readonly showsMyBar = computed(() => this.barShowsFocus(this.myBar()));
-  protected readonly showsTargetBar = computed(() => this.barShowsFocus(this.targetBar()));
-  protected readonly targetBarNote = computed(() => {
-    const option = this.focusedOption();
-    if (option === null) {
-      return 'Aucun nominé n’a de cible.';
+  protected readonly cards = computed<GuesserCard[]>(() => {
+    const reveal = this.reveal();
+    const podiumSize = this.podium().length;
+    const cards: GuesserCard[] = orderGuessers(this.gameState.zeroToHundredGame()?.guessers ?? []).map((guesser) => ({
+      id: guesser.playerId,
+      name: guesser.isCurrentPlayer ? 'Toi' : guesser.displayName,
+      isMine: guesser.isCurrentPlayer,
+      isMissing: false,
+      scoreLabel: `${guesser.correctCount}/${podiumSize} bien placé${guesser.correctCount > 1 ? 's' : ''}`,
+      perfectOrder: guesser.perfectOrder,
+      rows: guesser.placements.map((placement) => {
+        const seat = reveal.findIndex((entry) => entry.playerId === placement.nomineeId);
+        const nominee = reveal[seat];
+        return {
+          nomineeId: placement.nomineeId,
+          rankLabel: rankLabel(placement.rank),
+          name: nominee === undefined ? '?' : nomineeName(nominee),
+          color: nomineeColor(Math.max(0, seat)),
+          note: placement.position,
+          correct: placement.correct,
+          targetLabel: nominee?.targetRank === undefined ? '' : `cible ${rankLabel(nominee.targetRank)}`,
+        };
+      }),
+    }));
+    if (!cards.some((card) => card.isMine)) {
+      cards.unshift({ id: 'me', name: 'Toi', isMine: true, isMissing: true, scoreLabel: '', perfectOrder: false, rows: [] });
     }
-    return option.isCurrentPlayer
-      ? 'Tu n’as pas de cible : pas placé·e à temps.'
-      : `${option.label} n’a pas de cible : pas placé·e à temps.`;
+    return cards;
   });
-  /** "Camille s’est mis·e 80 en « thème »", one per nominee in seat order, following the focused dot. */
-  protected readonly selfPlacementLines = computed(() => {
-    const focusId = this.activeFocusId();
-    return this.reveal().flatMap((entry, seat) =>
-      focusId !== null && entry.playerId !== focusId
-        ? []
-        : [
-            {
-              playerId: entry.playerId,
-              isCurrentPlayer: entry.isCurrentPlayer,
-              name: entry.isCurrentPlayer ? 'Tu' : entry.displayName,
-              value: entry.truePosition,
-              color: nomineeColor(seat),
-              textColor: nomineeTextColor(seat),
-            },
-          ],
-    );
-  });
-  /** One row per nominee you could score on: your own self-placement never earns points. */
-  protected readonly pointRows = computed(() =>
-    this.reveal().flatMap((entry, seat) =>
-      entry.isCurrentPlayer
-        ? []
-        : [
-            {
-              playerId: entry.playerId,
-              label: entry.displayName,
-              color: nomineeColor(seat),
-              myPositionLabel: entry.myPosition === undefined ? '—' : `${entry.myPosition}`,
-              targetLabel: entry.targetPosition === undefined ? 'absent' : `${entry.targetPosition}`,
-              pointsLabel: signedPoints(entry.points),
-              hasPoints: entry.points > 0,
-            },
-          ],
-    ),
-  );
-  protected readonly orderBonusReason = computed(() => {
-    if (this.orderBonus() > 0) {
-      return 'bon ordre';
-    }
-    if (this.targetBar().length < 2) {
-      return 'moins de 2 placés';
-    }
-    if (this.myBar().length === 0) {
-      return 'pas de réponse';
-    }
-    return 'ordre différent';
-  });
+
+  /** The card centred in the carousel, mirrored by the dots under it. */
+  protected readonly activeCardIndex = signal(0);
   protected readonly isLastRound = computed(() => {
     const zeroToHundred = this.gameState.zeroToHundredGame();
     return zeroToHundred?.roundNumber === zeroToHundred?.totalRounds;
@@ -127,6 +110,19 @@ export class ZeroToHundredResultsPage implements OnInit {
     } catch {
       await this.router.navigate(['/join'], { queryParams: { code: this.route.snapshot.paramMap.get('code') } });
     }
+  }
+
+  protected onCarouselScroll(carousel: HTMLElement): void {
+    const firstCard = carousel.firstElementChild;
+    if (!firstCard) {
+      return;
+    }
+    const cardStep = firstCard.getBoundingClientRect().width + carouselGapPx;
+    this.activeCardIndex.set(Math.round(carousel.scrollLeft / cardStep));
+  }
+
+  protected scrollToCard(carousel: HTMLElement, index: number): void {
+    carousel.children[index]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   }
 
   protected async onStartNextRound(): Promise<void> {
@@ -141,23 +137,5 @@ export class ZeroToHundredResultsPage implements OnInit {
     } finally {
       this.isStartingNextRound.set(false);
     }
-  }
-
-  /** Shows only this nominee on the bars; tapping the same dot again shows everyone. */
-  protected toggleFocus(playerId: string): void {
-    this.focusSelection.update((current) => (current === playerId ? null : playerId));
-  }
-
-  private barShowsFocus(points: readonly ScalePoint[]): boolean {
-    const focusId = this.activeFocusId();
-    return points.some((point) => focusId === null || point.id === focusId);
-  }
-
-  /** One scale point per nominee that has a position on this bar; the seat keeps colors aligned across bars. */
-  private barPoints(positionOf: (entry: ZeroToHundredRevealEntryView) => number | undefined): ScalePoint[] {
-    return this.reveal().flatMap((entry, seat) => {
-      const value = positionOf(entry);
-      return value === undefined ? [] : [{ id: entry.playerId, label: nomineeLabel(entry), value, colorIndex: seat }];
-    });
   }
 }

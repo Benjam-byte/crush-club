@@ -170,7 +170,7 @@ export class LobbyPage implements OnInit {
 
   protected uncappedModeLabel(): string {
     if (this.gameState.isZeroToHundredMode()) {
-      return '0 à 100';
+      return '0 à 10';
     }
     if (this.gameState.isSituationMode()) {
       return 'Situation';

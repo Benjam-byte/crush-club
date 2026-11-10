@@ -33,6 +33,108 @@
   cursor: grabbing;
 }
 
+.question-card {
+  padding: 16px;
+  border: 1px solid var(--color-layer-border);
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 4px 12px rgb(89 42 50 / 0.05);
+}
+
+.question-card__start {
+  color: var(--color-text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.question-completion {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.question-completion__punctuation {
+  padding-top: 12px;
+  color: var(--color-text-primary);
+  font-size: 1.125rem;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.question-completion__input {
+  min-width: 0;
+  border-color: var(--color-brand-200);
+  border-radius: 12px;
+  background: var(--color-layer-bg);
+  box-shadow: none;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.5;
+  --padding-start: 12px;
+  --padding-end: 12px;
+  --padding-top: 12px;
+  --padding-bottom: 12px;
+  --placeholder-color: var(--color-text-secondary);
+  --placeholder-opacity: 1;
+
+  &:focus-within {
+    border-color: var(--color-brand-500);
+    outline: 2px solid var(--color-brand-200);
+    outline-offset: 2px;
+  }
+}
+
+.question-ranking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 4px;
+}
+
+.question-ranking-card {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) 2.75rem;
+  gap: 8px;
+  padding: 12px;
+}
+
+.question-ranking-card--selected {
+  border-color: var(--color-brand-200);
+  background: var(--color-peach-50);
+}
+
+.question-ranking-card__question {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.question-ranking-card__start {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.question-ranking-card__end {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-primary);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.question-proposal-actions .action-button {
+  min-width: 0;
+  font-size: 0.875rem;
+  white-space: normal;
+  --padding-start: 12px;
+  --padding-end: 12px;
+}
+
 // The CDK clones the dragged element into the overlay container at the
 // document body, outside this component's view — ::ng-deep is required for
 // these rules to reach it despite Angular's style encapsulation.

@@ -36,12 +36,15 @@ const (
 	fastBioReactionNeutral = "😐"
 	fastBioReactionSick    = "🤮"
 
-	zeroToHundredRoundCount            = 3
-	zeroToHundredGuessWindow           = 2 * time.Minute
-	zeroToHundredNomineeCount          = 5 // bounded by zero_to_100_nominees_seat_check (seats 0-4)
-	zeroToHundredMinPlayerCount        = 3
-	zeroToHundredProximityMaximumScore = 10
-	zeroToHundredOrderBonus            = 30
+	// The "0 à 10" mode keeps its zero_to_100 identifiers (lobby mode, tables,
+	// API routes); only the scale and the displayed name changed.
+	zeroToHundredRoundCount     = 3
+	zeroToHundredGuessWindow    = 2 * time.Minute
+	zeroToHundredNomineeCount   = 5 // bounded by zero_to_100_nominees_seat_check (seats 0-4)
+	zeroToHundredMinPlayerCount = 3
+	// zeroToHundredScaleMax is the top of the scale players place nominees on,
+	// from 0 to this value, whole numbers only.
+	zeroToHundredScaleMax = 10
 	// zeroToHundredSelfPlacementWeight is the share of a nominee's own placement
 	// in their target; the group's average position makes up the rest.
 	zeroToHundredSelfPlacementWeight = 1.0 / 3
@@ -92,7 +95,7 @@ const (
 	secretRankingRevealFinale = 2500 * time.Millisecond
 
 	// The shared theme/situation selection step (collecting_themes, then
-	// ranking_themes) of Fast Bio, 0 à 100, Situation and Wavelength gets the
+	// ranking_themes) of Fast Bio, 0 à 10, Situation and Wavelength gets the
 	// full window the first time a lobby goes through it, and the shorter
 	// repeat windows afterwards (Wavelength rounds 2+, replays): by then
 	// everyone knows the drill. See themeStepWindow.
@@ -333,30 +336,29 @@ type fastBioLeaderboardEntryView struct {
 
 type zeroToHundredStateView struct {
 	// AwaitingPlayerIDs is lifted into lobbyStateResponse.AwaitingPlayerIDs.
-	AwaitingPlayerIDs          []string                       `json:"-"`
-	ID                         string                         `json:"id"`
-	Phase                      string                         `json:"phase"`
-	ThemeSubmitted             bool                           `json:"themeSubmitted"`
-	ThemeCandidates            []string                       `json:"themeCandidates,omitempty"`
-	ThemeRanked                bool                           `json:"themeRanked"`
-	ThemeDeadline              *time.Time                     `json:"themeDeadline,omitempty"`
-	ThemeProgressCount         int                            `json:"themeProgressCount"`
-	ThemeProgressRequired      int                            `json:"themeProgressRequired"`
-	SelectedThemes             []string                       `json:"selectedThemes,omitempty"`
-	RoundNumber                int                            `json:"roundNumber,omitempty"`
-	TotalRounds                int                            `json:"totalRounds,omitempty"`
-	RoundPhase                 string                         `json:"roundPhase,omitempty"`
-	ThemeLabel                 string                         `json:"themeLabel,omitempty"`
-	SubmissionDeadline         *time.Time                     `json:"submissionDeadline,omitempty"`
-	Nominees                   []zeroToHundredNomineeView     `json:"nominees,omitempty"`
-	IsNominee                  bool                           `json:"isNominee,omitempty"`
-	Submitted                  bool                           `json:"submitted"`
-	SubmissionProgressCount    int                            `json:"submissionProgressCount"`
-	SubmissionProgressRequired int                            `json:"submissionProgressRequired"`
-	Reveal                     []zeroToHundredRevealEntryView `json:"reveal,omitempty"`
-	RoundScore                 int                            `json:"roundScore,omitempty"`
-	OrderBonus                 int                            `json:"orderBonus,omitempty"`
-	Leaderboard                []fastBioLeaderboardEntryView  `json:"leaderboard,omitempty"`
+	AwaitingPlayerIDs          []string                            `json:"-"`
+	ID                         string                              `json:"id"`
+	Phase                      string                              `json:"phase"`
+	ThemeSubmitted             bool                                `json:"themeSubmitted"`
+	ThemeCandidates            []string                            `json:"themeCandidates,omitempty"`
+	ThemeRanked                bool                                `json:"themeRanked"`
+	ThemeDeadline              *time.Time                          `json:"themeDeadline,omitempty"`
+	ThemeProgressCount         int                                 `json:"themeProgressCount"`
+	ThemeProgressRequired      int                                 `json:"themeProgressRequired"`
+	SelectedThemes             []string                            `json:"selectedThemes,omitempty"`
+	RoundNumber                int                                 `json:"roundNumber,omitempty"`
+	TotalRounds                int                                 `json:"totalRounds,omitempty"`
+	RoundPhase                 string                              `json:"roundPhase,omitempty"`
+	ThemeLabel                 string                              `json:"themeLabel,omitempty"`
+	SubmissionDeadline         *time.Time                          `json:"submissionDeadline,omitempty"`
+	Nominees                   []zeroToHundredNomineeView          `json:"nominees,omitempty"`
+	IsNominee                  bool                                `json:"isNominee,omitempty"`
+	Submitted                  bool                                `json:"submitted"`
+	SubmissionProgressCount    int                                 `json:"submissionProgressCount"`
+	SubmissionProgressRequired int                                 `json:"submissionProgressRequired"`
+	Reveal                     []zeroToHundredRevealEntryView      `json:"reveal,omitempty"`
+	Guessers                   []zeroToHundredGuesserView          `json:"guessers,omitempty"`
+	Leaderboard                []zeroToHundredLeaderboardEntryView `json:"leaderboard,omitempty"`
 }
 
 type zeroToHundredNomineeView struct {
@@ -365,21 +367,51 @@ type zeroToHundredNomineeView struct {
 	IsCurrentPlayer bool   `json:"isCurrentPlayer"`
 }
 
-// zeroToHundredRevealEntryView describes one nominee from the current
-// player's point of view. TruePosition (the nominee's own placement) and
-// TargetPosition (what everyone is scored against) are nil when the nominee
-// did not place themselves; AveragePosition is nil when no other player
-// placed them. MyPosition includes the current player's own self-placement;
-// Points are the proximity points it earned, order bonus excluded.
+// zeroToHundredRevealEntryView describes one nominee of the round, in seat
+// order. TruePosition (the nominee's own placement), TargetPosition (what the
+// podium is built from) and TargetRank (their step on it, 1 for the highest
+// target, shared by ties) are nil when the nominee did not place themselves;
+// AveragePosition is nil when no other player placed them. Averages and
+// targets are rounded to one decimal.
 type zeroToHundredRevealEntryView struct {
 	PlayerID        string   `json:"playerId"`
 	DisplayName     string   `json:"displayName"`
 	IsCurrentPlayer bool     `json:"isCurrentPlayer"`
 	TruePosition    *int     `json:"truePosition,omitempty"`
 	AveragePosition *float64 `json:"averagePosition,omitempty"`
-	TargetPosition  *int     `json:"targetPosition,omitempty"`
-	MyPosition      *int     `json:"myPosition,omitempty"`
-	Points          int      `json:"points"`
+	TargetPosition  *float64 `json:"targetPosition,omitempty"`
+	TargetRank      *int     `json:"targetRank,omitempty"`
+}
+
+// zeroToHundredGuesserView is one player's answer for the round: how they
+// ranked the nominees that have a target, and how many of them match the
+// podium. Everyone's answers are public once the round is over.
+type zeroToHundredGuesserView struct {
+	PlayerID        string                       `json:"playerId"`
+	DisplayName     string                       `json:"displayName"`
+	IsCurrentPlayer bool                         `json:"isCurrentPlayer"`
+	Placements      []zeroToHundredPlacementView `json:"placements"`
+	CorrectCount    int                          `json:"correctCount"`
+	PerfectOrder    bool                         `json:"perfectOrder"`
+}
+
+// zeroToHundredPlacementView is one nominee as a player placed them: their
+// position, the rank it gives among the nominees that have a target (1 for
+// the highest, shared by ties) and whether that rank matches the podium.
+type zeroToHundredPlacementView struct {
+	NomineeID string `json:"nomineeId"`
+	Position  int    `json:"position"`
+	Rank      int    `json:"rank"`
+	Correct   bool   `json:"correct"`
+}
+
+// zeroToHundredLeaderboardEntryView totals a player's well-placed nominees
+// (Score) and perfect orders over the game's rounds.
+type zeroToHundredLeaderboardEntryView struct {
+	PlayerID      string `json:"playerId"`
+	DisplayName   string `json:"displayName"`
+	Score         int    `json:"score"`
+	PerfectOrders int    `json:"perfectOrders"`
 }
 
 type situationStateView struct {

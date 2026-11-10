@@ -318,20 +318,48 @@ export interface ZeroToHundredNomineeView {
   isCurrentPlayer: boolean
 }
 
+/** One nominee of the round, in seat order (the seat picks their color). Values are on the 0 à 10 scale. */
 export interface ZeroToHundredRevealEntryView {
   playerId: string
   displayName: string
   isCurrentPlayer: boolean
   /** Absent when the nominee did not place themselves. */
   truePosition?: number
-  /** Absent when no other player placed this nominee. */
+  /** Absent when no other player placed this nominee. Rounded to one decimal. */
   averagePosition?: number
-  /** What everyone is scored against: ⅓ self-placement + ⅔ group average. Absent when the nominee did not place themselves. */
+  /** ⅓ self-placement + ⅔ group average, rounded to one decimal. Absent when the nominee did not place themselves. */
   targetPosition?: number
-  /** The current player's position, their own self-placement included. */
-  myPosition?: number
-  /** Proximity points the current player earned on this nominee, order bonus excluded. */
-  points: number
+  /** Step on the podium, 1 for the highest target; ties share a rank. Absent with targetPosition. */
+  targetRank?: number
+}
+
+/** One nominee as a player placed them, among the nominees that have a target. */
+export interface ZeroToHundredPlacementView {
+  nomineeId: string
+  position: number
+  /** 1 for the highest position; ties share a rank. */
+  rank: number
+  /** Whether this rank matches the nominee's step on the podium. */
+  correct: boolean
+}
+
+/** One player's answer for the round, sorted by the server from the best score down. */
+export interface ZeroToHundredGuesserView {
+  playerId: string
+  displayName: string
+  isCurrentPlayer: boolean
+  /** Sorted by rank, then seat. */
+  placements: readonly ZeroToHundredPlacementView[]
+  correctCount: number
+  perfectOrder: boolean
+}
+
+export interface ZeroToHundredLeaderboardEntryView {
+  playerId: string
+  displayName: string
+  /** Well-placed nominees over every round. */
+  score: number
+  perfectOrders: number
 }
 
 export interface ZeroToHundredStateView extends ThemeSelectionState {
@@ -349,9 +377,8 @@ export interface ZeroToHundredStateView extends ThemeSelectionState {
   submissionProgressCount?: number
   submissionProgressRequired?: number
   reveal?: readonly ZeroToHundredRevealEntryView[]
-  roundScore?: number
-  orderBonus?: number
-  leaderboard?: readonly FastBioLeaderboardEntryView[]
+  guessers?: readonly ZeroToHundredGuesserView[]
+  leaderboard?: readonly ZeroToHundredLeaderboardEntryView[]
 }
 
 export interface SituationProposalView {

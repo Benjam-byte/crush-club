@@ -1,0 +1,17 @@
+<!-- Read out as one sentence, in podium order, since the columns are drawn 4-2-1-3-5. -->
+<ol class="podium" role="img" [attr.aria-label]="summary()">
+  @for (column of columns(); track column.id) {
+    <li
+      class="podium__column"
+      [style.order]="column.slot"
+      [style.--nominee-color]="column.color"
+      [style.--nominee-text]="column.textColor"
+      [style.animation-delay]="column.revealDelay"
+    >
+      <span class="podium__token">{{ column.initials }}</span>
+      <span class="podium__name" [title]="column.name">{{ column.name }}</span>
+      <span class="podium__note">{{ column.noteLabel }}</span>
+      <span class="podium__step" [style.height.px]="column.stepHeight">{{ column.rankLabel }}</span>
+    </li>
+  }
+</ol>

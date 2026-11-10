@@ -241,6 +241,53 @@ ion-button::part(native) {
   box-shadow: var(--shadow-card);
 }
 
+/*
+ * Round results swiped sideways (Situation, 0 à 10): the list bleeds to the screen edges so the
+ * next card peeks in. Cards set `flex: 0 0 82%` and `scroll-snap-align: center`; the 12px gap is
+ * mirrored by carouselGapPx in the pages.
+ */
+.results-carousel {
+  display: flex;
+  min-height: 15rem;
+  flex: 1 1 0;
+  gap: 12px;
+  margin-inline: -20px;
+  padding: 4px 20px 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 20px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.results-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+/* A 24px tap target around an 8px dot. */
+.carousel-dot {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+}
+
+.carousel-dot::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-layer-border);
+  content: '';
+  transition:
+    width 160ms ease,
+    background 160ms ease;
+}
+
+.carousel-dot--active::before {
+  width: 20px;
+  background: var(--color-brand-500);
+}
+
 .radio-option {
   border-color: var(--color-layer-border);
   background: var(--color-layer-bg);

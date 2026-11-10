@@ -2,25 +2,7 @@
   display: block;
 }
 
-// Bleeds to the screen edges so the next card peeks in; place colours come from the global [data-tier] rules.
-.results-carousel {
-  display: flex;
-  min-height: 15rem;
-  flex: 1 1 0;
-  gap: 12px; // Kept in sync with carouselGapPx in the component.
-  margin-inline: -20px;
-  padding: 4px 20px 8px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scroll-padding-inline: 20px;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-}
-
-.results-carousel::-webkit-scrollbar {
-  display: none;
-}
-
+// The carousel and its dots are global (.results-carousel, .carousel-dot); place colours come from the global [data-tier] rules.
 .result-card {
   display: flex;
   min-height: 0;
@@ -92,28 +74,4 @@
   font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
-}
-
-// A 24px tap target around an 8px dot.
-.carousel-dot {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-}
-
-.carousel-dot::before {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--color-layer-border);
-  content: '';
-  transition:
-    width 160ms ease,
-    background 160ms ease;
-}
-
-.carousel-dot--active::before {
-  width: 20px;
-  background: var(--color-brand-500);
 }

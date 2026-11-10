@@ -12,12 +12,15 @@ import {
 } from '@angular/core';
 import type { ElementRef } from '@angular/core';
 
-/** One nominee placed on a 0 à 100 scale. */
+/** Top of the 0 à 10 scale; positions are whole numbers from 0 to this value. */
+export const SCALE_MAX = 10;
+
+/** One nominee placed on the 0 à 10 scale. */
 export interface ScalePoint {
   id: string
   label: string
   value: number
-  /** Seat index of the nominee: it picks the dot color, so it must match across scales. */
+  /** Seat index of the nominee: it picks the dot color, so it must match across screens. */
   colorIndex: number
 }
 
@@ -27,7 +30,7 @@ export interface ScaleValueChange {
 }
 
 /**
- * Nominee colors, picked by seat so a nominee keeps the same color on every scale.
+ * Nominee colors, picked by seat so a nominee keeps the same color on every screen.
  * Validated as a set (every pair, normal and color-blind vision) against the track
  * surface. Names are always displayed next to the dots, so color is never the only cue.
  */
@@ -44,23 +47,44 @@ export function nomineeTextColor(colorIndex: number): string {
   return NOMINEE_TEXT_COLORS[colorIndex % NOMINEE_TEXT_COLORS.length];
 }
 
-/** Evenly spread starting positions, e.g. 10/30/50/70/90 for five nominees. */
+/** Where a scale value sits along the track, in percent. */
+export function scalePercent(value: number): number {
+  return (value * 100) / SCALE_MAX;
+}
+
+/** Evenly spread starting positions, e.g. 1/3/5/7/9 for five nominees. */
 export function spreadPositions(count: number): number[] {
-  return Array.from({ length: count }, (_, index) => Math.round(((index + 0.5) * 100) / count));
+  return Array.from({ length: count }, (_, index) => Math.round(((index + 0.5) * SCALE_MAX) / count));
 }
 
+/** Snaps a value to the nearest notch of the scale. */
 export function clampScaleValue(value: number): number {
-  return Math.min(100, Math.max(0, Math.round(value)));
+  return Math.min(SCALE_MAX, Math.max(0, Math.round(value)));
 }
 
-/** Order of each value along the scale, 1 for the closest to 0; equal values share a rank. */
+/** Podium rank of each value, 1 for the highest; equal values share a rank. */
 export function scaleRanks(values: readonly number[]): number[] {
-  return values.map((value) => values.filter((other) => other < value).length + 1);
+  return values.map((value) => values.filter((other) => other > value).length + 1);
 }
 
 /** French ordinal shown after a name: 1er, 2e, 3e… */
 export function rankLabel(rank: number): string {
   return rank === 1 ? '1er' : `${rank}e`;
+}
+
+/** Horizontal gap between the dots of nominees placed on the same notch. */
+export const TIE_SPREAD_PX = 12;
+
+/**
+ * Horizontal shift of each dot, in pixels, so nominees on the same notch fan out
+ * around it instead of hiding each other. Untied values stay at 0.
+ */
+export function tieOffsets(values: readonly number[], spread = TIE_SPREAD_PX): number[] {
+  return values.map((value, index) => {
+    const tiedCount = values.filter((other) => other === value).length;
+    const tieIndex = values.slice(0, index).filter((other) => other === value).length;
+    return (tieIndex - (tiedCount - 1) / 2) * spread;
+  });
 }
 
 /** Horizontal extent of a label along the track, in pixels. */
@@ -71,11 +95,11 @@ export interface LabelSpan {
 
 /**
  * Where a label of labelWidth pixels lands on a track of trackWidth pixels. Labels
- * are anchored with `left: v%` and `translateX(-v%)`, so they never overflow the
- * track: their left edge sits at v% of (trackWidth - labelWidth).
+ * are anchored with `left: p%` and `translateX(-p%)`, so they never overflow the
+ * track: their left edge sits at p% of (trackWidth - labelWidth).
  */
 export function labelSpan(value: number, labelWidth: number, trackWidth: number): LabelSpan {
-  const start = (value / 100) * Math.max(0, trackWidth - labelWidth);
+  const start = (value / SCALE_MAX) * Math.max(0, trackWidth - labelWidth);
   return { start, end: start + labelWidth };
 }
 
@@ -114,18 +138,14 @@ export function nearestPointId(points: readonly ScalePoint[], value: number, pre
   return nearestId;
 }
 
-// Keep in sync with the .scale__name, .scale__value and .scale__end styles.
+// Keep in sync with the .scale__name styles.
 const NAME_FONT = '800 11px "Plus Jakarta Sans", system-ui, sans-serif';
 const RANK_FONT = '700 10px "Plus Jakarta Sans", system-ui, sans-serif';
 const NAME_MAX_WIDTH = 120;
 const NAME_CHROME_WIDTH = 30; // padding, border, swatch and the gaps around the name and rank
 const NAME_HEIGHT = 20;
 const NAME_LANE_HEIGHT = 24;
-const VALUE_FONT = '800 12px "Plus Jakarta Sans", system-ui, sans-serif';
-const END_FONT = '700 10px "Plus Jakarta Sans", system-ui, sans-serif';
-const VALUE_LANE_HEIGHT = 16;
-// Two value lanes cover the usual case of a value next to another one or to 0 / 100.
-const RESERVED_VALUE_LANES = 2;
+const RULER_HEIGHT = 18;
 const STEM_GAP = 6;
 const TRACK_ROW_HEIGHT = 32;
 const DEFAULT_TRACK_WIDTH = 300;
@@ -135,16 +155,16 @@ const KEY_MOVES: Partial<Record<string, (value: number) => number>> = {
   ArrowDown: (value) => value - 1,
   ArrowRight: (value) => value + 1,
   ArrowUp: (value) => value + 1,
-  PageDown: (value) => value - 10,
-  PageUp: (value) => value + 10,
+  PageDown: (value) => value - 2,
+  PageUp: (value) => value + 2,
   Home: () => 0,
-  End: () => 100,
+  End: () => SCALE_MAX,
 };
 
 /**
- * A single 0 à 100 track holding one colored dot per nominee, with the name above
- * and the value below each dot, so the order of the nominees reads at a glance.
- * Read-only by default; `editable` lets the player drag the dots.
+ * A single 0 à 10 track holding one colored dot per nominee, with the name and podium
+ * rank above each dot and a 0…10 ruler below, so the order reads at a glance.
+ * Read-only by default; `editable` lets the player drag the dots, which snap to the notches.
  */
 @Component({
   selector: 'app-zero-to-100-scale',
@@ -156,18 +176,13 @@ export class ZeroToHundredScaleComponent {
   readonly points = input.required<readonly ScalePoint[]>();
   readonly ariaLabel = input.required<string>();
   readonly editable = input(false);
-  /** Places each value beside its name so two result scales fit on a small screen. */
-  readonly compact = input(false);
-  /** Shows a single point, by id; null shows them all. */
-  readonly focusId = input<string | null>(null);
-  /**
-   * Keeps room for this many names stacked on their own lane (plus two value lanes),
-   * so scales keep one height while names re-stack or a single point is focused.
-   */
+  /** Keeps room for this many names stacked on their own lane, so the scale keeps one height while names re-stack. */
   readonly reservedNames = input(0);
   readonly valueChange = output<ScaleValueChange>();
 
   protected readonly activeId = signal<string | null>(null);
+  protected readonly ruler = Array.from({ length: SCALE_MAX + 1 }, (_, value) => ({ value, percent: scalePercent(value) }));
+  protected readonly scaleMax = SCALE_MAX;
   private readonly trackWidth = signal(DEFAULT_TRACK_WIDTH);
   private readonly fontsLoaded = signal(false);
   private readonly rail = viewChild.required<ElementRef<HTMLElement>>('rail');
@@ -176,61 +191,55 @@ export class ZeroToHundredScaleComponent {
   private drag: { pointerId: number; pointId: string; grabOffset: number } | null = null;
   private pointerDownOnPoint = false;
 
-  /** The drawn points: all of them, or only the focused one, still ranked among all. */
-  private readonly shownPoints = computed(() => {
-    const focusId = this.focusId();
-    // Ranked from the displayed (rounded) values, so ties match the numbers on screen.
-    const rankLabels = scaleRanks(this.points().map((point) => Math.round(point.value))).map(rankLabel);
-    return this.points()
-      .map((point, index) => ({ ...point, rankLabel: rankLabels[index] }))
-      .filter((point) => focusId === null || point.id === focusId);
+  /** The points with their podium rank and tie offset, ranked from the displayed (snapped) values. */
+  private readonly rankedPoints = computed(() => {
+    const values = this.points().map((point) => clampScaleValue(point.value));
+    const rankLabels = scaleRanks(values).map(rankLabel);
+    const offsets = tieOffsets(values);
+    return this.points().map((point, index) => ({
+      ...point,
+      displayValue: values[index],
+      rankLabel: rankLabels[index],
+      dotOffset: offsets[index],
+    }));
   });
 
+  /** Notches holding at least one dot, highlighted on the ruler. */
+  protected readonly occupiedValues = computed(() => new Set(this.rankedPoints().map((point) => point.displayValue)));
+
   protected readonly summary = computed(() => {
-    const positions = this.shownPoints().map((point) => `${point.label} ${Math.round(point.value)} (${point.rankLabel})`);
+    const positions = this.rankedPoints().map((point) => `${point.label} ${point.displayValue} (${point.rankLabel})`);
     return `${this.ariaLabel()} : ${positions.join(', ')}`;
   });
 
   protected readonly layout = computed(() => {
-    const points = this.shownPoints();
+    const points = this.rankedPoints();
     const trackWidth = this.trackWidth();
     // Label widths change once the web font replaces the fallback one.
     this.fontsLoaded();
     const nameLanes = assignLabelLanes(
       points.map((point) => {
-        const valueWidth = this.compact() ? this.textWidth(` · ${Math.round(point.value)}`, NAME_FONT) : 0;
-        const textWidth = this.textWidth(point.label, NAME_FONT) + this.textWidth(point.rankLabel, RANK_FONT) + valueWidth;
-        return labelSpan(point.value, Math.min(this.compact() ? 168 : NAME_MAX_WIDTH, textWidth + NAME_CHROME_WIDTH), trackWidth);
+        const textWidth = this.textWidth(point.label, NAME_FONT) + this.textWidth(point.rankLabel, RANK_FONT);
+        return labelSpan(point.displayValue, Math.min(NAME_MAX_WIDTH, textWidth + NAME_CHROME_WIDTH), trackWidth);
       }),
     );
-    // The 0 and 100 end labels sit on the first value lane, so values move out of their way.
-    const endSpans = [labelSpan(0, this.textWidth('0', END_FONT), trackWidth), labelSpan(100, this.textWidth('100', END_FONT), trackWidth)];
-    const valueLanesOf = (scalePoints: readonly ScalePoint[]) => assignLabelLanes(
-      scalePoints.map((point) => labelSpan(point.value, this.textWidth(`${Math.round(point.value)}`, VALUE_FONT), trackWidth)),
-      endSpans,
-    );
-    const valueLanes = valueLanesOf(points);
-    // Sized for every point, hidden ones included, so focusing one keeps the scale's height.
-    const allValueLanes = this.focusId() === null ? valueLanes : valueLanesOf(this.points());
-    const reservedNames = this.reservedNames();
-    const namesHeight = Math.max(1, reservedNames, ...nameLanes.map((lane) => lane + 1)) * NAME_LANE_HEIGHT;
-    const valueLaneCount = Math.max(reservedNames > 0 ? RESERVED_VALUE_LANES : 1, ...allValueLanes.map((lane) => lane + 1));
-    const valuesTop = namesHeight + STEM_GAP + TRACK_ROW_HEIGHT;
+    const namesHeight = Math.max(1, this.reservedNames(), ...nameLanes.map((lane) => lane + 1)) * NAME_LANE_HEIGHT;
+    const trackCenter = namesHeight + STEM_GAP + TRACK_ROW_HEIGHT / 2;
+    const rulerTop = namesHeight + STEM_GAP + TRACK_ROW_HEIGHT;
     return {
-      height: valuesTop + (this.compact() ? 1 : valueLaneCount) * VALUE_LANE_HEIGHT,
-      trackCenter: namesHeight + STEM_GAP + TRACK_ROW_HEIGHT / 2,
-      valuesTop,
+      height: rulerTop + RULER_HEIGHT,
+      trackCenter,
+      rulerTop,
       points: points.map((point, index) => {
+        const percent = scalePercent(point.displayValue);
         const nameTop = namesHeight - (nameLanes[index] + 1) * NAME_LANE_HEIGHT;
         return {
           ...point,
-          displayValue: Math.round(point.value),
+          percent,
           color: nomineeColor(point.colorIndex),
-          textColor: nomineeTextColor(point.colorIndex),
-          labelShift: `translateX(-${point.value}%)`,
+          labelShift: `translateX(-${percent}%)`,
           nameTop,
           stemTop: nameTop + NAME_HEIGHT,
-          valueTop: valuesTop + valueLanes[index] * VALUE_LANE_HEIGHT,
         };
       }),
     };
@@ -294,7 +303,7 @@ export class ZeroToHundredScaleComponent {
       return;
     }
     const value = clampScaleValue(this.pointerValue(event.clientX));
-    const pointId = nearestPointId(this.shownPoints(), value, this.activeId());
+    const pointId = nearestPointId(this.points(), value, this.activeId());
     if (pointId !== null) {
       this.activeId.set(pointId);
       this.emitValue(pointId, value);
@@ -324,10 +333,10 @@ export class ZeroToHundredScaleComponent {
     return pointId === undefined ? undefined : this.points().find((point) => point.id === pointId);
   }
 
-  /** Scale value under clientX, left unclamped so a drag keeps its grab offset. */
+  /** Scale value under clientX, left unrounded and unclamped so a drag keeps its grab offset. */
   private pointerValue(clientX: number): number {
     const rect = this.rail().nativeElement.getBoundingClientRect();
-    return rect.width > 0 ? ((clientX - rect.left) / rect.width) * 100 : 0;
+    return rect.width > 0 ? ((clientX - rect.left) / rect.width) * SCALE_MAX : 0;
   }
 
   private textWidth(text: string, font: string): number {

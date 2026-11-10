@@ -8,36 +8,62 @@ import {
   NOMINEE_COLORS,
   NOMINEE_TEXT_COLORS,
   rankLabel,
+  scalePercent,
   scaleRanks,
   spreadPositions,
+  tieOffsets,
 } from './zero-to-100-scale.component';
 import type { ScalePoint } from './zero-to-100-scale.component';
 
 describe('spreadPositions', () => {
   it('spreads five nominees evenly along the scale', () => {
-    expect(spreadPositions(5)).toEqual([10, 30, 50, 70, 90]);
+    expect(spreadPositions(5)).toEqual([1, 3, 5, 7, 9]);
   });
 
   it('spreads three nominees evenly along the scale', () => {
-    expect(spreadPositions(3)).toEqual([17, 50, 83]);
+    expect(spreadPositions(3)).toEqual([2, 5, 8]);
+  });
+
+  it('never starts two nominees on the same notch', () => {
+    for (let count = 1; count <= 5; count++) {
+      expect(new Set(spreadPositions(count)).size).toBe(count);
+    }
   });
 });
 
 describe('clampScaleValue', () => {
-  it('rounds and keeps values between 0 and 100', () => {
+  it('snaps to the nearest notch between 0 and 10', () => {
     expect(clampScaleValue(-4)).toBe(0);
-    expect(clampScaleValue(42.6)).toBe(43);
-    expect(clampScaleValue(130)).toBe(100);
+    expect(clampScaleValue(4.6)).toBe(5);
+    expect(clampScaleValue(4.4)).toBe(4);
+    expect(clampScaleValue(13)).toBe(10);
+  });
+});
+
+describe('scalePercent', () => {
+  it('places the notches along the track', () => {
+    expect([0, 5, 10].map(scalePercent)).toEqual([0, 50, 100]);
   });
 });
 
 describe('scaleRanks', () => {
-  it('ranks values from the closest to 0, in input order', () => {
-    expect(scaleRanks([70, 10, 90, 30])).toEqual([3, 1, 4, 2]);
+  it('ranks values from the highest, in input order', () => {
+    expect(scaleRanks([7, 1, 9, 3])).toEqual([2, 4, 1, 3]);
   });
 
   it('gives tied values the same rank', () => {
-    expect(scaleRanks([30, 10, 30, 80])).toEqual([2, 1, 2, 4]);
+    expect(scaleRanks([3, 1, 3, 8])).toEqual([2, 4, 2, 1]);
+  });
+});
+
+describe('tieOffsets', () => {
+  it('leaves untied values in place', () => {
+    expect(tieOffsets([1, 5, 9])).toEqual([0, 0, 0]);
+  });
+
+  it('fans tied values out around their notch, in input order', () => {
+    expect(tieOffsets([5, 2, 5], 12)).toEqual([-6, 0, 6]);
+    expect(tieOffsets([4, 4, 4], 12)).toEqual([-12, 0, 12]);
   });
 });
 
@@ -50,11 +76,11 @@ describe('rankLabel', () => {
 describe('labelSpan', () => {
   it('keeps labels inside the track at both ends', () => {
     expect(labelSpan(0, 60, 300)).toEqual({ start: 0, end: 60 });
-    expect(labelSpan(100, 60, 300)).toEqual({ start: 240, end: 300 });
+    expect(labelSpan(10, 60, 300)).toEqual({ start: 240, end: 300 });
   });
 
   it('slides the label along the track with its value', () => {
-    expect(labelSpan(50, 60, 300)).toEqual({ start: 120, end: 180 });
+    expect(labelSpan(5, 60, 300)).toEqual({ start: 120, end: 180 });
   });
 });
 
@@ -80,21 +106,21 @@ describe('assignLabelLanes', () => {
 
 describe('nearestPointId', () => {
   const points: ScalePoint[] = [
-    { id: 'a', label: 'A', value: 20, colorIndex: 0 },
-    { id: 'b', label: 'B', value: 50, colorIndex: 1 },
-    { id: 'c', label: 'C', value: 50, colorIndex: 2 },
+    { id: 'a', label: 'A', value: 2, colorIndex: 0 },
+    { id: 'b', label: 'B', value: 5, colorIndex: 1 },
+    { id: 'c', label: 'C', value: 5, colorIndex: 2 },
   ];
 
   it('picks the closest point', () => {
-    expect(nearestPointId(points, 25, null)).toBe('a');
+    expect(nearestPointId(points, 3, null)).toBe('a');
   });
 
   it('breaks ties in favor of the preferred point', () => {
-    expect(nearestPointId(points, 55, 'b')).toBe('b');
+    expect(nearestPointId(points, 6, 'b')).toBe('b');
   });
 
   it('otherwise breaks ties in favor of the point drawn on top', () => {
-    expect(nearestPointId(points, 55, null)).toBe('c');
+    expect(nearestPointId(points, 6, null)).toBe('c');
   });
 });
 

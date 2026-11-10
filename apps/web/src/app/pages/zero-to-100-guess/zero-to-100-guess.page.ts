@@ -40,7 +40,7 @@ export class ZeroToHundredGuessPage implements OnInit, OnDestroy {
     return this.nominees().map((nominee, seat) => ({
       id: nominee.playerId,
       label: nominee.isCurrentPlayer ? 'Toi' : nominee.displayName,
-      value: positions[nominee.playerId] ?? 50,
+      value: positions[nominee.playerId] ?? 5,
       colorIndex: seat,
     }));
   });

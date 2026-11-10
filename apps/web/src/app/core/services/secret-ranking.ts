@@ -30,11 +30,14 @@ export function seatColor(colorIndex: number): string {
   return secretRankingSeatColors[((colorIndex % count) + count) % count];
 }
 
+/** Includes the separating space when the preposition is not elided. */
+export function secretRankingQuestionPreposition(theme: string): string {
+  return /^[aeiouyàâäéèêëîïôöùûü]/i.test(theme.trim()) ? 'd’' : 'de ';
+}
+
 /** "de manger un insecte ?" or "d’aller à Lille ?": the end of the question, elided before a vowel. */
 export function secretRankingQuestionEnd(theme: string): string {
-  const trimmed = theme.trim();
-  const preposition = /^[aeiouyàâäéèêëîïôöùûü]/i.test(trimmed) ? 'd’' : 'de ';
-  return `${preposition}${trimmed}\u00a0?`;
+  return `${secretRankingQuestionPreposition(theme)}${theme.trim()}\u00a0?`;
 }
 
 export function secretRankingQuestion(theme: string): string {

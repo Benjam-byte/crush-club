@@ -45,7 +45,7 @@ export function isUncappedLobbyMode(mode: LobbyMode): boolean {
 
 /**
  * Expected route for the "crowd-sourced theme/situation + rounds" modes
- * (Fast Bio, 0 à 100, Situation, Wavelength), which all share the same
+ * (Fast Bio, 0 à 10, Situation, Wavelength), which all share the same
  * top-level shape: theme selection, then per-round pages, then a final
  * leaderboard (Wavelength goes back to theme selection before every round).
  * Returns the lobby URL whenever there is no game in progress yet, so callers
@@ -86,11 +86,11 @@ export function uncappedModeDestination(state: LobbyStateResponse): string {
       return `/game/${state.code}/theme-selection`;
     }
     if (zeroToHundred.phase === 'playing' && zeroToHundred.roundNumber) {
-      const roundBase = `/game/${state.code}/zero-to-100/${zeroToHundred.roundNumber}`;
+      const roundBase = `/game/${state.code}/zero-to-10/${zeroToHundred.roundNumber}`;
       return zeroToHundred.roundPhase === 'guessing' ? `${roundBase}/guess` : `${roundBase}/results`;
     }
     if (zeroToHundred.phase === 'completed') {
-      return `/game/${state.code}/zero-to-100/final`;
+      return `/game/${state.code}/zero-to-10/final`;
     }
     return lobbyUrl;
   }

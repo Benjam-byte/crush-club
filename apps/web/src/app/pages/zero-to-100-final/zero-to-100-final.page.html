@@ -1,8 +1,8 @@
 <div class="ion-page">
-  <app-page-header title="Classement 0 à 100" backLink="/" />
+  <app-page-header title="Classement 0 à 10" backLink="/" />
   <ion-content [scrollY]="false">
     <main class="app-shell screen-body">
-      <app-final-leaderboard [entries]="finalEntries()" accent="coral" />
+      <app-final-leaderboard [entries]="finalEntries()" accent="coral" [formatScore]="goodPlacesLabel" />
     </main>
   </ion-content>
   <footer class="screen-footer">

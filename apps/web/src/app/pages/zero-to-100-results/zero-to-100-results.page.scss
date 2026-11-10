@@ -1,0 +1,107 @@
+:host {
+  display: block;
+}
+
+// Cards list five rows at most: the carousel takes their height instead of the whole screen, and
+// shrinks down to this minimum (the cards then scroll) so the podium keeps its room on small screens.
+.results-carousel {
+  min-height: 8rem;
+  flex: 0 1 auto;
+}
+
+// Fades in once the podium's 1st place has risen; the delay comes from the template.
+.after-podium {
+  animation: after-podium-in 360ms ease-out both;
+}
+
+.big-gap {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-peach-100);
+  color: var(--color-ink-700);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+}
+
+// Place colours come from the global [data-tier] rules: gold for a perfect order.
+.guesser-card {
+  display: flex;
+  min-height: 0;
+  flex: 0 0 82%;
+  flex-direction: column;
+  padding: 12px 14px;
+  overflow-y: auto;
+  border: 2px solid var(--tier-color);
+  border-radius: 24px;
+  background: linear-gradient(180deg, var(--tier-soft), white 45%);
+  box-shadow: var(--shadow-card);
+  scroll-snap-align: center;
+}
+
+.guesser-card--mine {
+  box-shadow:
+    0 0 0 3px rgb(242 83 106 / 0.18),
+    var(--shadow-card);
+}
+
+.guesser-card__score {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--tier-color);
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.guesser-card__perfect {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 4px;
+  margin-top: 4px;
+  color: var(--color-ink-900);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.guesser-card__perfect ion-icon {
+  color: var(--tier-color);
+}
+
+.guesser-card__mark {
+  width: 18px;
+  height: 18px;
+}
+
+.guesser-card__miss {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-peach-100);
+  color: var(--color-ink-500);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+@keyframes after-podium-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+// The global reduced-motion rule shortens animations but keeps their delays.
+@media (prefers-reduced-motion: reduce) {
+  .after-podium {
+    animation: none;
+  }
+}

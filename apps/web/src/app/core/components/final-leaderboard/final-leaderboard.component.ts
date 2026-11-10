@@ -12,6 +12,11 @@ export interface RankedEntry extends FinalLeaderboardEntry {
   rank: number;
 }
 
+/** The default score display: "12 pts". */
+export function pointsLabel(score: number): string {
+  return `${score} pts`;
+}
+
 /** Ties share a rank ("1, 1, 3"), so two players on the same score never look ranked apart. Entries arrive sorted by score. */
 export function rankEntries(entries: readonly FinalLeaderboardEntry[]): RankedEntry[] {
   return entries.map((entry) => ({
@@ -30,8 +35,13 @@ export function rankEntries(entries: readonly FinalLeaderboardEntry[]): RankedEn
 export class FinalLeaderboardComponent {
   readonly entries = input.required<readonly FinalLeaderboardEntry[]>();
   readonly accent = input<'coral' | 'lover'>('coral');
+  /** How a score reads, "12 pts" by default; a mode can count something else ("4 bonnes places"). */
+  readonly formatScore = input<(score: number) => string>(pointsLabel);
 
-  private readonly rankedEntries = computed(() => rankEntries(this.entries()));
+  private readonly rankedEntries = computed(() => {
+    const formatScore = this.formatScore();
+    return rankEntries(this.entries()).map((entry) => ({ ...entry, scoreLabel: formatScore(entry.score) }));
+  });
   protected readonly podium = computed(() => this.rankedEntries().slice(0, 3));
   protected readonly remaining = computed(() => this.rankedEntries().slice(3));
   /** Shows the podium as second, first, third while screen readers keep the ranking order. */

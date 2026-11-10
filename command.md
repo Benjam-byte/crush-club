@@ -43,7 +43,7 @@ Déroulé :
 
 À savoir :
 
-- Il n'existe pas de bots pour les modes Classique, Fast Bio, 0 à 100, Wavelength et Le classement secret.
+- Il n'existe pas de bots pour les modes Classique, Fast Bio, 0 à 10, Wavelength et Le classement secret.
 - Le mode Situation démarre dès 2 joueurs : un seul bot suffit pour tester.
 - Les bots laissent le temps de voir les écrans d'attente et leurs mini-jeux (« Proposition envoyée ! », « Classement envoyé ! »).
 

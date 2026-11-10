@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { IonIcon } from '@ionic/angular/standalone';
 
-/** Static reminder of how 0 à 100 rounds are scored, shown while players wait for the others. */
+/** Static reminder of how 0 à 10 rounds are scored, shown while players wait for the others and on the results. */
 @Component({
   selector: 'app-zero-to-100-scoring-rules',
   imports: [IonIcon],

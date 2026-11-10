@@ -7,6 +7,15 @@ import { PageHeaderComponent } from '@core/components/page-header/page-header.co
 import { WaitingCardComponent } from '@core/components/waiting-card/waiting-card.component';
 import { GameStateService } from '@core/services/game-state.service';
 import { SessionMenuService } from '@core/services/session-menu.service';
+import { goodPlacesLabel } from '@core/services/zero-to-10-results';
+
+/** "2 ordres parfaits ✨", or nothing without one. */
+function perfectOrdersLabel(count: number): string | undefined {
+  if (count === 0) {
+    return undefined;
+  }
+  return count > 1 ? `${count} ordres parfaits ✨` : '1 ordre parfait ✨';
+}
 
 @Component({
   selector: 'app-zero-to-100-final-page',
@@ -21,7 +30,15 @@ export class ZeroToHundredFinalPage implements OnInit {
   private readonly router = inject(Router);
 
   protected readonly leaderboard = computed(() => this.gameState.zeroToHundredGame()?.leaderboard ?? []);
-  protected readonly finalEntries = computed(() => this.leaderboard().map(entry => ({ id: entry.playerId, name: entry.displayName, score: entry.score })));
+  protected readonly finalEntries = computed(() =>
+    this.leaderboard().map((entry) => ({
+      id: entry.playerId,
+      name: entry.displayName,
+      score: entry.score,
+      subtitle: perfectOrdersLabel(entry.perfectOrders),
+    })),
+  );
+  protected readonly goodPlacesLabel = goodPlacesLabel;
   protected readonly isReplaying = signal(false);
 
   async ngOnInit(): Promise<void> {

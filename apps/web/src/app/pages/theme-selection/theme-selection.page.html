@@ -26,11 +26,17 @@
                   gameState.isWavelengthMode()
                     ? 'Propose un spectre'
                     : gameState.isSecretRankingMode()
-                      ? 'Propose une question'
+                      ? 'Complète la phrase'
                       : 'Propose un thème'
                 }}
               </h1>
-              <p class="mt-2 text-sm text-ink-600">Facultatif · {{ proposalExample() }}</p>
+              @if (gameState.isSecretRankingMode()) {
+                <p id="secret-question-hint" class="mt-2 text-sm text-ink-600">
+                  Écris seulement la suite. Tu peux aussi passer.
+                </p>
+              } @else {
+                <p class="mt-2 text-sm text-ink-600">Facultatif · {{ proposalExample() }}</p>
+              }
               @if (gameState.isWavelengthMode()) {
                 <p class="mt-1 text-xs text-ink-500">{{ wavelengthProposalHint() }}</p>
               }
@@ -64,17 +70,38 @@
                 <!-- Lets the keyboard's Go key submit: the visible button sits in the footer, outside the form. -->
                 <button class="sr-only" type="submit" tabindex="-1" aria-hidden="true"></button>
               </form>
+            } @else if (gameState.isSecretRankingMode()) {
+              <form
+                id="theme-form"
+                class="question-card"
+                [formGroup]="themeForm"
+                (ngSubmit)="onSubmitTheme()"
+              >
+                <p id="secret-question-start" class="question-card__start">{{ secretRankingQuestionStart }}</p>
+                <div class="question-completion">
+                  <span class="question-completion__punctuation" aria-hidden="true">{{ questionPreposition() }}</span>
+                  <ion-textarea
+                    class="form-input question-completion__input"
+                    formControlName="theme"
+                    aria-label="Fin de la question"
+                    aria-describedby="secret-question-start secret-question-hint"
+                    [autoGrow]="true"
+                    [rows]="2"
+                    maxlength="80"
+                    placeholder="manger un insecte vivant"
+                  />
+                  <span class="question-completion__punctuation" aria-hidden="true">?</span>
+                </div>
+              </form>
             } @else {
               <form id="theme-form" [formGroup]="themeForm" (ngSubmit)="onSubmitTheme()">
                 <ion-input
                   class="form-input form-input--large"
                   formControlName="theme"
-                  [label]="gameState.isSecretRankingMode() ? secretRankingQuestionStart + ' de…' : 'Ton thème'"
+                  label="Ton thème"
                   labelPlacement="stacked"
                   maxlength="80"
-                  [placeholder]="
-                    gameState.isSecretRankingMode() ? 'manger un insecte vivant' : 'Résister à un fou rire…'
-                  "
+                  placeholder="Résister à un fou rire…"
                 />
               </form>
             }
@@ -117,40 +144,56 @@
                 gameState.isWavelengthMode()
                   ? 'Classe les spectres'
                   : gameState.isSecretRankingMode()
-                    ? 'Classe les questions'
+                    ? 'Quelles questions veux-tu jouer ?'
                     : 'Classe les thèmes'
               }}
             </h1>
             <p class="mt-1 text-xs text-ink-600">
-              Glisse pour réordonner, du meilleur (en haut) au moins bon.
-              {{
-                gameState.isWavelengthMode()
-                  ? wavelengthRankingHint()
-                  : gameState.isSecretRankingMode()
-                    ? 'Les 3 premières seront jouées, une par manche.'
-                    : 'Les 3 premiers seront joués.'
-              }}
+              @if (gameState.isSecretRankingMode()) {
+                Glisse tes préférées en haut. Les 3 premières seront jouées.
+              } @else {
+                Glisse pour réordonner, du meilleur (en haut) au moins bon.
+                {{ gameState.isWavelengthMode() ? wavelengthRankingHint() : 'Les 3 premiers seront joués.' }}
+              }
             </p>
           </header>
           <div class="screen-scroll" cdkScrollable>
-            <ol class="divide-y divide-peach-100" cdkDropList (cdkDropListDropped)="onDropTheme($event)">
+            <ol
+              [class]="gameState.isSecretRankingMode() ? 'question-ranking-list' : 'divide-y divide-peach-100'"
+              cdkDropList
+              (cdkDropListDropped)="onDropTheme($event)"
+            >
               @for (theme of ranking(); track theme; let index = $index) {
-                <li class="ranking-row flex min-h-12 items-center gap-3 px-2 py-1" cdkDrag [cdkDragData]="theme">
+                <li
+                  class="ranking-row flex min-h-12 items-center gap-3 px-2 py-1"
+                  [class.question-card]="gameState.isSecretRankingMode()"
+                  [class.question-ranking-card]="gameState.isSecretRankingMode()"
+                  [class.question-ranking-card--selected]="gameState.isSecretRankingMode() && index < 3"
+                  cdkDrag
+                  [cdkDragData]="theme"
+                >
                   <span
                     class="grid size-8 shrink-0 place-items-center rounded-xl bg-peach-100 text-xs font-extrabold text-brand-600"
                   >
                     {{ index + 1 }}
                   </span>
-                  <span
-                    class="min-w-0 flex-1 line-clamp-2 text-sm font-extrabold leading-snug text-ink-900 [overflow-wrap:anywhere]"
-                    [title]="theme"
-                    >{{ gameState.isSecretRankingMode() ? '…' + secretRankingQuestionEnd(theme) : theme }}</span
-                  >
+                  @if (gameState.isSecretRankingMode()) {
+                    <p class="question-ranking-card__question">
+                      <span class="question-ranking-card__start">{{ secretRankingQuestionStart }} </span>
+                      <span class="question-ranking-card__end">{{ secretRankingQuestionEnd(theme) }}</span>
+                    </p>
+                  } @else {
+                    <span
+                      class="min-w-0 flex-1 line-clamp-2 text-sm font-extrabold leading-snug text-ink-900 [overflow-wrap:anywhere]"
+                      [title]="theme"
+                      >{{ theme }}</span
+                    >
+                  }
                   <button
                     class="grid size-11 shrink-0 place-items-center text-lg text-ink-500"
                     type="button"
                     cdkDragHandle
-                    [attr.aria-label]="'Déplacer le thème ' + (index + 1)"
+                    [attr.aria-label]="(gameState.isSecretRankingMode() ? 'Déplacer la question ' : 'Déplacer le thème ') + (index + 1)"
                   >
                     <ion-icon name="reorder-two-outline" aria-hidden="true" />
                   </button>
@@ -179,7 +222,7 @@
     @if (
       gameState.themeSelectionState()?.phase === 'collecting_themes' && !gameState.themeSelectionState()?.themeSubmitted
     ) {
-      <div class="grid grid-cols-[auto_1fr] gap-3">
+      <div class="grid grid-cols-[auto_1fr] gap-3" [class.question-proposal-actions]="gameState.isSecretRankingMode()">
         <ion-button
           class="action-button action-button--secondary"
           [disabled]="isSubmittingTheme()"
@@ -196,7 +239,7 @@
           >
         } @else {
           <ion-button class="action-button" form="theme-form" type="submit" [disabled]="isSubmittingTheme()">{{
-            isSubmittingTheme() ? 'Envoi…' : 'Proposer'
+            isSubmittingTheme() ? 'Envoi…' : gameState.isSecretRankingMode() ? 'Proposer ma question' : 'Proposer'
           }}</ion-button>
         }
       </div>

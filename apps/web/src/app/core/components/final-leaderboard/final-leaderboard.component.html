@@ -21,7 +21,7 @@
         }
       </div>
       <p class="truncate text-sm font-extrabold" [title]="entry.name">{{ entry.name }}</p>
-      <p class="text-sm font-bold">{{ entry.score }} pts</p>
+      <p class="text-sm leading-tight font-bold text-balance">{{ entry.scoreLabel }}</p>
       @if (entry.subtitle) {
         <p class="truncate text-[10px]" [title]="entry.subtitle">{{ entry.subtitle }}</p>
       }
@@ -42,7 +42,7 @@
             <span class="block truncate text-[10px] text-ink-500">{{ entry.subtitle }}</span>
           }
         </span>
-        <span class="shrink-0 text-sm font-extrabold text-brand-600">{{ entry.score }} pts</span>
+        <span class="shrink-0 text-sm font-extrabold text-brand-600">{{ entry.scoreLabel }}</span>
       </li>
     }
   </ol>

@@ -2,7 +2,7 @@
   display: block;
 }
 
-// Inset so the dots at 0 and 100 stay inside the card.
+// Inset so the dots at 0 and 10 stay inside the card.
 .scale {
   position: relative;
   margin-inline: 12px;
@@ -26,46 +26,38 @@
   transform: translateY(-50%);
 }
 
-// Midpoint notch.
-.scale__track::after {
+// One notch per whole value; the middle one stands out.
+.scale__notch {
   position: absolute;
-  top: -3px;
-  bottom: -3px;
-  left: 50%;
+  top: 2px;
+  bottom: 2px;
   width: 2px;
   border-radius: 1px;
   background: var(--color-layer-border);
-  content: '';
   transform: translateX(-50%);
 }
 
-.scale__end,
-.scale__value {
-  position: absolute;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  line-height: 16px;
-  white-space: nowrap;
+.scale__notch--middle {
+  top: -3px;
+  bottom: -3px;
 }
 
-.scale__end {
+.scale__ruler {
+  position: absolute;
   color: var(--color-ink-500);
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
+  line-height: 18px;
+  opacity: 0.7;
+  transform: translateX(-50%);
 }
 
-.scale__end--start {
-  left: 0;
-}
-
-.scale__end--end {
-  right: 0;
-}
-
-.scale__value {
-  z-index: 2;
-  color: var(--color-text-secondary);
+.scale__ruler.is-occupied {
+  color: var(--color-ink-900);
+  font-size: 12px;
   font-weight: 800;
+  opacity: 1;
 }
 
 .scale__stem {
@@ -101,10 +93,6 @@
   text-overflow: ellipsis;
 }
 
-.scale--compact .scale__name {
-  max-width: 168px;
-}
-
 .scale__rank {
   flex-shrink: 0;
   color: var(--color-ink-500);
@@ -128,7 +116,10 @@
   border-radius: 50%;
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
   transform: translate(-50%, -50%);
-  transition: transform 120ms ease;
+  transition:
+    transform 120ms ease,
+    left 90ms ease,
+    margin-left 120ms ease;
 }
 
 .scale__dot:focus-visible {
@@ -137,8 +128,7 @@
 }
 
 .scale--editable .scale__dot,
-.scale--editable .scale__name,
-.scale--editable .scale__value {
+.scale--editable .scale__name {
   cursor: grab;
   touch-action: none;
 }
@@ -160,11 +150,16 @@
   z-index: 11;
 }
 
-.scale__name.is-active,
-.scale__value.is-active {
+.scale__name.is-active {
   z-index: 12;
 }
 
 .scale__dot.is-active {
   z-index: 13;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scale__dot {
+    transition: none;
+  }
 }

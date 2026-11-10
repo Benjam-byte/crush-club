@@ -28,9 +28,9 @@ const modeDescriptionMap: Record<LobbyMode, { summary: string; details?: string 
       'Chacun invente une bio + une photo pour un autre joueur sur un thème choisi par le groupe, puis tout le monde note les propositions.',
   },
   zero_to_100: {
-    summary: 'Place jusqu’à 5 nominés sur une échelle de 0 à 100, thème par thème.',
+    summary: 'Note jusqu’à 5 nominés de 0 à 10 et retrouve le podium du groupe, thème par thème.',
     details:
-      'Le groupe choisit 3 thèmes, puis à chaque manche jusqu’à 5 nominés sont tirés au sort et tout le monde les place sur une échelle de 0 à 100.',
+      'Le groupe choisit 3 thèmes, puis à chaque manche jusqu’à 5 nominés sont tirés au sort et tout le monde les note de 0 à 10. Chaque nominé bien placé sur le podium du groupe rapporte une bonne place.',
   },
   situation: {
     summary: 'Désigne qui s’en sortirait le mieux dans chaque situation, et explique pourquoi.',

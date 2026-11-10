@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { rankEntries } from './final-leaderboard.component';
+import { pointsLabel, rankEntries } from './final-leaderboard.component';
+
+describe('pointsLabel', () => {
+  it('shows scores in points by default', () => {
+    expect(pointsLabel(12)).toBe('12 pts');
+  });
+});
 
 describe('rankEntries', () => {
   it('gives tied scores the same rank and skips the next one', () => {

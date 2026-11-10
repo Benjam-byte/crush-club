@@ -34,7 +34,7 @@ func integrationThemeSelection(t *testing.T, mode string, state lobbyStateRespon
 		}
 	case lobbyModeZeroToHundred:
 		if state.ZeroToHundredGame == nil {
-			t.Fatal("missing 0 to 100 state")
+			t.Fatal("missing 0 à 10 state")
 		}
 		game := state.ZeroToHundredGame
 		return integrationThemeView{
@@ -242,11 +242,11 @@ func submitFirstRoundAction(
 	case lobbyModeZeroToHundred:
 		if state.ZeroToHundredGame == nil || state.ZeroToHundredGame.SubmissionDeadline == nil ||
 			rankingDeadline == nil || !state.ZeroToHundredGame.SubmissionDeadline.After(*rankingDeadline) {
-			t.Fatalf("0 to 100 round did not receive a fresh deadline: %#v", state.ZeroToHundredGame)
+			t.Fatalf("0 à 10 round did not receive a fresh deadline: %#v", state.ZeroToHundredGame)
 		}
 		positions := make(map[string]int, len(state.ZeroToHundredGame.Nominees))
 		for index, nominee := range state.ZeroToHundredGame.Nominees {
-			positions[nominee.PlayerID] = 20 + index*20
+			positions[nominee.PlayerID] = index * 2
 		}
 		*state = integrationRequestJSON[lobbyStateResponse](
 			t, hostIdentity, http.MethodPost,
@@ -255,7 +255,7 @@ func submitFirstRoundAction(
 		)
 		if state.ZeroToHundredGame == nil || !state.ZeroToHundredGame.Submitted ||
 			state.ZeroToHundredGame.SubmissionProgressCount != 1 {
-			t.Fatalf("0 to 100 positions were not acknowledged: %#v", state.ZeroToHundredGame)
+			t.Fatalf("0 à 10 positions were not acknowledged: %#v", state.ZeroToHundredGame)
 		}
 	case lobbyModeSituation:
 		if state.SituationGame == nil || state.SituationGame.ProposalDeadline == nil ||
@@ -302,7 +302,7 @@ func requireRoundProgressBroadcast(t *testing.T, mode string, snapshot lobbyStat
 		}
 	case lobbyModeZeroToHundred:
 		if snapshot.ZeroToHundredGame == nil || snapshot.ZeroToHundredGame.SubmissionProgressCount != 1 {
-			t.Fatalf("0 to 100 progress was not broadcast: %#v", snapshot.ZeroToHundredGame)
+			t.Fatalf("0 à 10 progress was not broadcast: %#v", snapshot.ZeroToHundredGame)
 		}
 	case lobbyModeSituation:
 		if snapshot.SituationGame == nil || snapshot.SituationGame.SubmissionProgressCount != 1 {
